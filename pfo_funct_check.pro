@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_funct_check.pro,v 1.1 2003/12/19 00:04:08 jpmorgen Exp $
+; $Id: pfo_funct_check.pro,v 1.2 2004/01/15 17:11:49 jpmorgen Exp $
 
 ; pfo_funct_check.pro 
 
@@ -25,11 +25,11 @@ function pfo_funct_check, fn, Xin=Xin, params=params, parinfo=parinfo, $
   init = {pfo_sysvar}
 
   ;; Handle some pathological cases
-  npar = 0
+  npar = -1
   if N_elements(Xin) eq 0 then $
     Xin = [!pfo.ytemplate]
   if N_elements(params) eq 0 and N_elements(parinfo) eq 0 then $
-    return, -1
+    return, npar
   if N_elements(fn) eq 0 then $
     fn = !pfo.null
 
@@ -45,19 +45,29 @@ function pfo_funct_check, fn, Xin=Xin, params=params, parinfo=parinfo, $
     params = parinfo.value
      
   ;; This should catch typos where the index values of params and
-  ;; parinfo were not the same variable
+  ;; parinfo were not the same variable.  Oh, but if I am using idx
+  ;; all the time, this might be inconvenient.  Well, I'll know when
+  ;; that time comes.
   if N_elements(params) ne N_elements(parinfo) then $
-    message, 'ERROR: number of parameters and number of parinfo records for function ' + !pfo.fnames[fn] + 'do not match'
+    message, 'ERROR: number of parameters and number of parinfo records do not match.  If you really want it that way (e.g. playing fast and loose with segments of parameter lists, feel free to remove this code.'
 
   ;; idx might not have been specified
   if N_elements(idx) eq 0 then $
     idx = indgen(N_elements(parinfo))
 
-  if N_elements(idx) gt N_elements(parinfo) then $
+  ;; Check to see if we got handed idx=-1
+  if N_elements(idx) eq 1 then $
+    if idx eq -1 then $
+    return, idx
+
+  ;; In case I decide to removed the restriction that params and
+  ;; parinfo be the same length
+  if N_elements(idx) gt N_elements(parinfo) or $
+    N_elements(idx) gt N_elements(params) then $
     message, 'ERROR: too many idx values'
 
-  ;; The null funciton is also used for printing, so don;t use it to
-  ;; search for indices
+  ;; The null funciton is also used for printing, so don't use it to
+  ;; search for indices.  Also, I am now using it in pfo_funct
   if fn eq !pfo.null then begin
      f_idx = where(parinfo[idx].pfo.status eq !pfo.active, npar)
   endif else begin

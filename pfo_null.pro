@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_null.pro,v 1.1 2003/12/19 00:01:42 jpmorgen Exp $
+; $Id: pfo_null.pro,v 1.2 2004/01/15 17:10:34 jpmorgen Exp $
 
 ; pfo_null.pro 
 
@@ -13,6 +13,7 @@
 function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
                    create=create, print=print, $
                    ytemplate=ytemplate, _EXTRA=extra
+
 
   ;; Generic pfo system initialization
   init = {pfo_sysvar}
@@ -71,6 +72,11 @@ function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
         message, 'ERROR: problem with print formatting'
      endif
      
+     ;; Handle the case of idx=-1 by returning the null string
+     if N_elements(idx) eq 1 then $
+       if idx eq -1 then $
+       return, ''
+
      ;; Try to handle all the cases of params, no parinfo, parinfo, no
      ;; params, etc.
      if N_elements(params) eq 0 and N_elements(parinfo) eq 0 then begin
@@ -83,7 +89,6 @@ function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
      ;; Get the benefit of the error checking of pfo_funct_check
      f_idx = pfo_funct_check(!pfo.null, Xin=Xin, params=params, $
                              parinfo=parinfo, idx=idx)
-
      pidx = where(parinfo[f_idx].mpprint ne 0, nprint)
      if nprint eq 0 then $
        return, toprint
@@ -124,106 +129,84 @@ function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
      endif
 
      ;; Now handle the more generic printing options
-     case print of
-        1	:	begin
-           ;; Just print the parameters according to their pfo.formats
-           ;; (if specified)
-           for ip=0, N_elements(pidx)-1 do begin
-              if ip ne 0 then $
-                toprint = toprint + !pfo.separator + ' '
-              if keyword_set(parinfo[pidx[ip]].pfo.format) then $
-                format = '(' + parinfo[pidx[ip]].pfo.format + ')'
-              toprint = toprint + string(params[pidx[ip]], format=format)
-           endfor
-        end
-        !pfo.ppname	:	begin
-           ;; Could have used the ':' format code, but this is just
-           ;; about as much pain to code up, since I am not sure how
-           ;; many parinfo records I will have
-           for ip=0, N_elements(pidx)-1 do begin
-              if ip ne 0 then $
-                toprint = toprint + ', '
-              toprint = toprint + parinfo[pidx[ip]].parname
-           endfor
-        end
-        !pfo.pmp	:	begin
-           for ip=0, N_elements(pidx)-1 do begin
-              ;; parname = 
-              ;; Build up a formatted 'parname = ' using
-              ;; !pfo.pname_width as the runtime format specifier
-              pnformat = '(' + 'a' + strtrim(string(!pfo.pname_width),2) + $
-                       ')'
-              toprint = toprint + string(format=pnformat, $
-                                         parinfo[pidx[ip]].parname) + ' = '
+     if print eq !pfo.print then begin
+        ;; Just print the parameters according to their pfo.formats
+        ;; (if specified)
+        for ip=0, N_elements(pidx)-1 do begin
+           if ip ne 0 then $
+             toprint = toprint + !pfo.separator + ' '
+           if keyword_set(parinfo[pidx[ip]].pfo.format) then $
+             format = '(' + parinfo[pidx[ip]].pfo.format + ')'
+           toprint = toprint + string(params[pidx[ip]], format=format)
+        endfor
+        return, toprint
+     endif
+     if print eq !pfo.ppname then begin
+        ;; Could have used the ':' format code, but this is just
+        ;; about as much pain to code up, since I am not sure how
+        ;; many parinfo records I will have
+        for ip=0, N_elements(pidx)-1 do begin
+           if ip ne 0 then $
+             toprint = toprint + ', '
+           toprint = toprint + parinfo[pidx[ip]].parname
+        endfor
+        return, toprint
+     endif
+     if print eq !pfo.pmp then begin
+        for ip=0, N_elements(pidx)-1 do begin
+           ;; parname = 
+           ;; Build up a formatted 'parname = ' using
+           ;; !pfo.pname_width as the runtime format specifier
+           pnformat = '(' + 'a' + strtrim(string(!pfo.pname_width),2) + $
+                      ')'
+           toprint = toprint + string(format=pnformat, $
+                                      parinfo[pidx[ip]].parname) + ' = '
+           
+           ;; param and limits format
+           if keyword_set(parinfo[pidx[ip]].pfo.format) then $
+             pformat = '(' + parinfo[pidx[ip]].pfo.format + ')'
+           ;; Left limit.  I think I want to always print it and
+           ;; indicate its use with the delimiters
+           toprint = toprint + $
+                     string(parinfo[pidx[ip]].limits[!pfo.left], format=pformat)
+           
+           toprint = toprint + $
+                     pfo_delimiter(!pfo.left, params, parinfo, $
+                                   pidx[ip], _EXTRA=extra)
+           
+           ;; params
+           toprint = toprint + string(params[pidx[ip]], format=pformat)
+           
+           ;; +/- error
+           toprint = toprint + ' +/- '
+           if keyword_set(parinfo[pidx[ip]].pfo.eformat) then $
+             eformat = '(' + parinfo[pidx[ip]].pfo.eformat + ')'
+           toprint = toprint + $
+                     string(parinfo[pidx[ip]].error, format=eformat)
 
-              ;; param and limits format
-              if keyword_set(parinfo[pidx[ip]].pfo.format) then $
-                pformat = '(' + parinfo[pidx[ip]].pfo.format + ')'
+           toprint = toprint + $
+                     pfo_delimiter(!pfo.right, params, parinfo, $
+                                   pidx[ip], _EXTRA=extra)
+           
+           toprint = toprint + $
+                     string(parinfo[pidx[ip]].limits[!pfo.right], format=pformat)
+           
+           ;; Additional mpfit stuff
+           if keyword_set(parinfo[pidx[ip]].step) then $
+             toprint = toprint + ' step=' + string(parinfo[ip].step)
+           if keyword_set(parinfo[pidx[ip]].mpside) then $
+             toprint = toprint + ' mpside=' + string(parinfo[ip].mpside)
+           if keyword_set(parinfo[pidx[ip]].mpmaxstep) then $
+             toprint = toprint +' mpmaxstep=' + string(parinfo[ip].mpmaxstep)
+           if keyword_set(parinfo[pidx[ip]].tied) then $
+             toprint = toprint + ' tied=' + parinfo[ip].tied
 
-;              ;; Left limit.  Reserve the right amount of space, but
-;              ;; leave it blank if it is not used.
-;              llim = string(parinfo[pidx[ip]].limits[0], format=pformat)
-;              if NOT keyword_set(parinfo[pidx[ip]].limited[0]) then begin
-;                 ;; There must be a better way to do this!
-;                 tmp = ''
-;                 for itmp=0,strlen(llim)-1 do tmp = tmp + ' '
-;                 llim = tmp
-;              endif
-
-              ;; Left limit.  I think I want to always print it and
-              ;; indicate its use with the delimiters
-              toprint = toprint + $
-                        string(parinfo[pidx[ip]].limits[!pfo.left], format=pformat)
-
-              toprint = toprint + $
-                        pfo_delimiter(!pfo.left, params, parinfo, $
-                                      pidx[ip], _EXTRA=extra)
-
-              ;; params
-              toprint = toprint + string(params[pidx[ip]], format=pformat)
-
-              ;; +/- error
-              toprint = toprint + ' +/- '
-              if keyword_set(parinfo[pidx[ip]].pfo.eformat) then $
-                eformat = '(' + parinfo[pidx[ip]].pfo.eformat + ')'
-              toprint = toprint + $
-                        string(parinfo[pidx[ip]].error, format=eformat)
-
-              toprint = toprint + $
-                        pfo_delimiter(!pfo.right, params, parinfo, $
-                                      pidx[ip], _EXTRA=extra)
-
-              toprint = toprint + $
-                        string(parinfo[pidx[ip]].limits[!pfo.right], format=pformat)
-
-;              ;; Right limit.  Reserve the right amount of space, but
-;              ;; leave it blank if it is not used.
-;              rlim = string(parinfo[pidx[ip]].limits[1], format=pformat)
-;              if NOT keyword_set(parinfo[pidx[ip]].limited[1]) then begin
-;                 ;; There must be a better way to do this!
-;                 tmp = ''
-;                 for itmp=0,strlen(rlim)-1 do tmp = tmp + ' '
-;                 rlim = tmp
-;              endif
-
-              ;; Additional mpfit stuff
-              if keyword_set(parinfo[pidx[ip]].step) then $
-                toprint = toprint + ' step=' + string(parinfo[ip].step)
-              if keyword_set(parinfo[pidx[ip]].mpside) then $
-                toprint = toprint + ' mpside=' + string(parinfo[ip].mpside)
-              if keyword_set(parinfo[pidx[ip]].mpmaxstep) then $
-                toprint = toprint +' mpmaxstep=' + string(parinfo[ip].mpmaxstep)
-              if keyword_set(parinfo[pidx[ip]].tied) then $
-                toprint = toprint + ' tied=' + parinfo[ip].tied
-
-              ;; Next line for next parameter or end of list
-              toprint = toprint + !pfo.newline
-           endfor ;; each parameter
-        end
-        else	:	message, 'ERROR: unknown print type ' + string(print)
-     endcase ;; numeric print options
-
-     return, toprint
+           ;; Next line for next parameter or end of list
+           toprint = toprint + !pfo.newline
+        endfor ;; each parameter
+        return, toprint
+     endif
+     message, 'ERROR: unknown print type ' + string(print)
 
   endif ;; /PRINT
 

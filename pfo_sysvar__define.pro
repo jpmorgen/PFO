@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.1 2003/12/18 23:45:30 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.2 2004/01/15 17:05:49 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -57,9 +57,10 @@ pro pfo_sysvar__define
        gauss	:	3, $
        voigt	:	4, $
        sso	:	5, $
+       sso_funct:	5, $
        last_fn	:	5, $
        $ ;; If you add functions, add to these.  0 parameters means unspecified
-       fnames	:	['null', 'poly', 'deltafn', 'gauss', 'voigt', 'sso'], $
+       fnames	:	['null', 'poly', 'deltafn', 'gauss', 'voigt', 'sso_funct'], $
        fnpars	:	[0,0,2,3,4,0], $ ;; Number of params per fn
        $ ;; Here are tokens for individual parameters.  Are these useful?
        $ ;; Names will have to be handled by the calling routines,
@@ -70,8 +71,9 @@ pro pfo_sysvar__define
        pmp	:	3,   $  ;; print all mpfit fields
        separator:	',', $	;; Separator used in printing parameters, names
        pname_width:	12,  $	;; formatted width of the pname field
-       left	:	0, $
-       right	:	1, $
+       longnames:	1,   $  ;; Print long parameter names for clarity
+       left	:	0,   $
+       right	:	1,   $
        $ ;; Use C printf-style quoted string formatting to get newline
        $ ;; (is there a way to do this in the FORTAN style?) 
        newline	:	string(format='(%"%s\n")', ''), $

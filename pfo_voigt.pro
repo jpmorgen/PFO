@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_voigt.pro,v 1.1 2003/12/19 00:01:27 jpmorgen Exp $
+; $Id: pfo_voigt.pro,v 1.2 2004/01/15 17:10:25 jpmorgen Exp $
 
 ; pfo_voigt.pro 
 
@@ -29,11 +29,19 @@ function pfo_voigt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
 
      ;; PARNAME
      ;; Don't put function name in parname, since it can be
-     ;; reconstructed from pfo.ftype
-     new_parinfo[0].parname = 'center'
-     new_parinfo[1].parname = 'area'
-     new_parinfo[2].parname = 'gauss width'
-     new_parinfo[3].parname = 'lor width'
+     ;; reconstructed from pfo.ftype.  Packages built on top of pfo
+     ;; will want to set !pfo.longnames = 0 to use these short names     
+     new_parinfo[0].parname = 'C'
+     new_parinfo[1].parname = 'A'
+     new_parinfo[2].parname = 'Gw'
+     new_parinfo[3].parname = 'Lw'
+
+     if !pfo.longnames ne 0 then begin
+        new_parinfo[0].parname = 'center'
+        new_parinfo[1].parname = 'area'
+        new_parinfo[2].parname = 'Gaussian width'
+        new_parinfo[3].parname = 'Lorentzian width'
+     endif
 
      ;; VALUE
      ;; For Voigts, the Gaussian width must be non-zero or else the
@@ -81,7 +89,8 @@ function pfo_voigt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
 
   ;; PRINT.  pfo_null can print parameters once they are in order
   if keyword_set(print) then $
-    return, pfo_null([0], params[pidx], parinfo=parinfo[pidx], print=print)
+    return, pfo_null([0], params, parinfo=parinfo, idx=pidx, print=print, $
+                    _EXTRA=extra)
      
   ;; CALCULATE
   ;; This code is taken from Carey Woodward's V-Fudgit documentation
