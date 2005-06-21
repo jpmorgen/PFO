@@ -1,5 +1,5 @@
 ; +
-; $Id: struct_append.pro,v 1.1 2003/12/18 23:58:34 jpmorgen Exp $
+; $Id: struct_append.pro,v 1.2 2005/06/21 20:19:50 jpmorgen Exp $
 
 ; struct_append  Append tags to a structure
 
@@ -29,7 +29,7 @@ function struct_append, orig_struct, more_struct, name=name
 
   ;; Execute the command we have built and check for an error.
   if NOT execute(command) then begin
-     mesage, command, /CONTINUE
+     message, command, /CONTINUE
      message, 'ERROR: command shown above failed.'
   endif
 
