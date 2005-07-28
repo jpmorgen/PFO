@@ -1,5 +1,5 @@
 ; +
-; $Id: struct_array_assign.pro,v 1.2 2004/01/15 17:11:19 jpmorgen Exp $
+; $Id: struct_array_assign.pro,v 1.3 2005/07/28 23:49:18 jpmorgen Exp $
 
 ; struct_array_assign
 
@@ -51,36 +51,35 @@
 ;;    struct_array_assign, parinfo, idx, tagname = 'error', tagval = error
 
 
-
-
-
 ; -
 
-pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=tagval
+pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=intagval
                      
 
   ;; Let IDL do the error checking on array bounds
 ;;  ON_ERROR, 2
 
   npfo = N_elements(inparinfo)
-  if npfo eq 0 then return
-;  CATCH, err
-;  if err ne 0 then begin
-;     ;; If there is an error, copy parinfo back onto inparinfo so that
-;     ;; the calling routine's parinfo doesn't get nuked.
-;     if nidx ne npfo then begin
-;        inparinfo[idx] = parinfo
-;     endif else begin
-;        ;; Save time by not copying the whole array
-;        inparinfo = temporary(parinfo)
-;     endelse
-;     CATCH, /cancel
-;     message, /NONAME, !error_state.msg
-;  endif
+  if npfo eq 0 or N_elements(intagval) eq 0 then return
+  tagval = intagval
+
+  CATCH, err
+  if err ne 0 then begin
+     ;; If there is an error, copy parinfo back onto inparinfo so that
+     ;; the calling routine's parinfo doesn't get nuked.
+     if nidx ne npfo then begin
+        inparinfo[idx] = parinfo
+     endif else begin
+        ;; Save time by not copying the whole array
+        inparinfo = temporary(parinfo)
+     endelse
+     CATCH, /cancel
+     message, /NONAME, !error_state.msg
+  endif
 
   ;; Set up idx if none specified
   if N_elements(idx) eq 0 then $
-    idx = indgen(npfo)
+    idx = lindgen(npfo)
 
   nidx = N_elements(idx)
 
@@ -106,17 +105,27 @@ pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=tagval
           message, 'ERROR: tag ' + tvtagnames[i] + ' not present in parinfo structure'
         pfo_size = size(parinfo.(pfotagnum), /structure)
         tag_size = size(tagval.(i), /structure)
-        ;; IDL has an annoying habit of making expressions with
-        ;; dimensions [1,*] instead of [*] when you try to peal
-        ;; something out of the middle of a sub-structure or
-        ;; sub-array.  Trick my code into ignore that for the purposes
-        ;; of this error message.  
-        if pfo_size.dimensions[0] eq 1 then $
-          pfo_size.N_dimensions = pfo_size.N_dimensions - 1
-        if pfo_size.N_dimensions ne tag_size.N_dimensions + 1 and $
-          pfo_size.N_dimensions ne tag_size.N_dimensions then $
-           message, 'ERROR: tagval.' + tvtagnames[i] + ' has the wrong number of dimensions.'
-
+;        ;; IDL has an annoying habit of making expressions with
+;        ;; dimensions [1,*] instead of [*] when you try to peal
+;        ;; something out of the middle of a sub-structure or
+;        ;; sub-array.  Trick my code into ignore that for the purposes
+;        ;; of this error message.  
+;        while pfo_size.dimensions[0] eq 1 do begin
+;           nd = pfo_size.N_dimensions
+;           pfo_size.dimensions = pfo_size.dimensions[1:nd-2]
+;           pfo_size.N_dimensions = nd - 1
+;        endwhile
+;        while tag_size.dimensions[0] eq 1 do begin
+;           nd = tag_size.N_dimensions
+;           tag_size.dimensions = tag_size.dimensions[1:nd-2]
+;           tag_size.N_dimensions = nd - 1
+;        endwhile
+;        if pfo_size.dimensions[0] eq 1 then $
+;          pfo_size.N_dimensions = pfo_size.N_dimensions - 1
+;        if pfo_size.N_dimensions ne tag_size.N_dimensions + 1 and $
+;          pfo_size.N_dimensions ne tag_size.N_dimensions then $
+;           message, 'ERROR: tagval ' + tvtagnames[i] + ' has the wrong number of dimensions.'
+;
         ;; HERE IS WHERE THE PARINFO ASSIGNMENT IS DONE.  
         if tag_size.type eq 8 then begin
            ;; We need to recursively step down the structure tree.
@@ -143,54 +152,150 @@ pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=tagval
      endfor ;; tagval tagnames 
 
   endif else begin
-     ;; tagval is not a structure
-     if size(tagname, /type) ne 7 then $
-       message, 'ERROR: tagname must be type string.  Fix the code here if you want to add the ability to access tags by their numbers'
+     ;; Tagval is not a structure
 
-     ;; As above, there are two cases: one-to-one and one-to-many
+     ntn = N_elements(tagname)
+     pfotagnames = tag_names(parinfo)
+     if ntn gt N_elements(pfotagnames) and size(tn, /type) ne 7 then $
+       message, 'ERROR: too many numeric tags specified ' + strtrim(ntn, 2)
 
-     tagname_size = size(tagname, /structure)
-     tagval_size  = size(tagval, /structure)
+     ;; Initialize some variables that will help us figure out the size
+     ;; and shape of tagval.  First assume tagval is a scaler (ntv=1)
+     tvsize = size(tagval, /structure)
+     ntv = tvsize.N_elements
+     if ntv gt 1 then begin
+        ;; The way IDL handles arrays, the last dimension is the one
+        ;; that varies most slowly.  So, if we have a list of things,
+        ;; each with 2 dimensions, the size of the last dimension
+        ;; tells us how many elements are in the list.
+        ntv = tvsize.dimensions[tvsize.N_dimensions-1]
+     endif
+     ;; Tag value column, in case we have multiple tags and the values
+     ;; are listed as rows in tagval
+     tvc = 0
+     itv = 0
 
-     ;; Step through tagname one element at a time
-     for i=0,tagname_size.N_elements-1 do begin
-        ;; --> in the case of path, it does, but for the wrong reason
-        if tagval_size.N_dimensions eq $
-          tagname_size.N_dimensions + 1 then begin
-           case tagval_size.N_dimensions of
-              1 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval}'
-              2 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval[*,i]}'
-              3 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval[*,*,i]}'
-              4 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval[*,*,*,i]}'
-              5 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval[*,*,*,*,i]}'
-              6 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval[*,*,*,*,*,i]}'
-              7 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval[*,*,*,*,*,*,i]}'
-              8 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                            tagname[i] + ': tagval[*,*,*,*,*,*,*,i]}'
-              else : message, 'ERROR: invalid number of dimensions for tagval ' + string(tagval_size.N_dimensions)
-           endcase
+     ;; Loop through command-line specified tag names (if any)
+     for itn=0, ntn-1 do begin
+        tn=tagname[itn]
+        ;; convert from tagname to pfo tag number, if necessary
+        if size(tn, /type) eq 7 then begin
+           tn = where(strcmp(tn[itn], pfotagnames, /fold_case) eq 1, count)
+           if count eq 0 then begin
+              message, /INFORMATIONAL, 'WARNING: tagname ' + tagname[itn] + ' not found in structure'
+stop
+              CONTINUE
+           endif
+        endif ;; tn converted to numeric form
+
+        ;; Use the parinfo tag to figure out what the dimensionality of
+        ;; tagval might be.  
+        pfotsize = size(parinfo[0].(tn), /structure)
+        pfotnd = pfotsize.N_dimensions
+        if pfotnd gt 0 then begin
+           ;; Erase trivial trailing dimensions from the pfo tag.
+           if pfotsize.dimensions[pfotnd-1] eq 1 then begin
+              pfotsize.dimensions = [pfotsize.dimensions[0:pfotnd-2], 0]
+              pfotnd = pfotnd - 1
+           endif
+        endif
+
+        ;; Handle all possible dimensions of tagval.  
+        if ntv eq 1 then begin
+           ;; Easy case: copying one tag value to all the tags in the list
+           itv = 0
+        endif
+        if ntv eq ntn then begin
+           ;; One tag value per tag name
+           itv = itn
+        endif
+        if ntv eq nidx then begin
+           ;; One tag value per parinfo.  
+           itv = '*'
+           if ntn gt 1 then begin
+              ;; We need to distribute the values over several
+              ;; tagnames.  Grab the right columns of tagval.
+              itv = string(tvc, ':', pfotnd-1)
+              tvc = tvc + pfotnd
+           endif
+        endif
+
+        ;; Now we have to build up an IDL statement that extracts the
+        ;; right section of tagval
+        tvs = 'tagval['
+        for id=0, pfotnd-1 do begin
+           tvs = tvs + '*, '
+        endfor
+        if size(itv, /type) eq 7 then begin
+           tvs = tvs + itv
         endif else begin
-           if tagval_size.N_dimensions ne $
-             tagname_size.N_dimensions then $
-             message, 'ERROR: tagname and tagval have incompatible dimensions'
-           command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                     tagname[i] + '	:	tagval[i]}'
-
+           tvs = tvs + strjoin(itv, ',')
         endelse
+        tvs = tvs +  ']'
+        command = 'struct_array_assign, parinfo, idx, tagval={' + $
+                  tagname[itn] + ' : ' + tvs + '}'
+
         ;; Execute the command we have built and check for an error.
         if NOT execute(command) then begin
            message, command, /CONTINUE
+stop
            message, 'ERROR: command shown above failed.'
         endif
 
-     endfor ;; each tagname
+     endfor ;; Each tag name
+;
+; else begin
+;     ;; tagval is not a structure
+;
+;     ;; As above, there are two cases: one-to-one and one-to-many
+;
+;     tagname_size = size(tagname, /structure)
+;     tagval_size  = size(tagval, /structure)
+;
+;     tvtagnames = tag_names(tagval)
+;
+;
+;     ;; Step through tagname one element at a time
+;     for i=0,tagname_size.N_elements-1 do begin
+;        pfotagnum = where(tagname[i] eq pfotagnames, count)
+;     
+;        ;; --> in the case of path, it does, but for the wrong reason
+;        if tagval_size.N_dimensions eq $
+;          tagname_size.N_dimensions + 1 then begin
+;           case tagval_size.N_dimensions of
+;              1 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval}'
+;              2 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval[*,i]}'
+;              3 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval[*,*,i]}'
+;              4 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval[*,*,*,i]}'
+;              5 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval[*,*,*,*,i]}'
+;              6 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval[*,*,*,*,*,i]}'
+;              7 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval[*,*,*,*,*,*,i]}'
+;              8 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                            tagname[i] + ': tagval[*,*,*,*,*,*,*,i]}'
+;              else : message, 'ERROR: invalid number of dimensions for tagval ' + string(tagval_size.N_dimensions)
+;           endcase
+;        endif else begin
+;           if tagval_size.N_dimensions ne $
+;             tagname_size.N_dimensions then $
+;             message, 'ERROR: tagname and tagval have incompatible dimensions'
+;           command = 'struct_array_assign, parinfo, idx, tagval={' + $
+;                     tagname[i] + '	:	tagval[i]}'
+;
+;        endelse
+;        ;; Execute the command we have built and check for an error.
+;        if NOT execute(command) then begin
+;           message, command, /CONTINUE
+;           message, 'ERROR: command shown above failed.'
+;        endif
+;
+;     endfor ;; each tagname
      
   endelse ;; tagval not a structure
 
