@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_struct__define.pro,v 1.1 2003/12/18 23:58:07 jpmorgen Exp $
+; $Id: pfo_struct__define.pro,v 1.2 2010/02/09 00:42:29 jpmorgen Exp $
 
 ; pfo_struct__define.pro 
 
@@ -17,7 +17,6 @@
 ;; 		parameter)
 ;;	  1	parameter in use
 ;;	 -1	parameter marked for deletion
-;;	 1-n	u 
 ;; ID 	 0-n	Parameter (or function) ID, for use by calling
 ;; 		routine.  Ideally, the calling routine should append
 ;; 		its own well-documented structure onto the pfo_parinfo
@@ -50,40 +49,9 @@
 ;;	  2	Multiplicative function (e.g. instrument sensitivity polynomial)
 ;;	  3	Replacement (e.g. dispersion relation)
 ;; ftype  0	this parameter is not handled by a PFO function
-;;	  1	segmented polynomial (see below)
-;;	  2	delta fn
-;;		  2.1 = related to line center
-;;		  2.2 = related to area
-;; 	  3	Gaussian
-;;		  3.1 = related to line center
-;;		  3.2 = related to area
-;;		  3.3 = related to width
-;; 	  4	Voigt
-;;		  4.1 = related to line center
-;;		  4.2 = related to area
-;;		  4.3 = related to Gaussian width
-;;		  4.4 = related to Lorentzian width
-;;	  Add to this list.  
+;;	  non-zero  See pfo_sysvar__define.pro, in particular fnames,
+;;	  for the list of supported pfo functions
 ;;
-
-;; Segmented polynomial scheme
-;;
-;; This is an attempt at a generic definition for a polynomial
-;; function made up of segments.  The first segment starts at the Xin
-;; value labeled with ftype=1.0 (if an ftype=1.0 parameter is not
-;; specified, the first segment is assumed to start at the first value
-;; on the left side of the X-axis).  Segments are assumed to proceed
-;; to the right.  The polynomial coefficients are labeled 1.x1-1.x999,
-;; where x >= 1.  The boundary between segment x and (x+1) is
-;; labeled 1.0x.  If you need more than 9 segments, make another
-;; ftype.  1.0, if specified, indicates the start of the X-axis
-;; 1.01-1.09 = 1st through 9th reference values (e.g. for dispersion,
-;; 1.01=reference pixel for zero point of wavelength axis; for
-;; sensitivity function, first break point) 1.10-1.1999 = 0-999th
-;; order polynomial coefficient of first polynomial 1.20-1.2999 =
-;; 0-999th order polynomial coefficient of second polynomial
-;; 1.30-1.n999 = etc.
-
 
 pro pfo_struct__define
   pfo_struct $
