@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_fmod.pro,v 1.1 2004/01/15 17:10:57 jpmorgen Exp $
+; $Id: pfo_fmod.pro,v 1.2 2010/02/11 19:33:00 jpmorgen Exp $
 
 ; pfo_fmod.pro 
 
@@ -24,7 +24,7 @@ pro pfo_fmod, parinfo, idx, status=status, ID=ID, fseq=fseq, $
   ;; _must_ be there, since this code is perfect ;-)
 ;;  ON_ERROR, 2
 
-  ;; Pathological case, avoids indgen(0) error
+  ;; Pathological case, avoids lindgen(0) error
   n = N_elements(parinfo)
   if N_elements(parinfo) eq 0 then $
     return
@@ -37,7 +37,7 @@ pro pfo_fmod, parinfo, idx, status=status, ID=ID, fseq=fseq, $
   ;; let IDL mess us up with a trivial dimension so don't use:
   ;; pfo = parinfo[idx].pfo
   pfo = make_array(N_elements(idx), value=parinfo[0].pfo)
-  for i=0, N_elements(idx)-1 do $
+  for i=long(0), N_elements(idx)-1 do $
      pfo[i] = parinfo[idx[i]].pfo
 
   ;; Step through the individual tags.
