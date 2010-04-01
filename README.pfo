@@ -1,0 +1,302 @@
+$Id: README.pfo,v 1.1 2010/04/01 15:38:35 jpmorgen Exp $
+
+The Parameter Function Objection system (PFO) is designed to create
+and evaluate functions for the purpose of non-linear least-squares
+fitting.  The software underlying PFO is MPFIT by Craig Markwardt.  It
+would be helpful for you to familiarize yourself with the basics of
+that package before reading on here.
+
+So now that you know the basics of MPFIT, I can tell you that pfo
+provides a kernel function, pfo_funct that is used by MPFIT to
+calculate the function being fit.  MPFIT provides a very handy
+mechanism, the parinfo array, for attaching some information to each
+parameter of the fit.  PFO simply expands on this structure to define
+the function itself.
+
+In PFO, each function is assigned a number.  This number is stored in
+the PFO.FTYPE tag of the parinfo structure.  PFO_SYSVAR__DEFINE has
+the complete list of numbers, the functions they correspond to and the
+number of function parameters each function uses.  To load in the
+definitions of the numbers into handy English looking expressions, use
+the following code:
+
+init = {pfo_sysvar}
+
+Now let's pick a function to play with:
+
+peakpar1 = pfo_funct(/CREATE, ftype=!pfo.bgo, width=[0.,1.])
+
+This, by the way, is equivalent to:
+
+peakpar1 = pfo_fcreate(!pfo.bgo, width=[0.,1.])
+
+Use whichever one you prefer in your code (e.g. uniformity
+vs. brevity).  Thanks to IDL's _EXTRA functionality, the same
+underlying code is invoked either way.
+
+Now look at the output of:
+
+help, /stru, peakpar1
+
+You will see a complete list of the MPFIT parinfo tags plus a
+structure, "PFO."  
+
+help, /stru, peakpar1.pfo
+
+Now you see some of the guts of what makes the PFO system work.  There
+is some documentation in pfo_struct__define.pro, but I will go over
+the basics here.
+
+The most important tag in the PFO structure is FTYPE.  You already saw
+it used above when you created the BGO function.  What I didn't
+explain above is the somewhat obvious problem of differentiating
+between individual parameters in the function.  In other words,
+something needs to tell pfo_funct that one parameter stands for the
+peak energy, the next for the area, etc.  I solve that problem for
+simple functions by making FTYPE a floating point number.  The decimal
+part (yes, in base 10 for those of us who are binary illiterate) is
+what is used to index which parameter in which.  Check it out:
+
+print, peakpar1.pfo.ftype
+      8.01000      8.02000      8.03000      8.04000      8.05000
+
+So the BGO FTYPE is 8, but you should never care about that, always
+think of it as !pfo.bgo.  The individual parameters are indicated as
+0.01, 0.02, etc.  You can look in the pfo_bgo code to see what the
+specific definitions of the parameters are or try:
+
+print, peakpar1.parname
+Peak energy Area W0 W1 f step
+
+You will still probably want to look at the code to see what is really
+meant by these (in particular W0 and W1).
+
+This brings up an important point.  Some functions, like BGO have
+parameters that are linked across several instances of the same
+function.  To clarify, a BGO peak is basically a Gaussian with a width
+defined as W0 + W1*E.  So if you have many BGO peaks in your spectrum,
+you will want to relate all of the W0 and W1 parameters.  There are
+two ways to do this.  For complicated problems, you will want to
+define another substructure, as I do in the solar system object (SSO)
+package.  With this structure, I take a layered approach to the
+calculation of the function.  Parameters start in natural units
+(e.g. rest wavelength and equivalent width) and eventually end up
+mapped to the data in natural detector units.  With an additional
+structure, I can add tags that help me keep information about
+individual lines, which catalog they came from, the cataloged
+strength, etc.  It is then easy to write code to grab onto that
+information to evaluate the quality of the fit and guide subsequent
+tries.  When dealing with simple functions and developing software
+incrementally, it is probably easier to just used the "tied"
+functionality of MPFIT.
+
+"tied" is a string in the parinfo structure that MPFIT uses to relate
+parameters.  Say we have two BGO peaks in our data:
+
+npeaks = 2
+peakpar = peakpar1
+for ip=0,npeaks-2 do $
+  peakpar = [peakpar, peakpar1]
+
+To properly define the BGO function, we need to relate the W0 and W1
+parameters from the two peaks to each other.  Lets choose the first
+peak the "master" and define the second peak relative to that
+
+peakpar[7].tied = 'P[2]'
+peakpar[8].tied = 'P[3]'
+
+NOTE: in real code I try to avoid explicit index numbers.  Instead I
+look things up with the "where" function.  This lets me operate on
+sections of a parinfo without fear of my code breaking should I add or
+subtract parameters earlier on in the parinfo array.  ALSO NOTE: the
+MPFIT "tied" mechanism freezes in parameter numbers.  I suggest
+writing a module in your code that can be called to refresh the "tied"
+tag whenever you make a change to the larger parinfo array.  You would
+write that module with copious use of the "where" function, of course.
+
+Now when we print out our parameters verbosely:
+
+
+X = Xin; Y = 0
+Y = Y + bgo0(X)(
+   0 Peak energy =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
+   1        Area =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
+   2          W0 =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
+   3          W1 =        0.0000000 <         1.0000000 +/-              NaN .         0.0000000
+   4      f step =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
+)
+Y = Y + bgo0(X)(
+   5 Peak energy =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
+   6        Area =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
+   7          W0 =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000 tied=P[2]
+   8          W1 =        0.0000000 <         1.0000000 +/-              NaN .         0.0000000 tied=P[3]
+   9      f step =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
+)
+
+
+you see the full listing of all 10 parameters (starting from 0)
+together with some cryptic strings which define the full model you are
+using to fit your data.  This reads: "start with you Xin axis
+(e.g. channels) and set that equal to your working X axis.  Set the Y
+axis to 0.  Now add a BGO function to the Y axis.  This BGO function
+operates on the working X axis and has 5 parameters.  All parameters
+are bounded on the lower side by 0.  All parameters but W1 are
+currently sitting at that lower value.  The error values are currently
+undefined since no fit has been made.  The parameters are not bounded
+on the upper side.  
+
+In the example above, the W0 and W1 parameters in the second BGO
+function are tied to those in the first function.  If you have more
+peaks, it makes sense to tie them to the master, rather than another
+"slave" although I am not sure if MPFIT really cares.  If you wanted
+to have more than one "master" peak (e.g. two width functions were
+operating in your dataset for some reason), you could use the ID or
+fseq tags of the PFO structure to help your code differentiate between
+them.  ID would be preferred, since fseq is intended more for algebraic
+ordering.  Also, ID prints out nicely in each function.  Try it:
+
+peakpar.pfo.ID = 2
+print, pfo_funct(parinfo=peakpar, print=!pfo.pall)
+
+Of course if you just want to set just one of the functions to ID 2,
+you would have to somehow tease out its parameters from the other
+!pfo.bgo functions.  
+
+You might prefer to assign a unique ID to each function of the same
+type when you are creating them.  In fact for functions that do not
+have a pre-defined number of parameters (e.g. the segmented
+polynomial), you would _have_ to do this or else PFO would get
+hopelessly confused.  But don't worry, you can always print your
+function with:
+
+print, pfo_funct(parinfo=peakpar, print=!pfo.pall)
+
+to figure out what is going on.
+
+As stated above, fseq is useful for making sure that operations happen
+in the order in which you want them to even if your parinfo array gets
+scrambled for some reason.  Actually, because of the way pfo_funct
+works, your parinfo array might not be interpreted in the order in
+which you expect.  But don't worry, what you see when you print the
+function is the same thing that is done when calculating the
+function.  Just remember that there is no sophisticated algebra.  An
+example of this is a scaling factor that I put into the model in the
+GRaND Peak Analysis (GPA) package:
+
+gain = [169, 9.3]
+  scale_par = pfo_fcreate(!pfo.poly, poly_order=0, $
+                         inaxis=!pfo.Yaxis, outaxis=!pfo.Yaxis, $
+                         fop=!pfo.mult, fseq=1, poly_value=gain[1])
+
+This creates a 1-element parinfo array which defines a 0th order
+polynomial (basically a number) that operates on the Y axis applying
+the operation !pfo.mult (can you guess what operation that might be --
+you can see why I shy away from using actual integer values wherever
+possible).  The value of that multiplicative factor is the 1st order
+gain coefficient.  In other words, this is how I make my model read in
+counts/keV or, if gain=1, counts/channel.  By default fseq=0, so all
+other operations I have defined in GPA are defined with fseq=0.  By
+defining this with fseq=1, I assure that it is calculated after
+everything else.
+
+While we are on the topic of the segmented polynomial, I should
+probably tell you more about what it is and how it can be used.  I
+originally developed the pfo_poly function to describe a continuum
+that was basically flat but had a rolloff on one or both sides.  I
+wanted a low-order polynomial on the flat section, a 2nd or 3rd order
+polynomial in the transition region(s) and then a low order polynomial
+in the tail(s).  I figured while I was using decimals to delineate
+function parameters, I could also use them for the values that
+indicate the boundaries between the regions and other handy things.
+pfo_poly.pro has the full documentation on the scheme.  Basically it
+uses the full single-precision floating-point range of values to
+define up to 9 polynomials, the first 8 of which can have up to 99th
+order and the 9th up to 4th.  If you need more polynomials than that,
+or want to apply transformations to the input or output axes using the
+infunct/outfunct feature (e.g. to work in log space), you will need to
+define individual pfo_poly functions and give them separate pfo.ID
+values.  GPA has examples of how to do this.
+
+Because it is somewhat painful to work with a pfo_poly, I built some
+keywords into pfo_poly so that you just need to specify sensible
+vectors to those keywords and pfo_poly will do the rest of the work
+for you.  For instance:
+
+     backpar = $
+       pfo_fcreate(!pfo.poly, poly_order=[3,1,1], poly_bound=[10,100,200], $
+                   poly_ref=[50,150,250])
+
+Creates a background function in three segments: a 3rd order and two
+1st order segments.  The left-hand boundaries are at 10, 100 and 200.
+The polynomials are expanded in terms of values near the midpoints of
+the segments (50,150,250).  See how it looks when you print it out:
+
+print, pfo_funct(parinfo=backpar, print=!pfo.pall)
+
+There is one problem with the above function.  The boundaries and
+reference points are free parameters of the fit.  This might be
+desirable in some circumstances but lets assume that you have some
+some external knowledge that they should be fixed at those values
+(e.g. they relate to ROI boundaries).  The following code will find
+the indices of the poly bounds and reference points and use them to
+set the FIXED tag in the MPFIT section of the parinfo array:
+
+  ;; Fix the poly bounds and reference points
+  ftypes = backpar.pfo.ftype - !pfo.poly
+  pbnums = round(ftypes * 10.  ) ;; Boundaries
+  pbidx = where(0 lt pbnums and pbnums lt 10)
+  prnums = round(ftypes * 100. ) ;; Reference values
+  pridx = where(0 lt prnums and prnums lt 10)
+  backpar[[pbidx, pridx]].fixed = 1
+
+Eventually I would like to make code that allows users to do this like
+this without needing to know the underlying mechanics of how the
+pfo_poly function works (or any other function for that matter).  For
+now, however, you will need to know the guts of the system to make
+tweaks at this level.  Alternately, you could read the parameter
+numbers and issue the command backpar[0,6,10, 1,6,11].fixed=1
+
+Now lets check out the background function:
+
+print, pfo_funct(parinfo=backpar, print=!pfo.pall)
+
+Notice that there are "|" around the parameter +/- error bar values of
+the boundaries and reference values.  The "|" symbol indicates a
+parameter is fixed.
+
+Note that to change the polynomial order of a segment in a pfo_poly,
+you would need to insert or delete elements in the parinfo array.  To
+prevent the need for frequent array copies, I created the PFO.STATUS
+flag to help with this.  PFO.STATUS=1 is "in use", 0 is "ignore" and
+-1 is a flag for deletion.  Unfortunately, MPFIT doesn't know about
+the PFO.STATUS flag, so using it messes up MPFIT's active parameter
+count.  But I think if you set parinfo.FIXED=1 on the same parinfo
+elements that you have PFO.STATUS=0, MPFIT will become happier.
+Because PFO uses WHERE to assemble its functions, you can add new
+pfo_poly parameters to the end of the parinfo array even if the bulk
+of your pfo_poly is defined earlier in the array.  Just make sure you
+use the same ID value, input and output axes, etc. as your main
+function.
+
+So now that you have some functions lying around, you can create a
+mode by appending them to each other in one long parinfo array:
+
+
+parinfo = [backpar, scale_par, peakpar]
+
+print, pfo_funct(parinfo=parinfo, print=!pfo.pall)
+
+Oops.  Here you see some problems.  By ordering the parameters the way
+we did, you find that the "tied" values in the second BGO peak no
+longer point to the correct parameters.  Also note that the scale
+polynomial parameter value (14) looks like it is out of sequence.  If
+you look at where we put it in the parinfo array and what its fseq
+value is, it is actually in just the right place.  This just
+highlights the difference between the order in which the parinfo list
+parameters and the order in which pfo_funct interprets them.  Never
+fear, though, the same code is used for interpreting the parinfo for
+printing and calculating.  WYSIWYG, as long as you can read the
+cryptic model description.  Fixing the "tied" references is left as an
+excercise to the reader.
+
+
