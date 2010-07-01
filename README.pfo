@@ -1,4 +1,4 @@
-$Id: README.pfo,v 1.1 2010/04/01 15:38:35 jpmorgen Exp $
+$Id: README.pfo,v 1.2 2010/07/01 18:08:14 jpmorgen Exp $
 
 The Parameter Function Objection system (PFO) is designed to create
 and evaluate functions for the purpose of non-linear least-squares
@@ -87,8 +87,7 @@ individual lines, which catalog they came from, the cataloged
 strength, etc.  It is then easy to write code to grab onto that
 information to evaluate the quality of the fit and guide subsequent
 tries.  When dealing with simple functions and developing software
-incrementally, it is probably easier to just used the "tied"
-functionality of MPFIT.
+incrementally, it is easier to use the "tied" functionality of MPFIT.
 
 "tied" is a string in the parinfo structure that MPFIT uses to relate
 parameters.  Say we have two BGO peaks in our data:
@@ -100,22 +99,28 @@ for ip=0,npeaks-2 do $
 
 To properly define the BGO function, we need to relate the W0 and W1
 parameters from the two peaks to each other.  Lets choose the first
-peak the "master" and define the second peak relative to that
+peak the "master" and define the second peak, the "slave" relative to
+that:
 
 peakpar[7].tied = 'P[2]'
 peakpar[8].tied = 'P[3]'
 
-NOTE: in real code I try to avoid explicit index numbers.  Instead I
-look things up with the "where" function.  This lets me operate on
-sections of a parinfo without fear of my code breaking should I add or
-subtract parameters earlier on in the parinfo array.  ALSO NOTE: the
-MPFIT "tied" mechanism freezes in parameter numbers.  I suggest
-writing a module in your code that can be called to refresh the "tied"
-tag whenever you make a change to the larger parinfo array.  You would
-write that module with copious use of the "where" function, of course.
+Unfortunately, the way "tied" works, it hard-wires in the array
+indices of the parameters you are relating.  If you add and delete
+elements from the parinfo array without updating the tied values, you
+will get unexpected results.  To address this issue, I have designed
+an optional add-on to the parinfo structure, pfo_link.  This is its
+own little structure that has a couple of tags that help identify
+master parameters, and point slaves to them.  Just before calling
+MPFIT, PFO_FIT calls PFO_LINK_CHECK, which interprets the PFO_LINK
+tags and properly recreates all of the "tied" strings.  See
+pfo_link_struct__define.pro for more detailed documentation.  GPAW
+uses PFO_LINK, GPA does not.
+
 
 Now when we print out our parameters verbosely:
 
+print, pfo_funct(parinfo=peakpar, print=!pfo.pall)
 
 X = Xin; Y = 0
 Y = Y + bgo0(X)(
@@ -148,30 +153,8 @@ on the upper side.
 In the example above, the W0 and W1 parameters in the second BGO
 function are tied to those in the first function.  If you have more
 peaks, it makes sense to tie them to the master, rather than another
-"slave" although I am not sure if MPFIT really cares.  If you wanted
-to have more than one "master" peak (e.g. two width functions were
-operating in your dataset for some reason), you could use the ID or
-fseq tags of the PFO structure to help your code differentiate between
-them.  ID would be preferred, since fseq is intended more for algebraic
-ordering.  Also, ID prints out nicely in each function.  Try it:
-
-peakpar.pfo.ID = 2
-print, pfo_funct(parinfo=peakpar, print=!pfo.pall)
-
-Of course if you just want to set just one of the functions to ID 2,
-you would have to somehow tease out its parameters from the other
-!pfo.bgo functions.  
-
-You might prefer to assign a unique ID to each function of the same
-type when you are creating them.  In fact for functions that do not
-have a pre-defined number of parameters (e.g. the segmented
-polynomial), you would _have_ to do this or else PFO would get
-hopelessly confused.  But don't worry, you can always print your
-function with:
-
-print, pfo_funct(parinfo=peakpar, print=!pfo.pall)
-
-to figure out what is going on.
+"slave" although I am not sure if MPFIT really cares.  PFO_LINK will
+help you do this, if you want to use it.
 
 As stated above, fseq is useful for making sure that operations happen
 in the order in which you want them to even if your parinfo array gets
@@ -226,7 +209,7 @@ for you.  For instance:
        pfo_fcreate(!pfo.poly, poly_order=[3,1,1], poly_bound=[10,100,200], $
                    poly_ref=[50,150,250])
 
-Creates a background function in three segments: a 3rd order and two
+creates a background function in three segments: a 3rd order and two
 1st order segments.  The left-hand boundaries are at 10, 100 and 200.
 The polynomials are expanded in terms of values near the midpoints of
 the segments (50,150,250).  See how it looks when you print it out:
@@ -239,22 +222,20 @@ desirable in some circumstances but lets assume that you have some
 some external knowledge that they should be fixed at those values
 (e.g. they relate to ROI boundaries).  The following code will find
 the indices of the poly bounds and reference points and use them to
-set the FIXED tag in the MPFIT section of the parinfo array:
+set the FIXED tag in the MPFIT section of the parinfo array.  The key
+to making it work is the fact that pfo_poly understands the /indices
+keyword, which causes it to barf back the indices corresponding to the
+named keywords and other useful information (e.g. the polynomial
+order(s) are spit back in the order keyword):
 
   ;; Fix the poly bounds and reference points
-  ftypes = backpar.pfo.ftype - !pfo.poly
-  pbnums = round(ftypes * 10.  ) ;; Boundaries
-  pbidx = where(0 lt pbnums and pbnums lt 10)
-  prnums = round(ftypes * 100. ) ;; Reference values
-  pridx = where(0 lt prnums and prnums lt 10)
-  backpar[[pbidx, pridx]].fixed = 1
+  junk = pfo_poly(parinfo=backpar, /indices, poly_bound=poly_bound, $
+                 poly_ref=poly_ref, poly_value=poly_value)
+  backpar[[poly_bound, poly_ref]].fixed = !pfo.fixed
 
-Eventually I would like to make code that allows users to do this like
-this without needing to know the underlying mechanics of how the
-pfo_poly function works (or any other function for that matter).  For
-now, however, you will need to know the guts of the system to make
-tweaks at this level.  Alternately, you could read the parameter
-numbers and issue the command backpar[0,6,10, 1,6,11].fixed=1
+
+Not all of the functions implement the /indices keyword yet.  That is
+a work in progress.
 
 Now lets check out the background function:
 
@@ -268,35 +249,34 @@ Note that to change the polynomial order of a segment in a pfo_poly,
 you would need to insert or delete elements in the parinfo array.  To
 prevent the need for frequent array copies, I created the PFO.STATUS
 flag to help with this.  PFO.STATUS=1 is "in use", 0 is "ignore" and
--1 is a flag for deletion.  Unfortunately, MPFIT doesn't know about
-the PFO.STATUS flag, so using it messes up MPFIT's active parameter
-count.  But I think if you set parinfo.FIXED=1 on the same parinfo
-elements that you have PFO.STATUS=0, MPFIT will become happier.
-Because PFO uses WHERE to assemble its functions, you can add new
-pfo_poly parameters to the end of the parinfo array even if the bulk
-of your pfo_poly is defined earlier in the array.  Just make sure you
-use the same ID value, input and output axes, etc. as your main
-function.
+-1 is a flag for deletion (or you could use !pfo.active,
+!pfo.inactive, and !pfo.delete if you prefer English).  Unfortunately,
+MPFIT doesn't know about the PFO.STATUS flag, so using it messes up
+MPFIT's active parameter count.  You get around this by setting
+PARINFO.FIXED=!pfo.fixed at the same time you set PARINFO.PFO.STATUS
+to something other than !pfo.active.  Some day I might make a
+primitive that does all this for you.  I already have one, pfo_gc,
+which "garbage collects" parameters marked for deletion.
 
-So now that you have some functions lying around, you can create a
-mode by appending them to each other in one long parinfo array:
-
+So now lets see how we can put together a parinfo:
 
 parinfo = [backpar, scale_par, peakpar]
 
 print, pfo_funct(parinfo=parinfo, print=!pfo.pall)
 
 Oops.  Here you see some problems.  By ordering the parameters the way
-we did, you find that the "tied" values in the second BGO peak no
-longer point to the correct parameters.  Also note that the scale
-polynomial parameter value (14) looks like it is out of sequence.  If
-you look at where we put it in the parinfo array and what its fseq
-value is, it is actually in just the right place.  This just
-highlights the difference between the order in which the parinfo list
-parameters and the order in which pfo_funct interprets them.  Never
-fear, though, the same code is used for interpreting the parinfo for
-printing and calculating.  WYSIWYG, as long as you can read the
-cryptic model description.  Fixing the "tied" references is left as an
-excercise to the reader.
+we did and without using the PFO_LINK package in this example, you
+find that the "tied" values in the second BGO peak no longer point to
+the correct parameters.  Also note that the scale polynomial parameter
+value (14) looks like it is out of sequence.  If you look at where we
+put it in the parinfo array and what its fseq value is, it is actually
+in just the right place.  This just highlights the difference between
+the order in which the parinfo list parameters and the order in which
+pfo_funct interprets them.  Never fear, though, the same code is used
+for interpreting the parinfo for printing and calculating.  WYSIWYG,
+as long as you can read the cryptic model description.
+
+Next up: how to extend the default parinfo structure to include an
+add-on package like PFO_LINK.
 
 
