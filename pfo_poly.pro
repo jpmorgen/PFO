@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_poly.pro,v 1.2 2009/11/18 17:50:15 jpmorgen Exp $
+; $Id: pfo_poly.pro,v 1.3 2010/07/17 18:58:46 jpmorgen Exp $
 
 ; pfo_poly.pro 
 
@@ -7,7 +7,7 @@
 ;; creates parinfo records and prints mpfit parameters
 
 ;; Segmented polynomial scheme
-;;
+
 ;; This is an attempt at a generic definition for a polynomial
 ;; function made up of segments useful for e.g. making piecewise fits
 ;; to data.  There are three types of information that need to be
@@ -32,13 +32,37 @@
 ;; where you have one reference pixel about which all the polynomial
 ;; expansions are done.
 
+;; Note that if you want more than one instance of pfo_poly (e.g. if
+;; you want to use the infunct/outfunct strings on individual
+;; segments), you will need to define separate pfo_poly functions and
+;; use the pfo.ID tag to keep them from all running into one another.
+;; Also note that by default, there is no right-hand bound on the
+;; calculation of a pfo_poly segment.  If you need to to have more
+;; than one instance of pfo_poly, start a second segment, 0th order,
+;; with a value that does not contribute to the output axis.
+
+;; For convenience in creating a complex pfo_poly, you can use the
+;; poly_order, poly_num, poly_bound, poly_ref, and poly_value
+;; keywords.  These keywords accept vectors which allow you to define
+;; the whole pfo_poly at once.
+
+;; Also for convenience in picking the pfo_poly apart, you can use the
+;; /indices keyword and the indices of the poly_bound, poly_ref, and
+;; coefficient value (poly_value) parinfo elements will be returned in
+;; those keywords.  You can then pick out the value using something
+;; like poly_refs = parinfo[poly_ref].value.  The poly_num keyword
+;; returns the actual poly numbers (usually just a sequence starting
+;; from 0) and the poly_order keyword returns an array of the
+;; polynomial orders.
+
 ; -
 
 function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
-                   create=create, print=print, $
+                   create=create, print=print, widget=widget, $
                    poly_order=poly_order, poly_num=poly_num, $
                    poly_bound=poly_bound, poly_ref=poly_ref, $
-                   poly_value=poly_value, _EXTRA=extra
+                   poly_value=poly_value, indices=indices, $
+                   _EXTRA=extra
 
   ;; Generic pfo system initialization
   init = {pfo_sysvar}
@@ -193,11 +217,11 @@ function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
 
   endif ;; /CREATE
 
-  ;; CALCULATE
+  ;; CALCULATE, PRINT, or return INDICES
 
   ;; COMMON ERROR CHECKING CODE
   f_idx = pfo_funct_check(fn, Xin=Xin, params=params, parinfo=parinfo, $
-                          idx=idx, npar=npar)
+                          idx=idx, npar=npar, any_status=widget)
   if npar eq 0 then return, pfo_null(Xin, print=print, _EXTRA=extra)
 
   ;; FUNCTION SPECIFIC ERROR CHECKING CODE
@@ -237,11 +261,25 @@ function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
   c0idx = f_idx[cidx[c0idx]]
 
 
-  ;; Initialize output.  print_idx is handled using array_append
-  if keyword_set(print) then $
-    print_idx = !values.d_nan $
-  else $
-    yaxis = pfo_null(Xin, _EXTRA=extra)
+  ;; Initialize output and a flag for calculating.  print_idx is handled using array_append.
+  calculate = ~ (keyword_set(print) or keyword_set(widget) or keyword_set(indices))
+  if keyword_set(calculate) then begin
+     yaxis = pfo_null(Xin, _EXTRA=extra)
+  endif
+  if keyword_set(print) or keyword_set(widget) then $
+    print_idx = !values.d_nan
+  ;; I am experimenting with a new method which returns values.  This
+  ;; is particularly useful for pfo_poly which is rather convoluted
+  if keyword_set(indices) then begin
+     ;; Initialize the arrays that I will return the values in.  They
+     ;; will stacked up linearly, so the user will still have to do
+     ;; some figuring to unpack them if the function is complicated
+     poly_order='none'
+     poly_num=pnums
+     poly_bound='none'
+     poly_ref='none'
+     poly_value='none'
+  endif
 
   ;; Step through the polynomials one at a time, handling the
   ;; boundaries and reference values.  This gets a little complicated
@@ -264,7 +302,7 @@ function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
      ;; POLY_BOUNDS
      ;; The default in all cases is to have the upper bound just
      ;; beyond the end of Xin so we include last point.  But if we
-     ;; have a next polynomial, its polybound is our upper
+     ;; have a next polynomial, its polybound is our upper.
      upper = max(Xin) + delta
      count = 0
      if ipn lt npoly-1 then $
@@ -273,7 +311,7 @@ function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
         ;; unwrap
         pbidx = f_idx[pbidx]
         upper = parinfo[pbidx[0]].value
-     endif
+      endif
      ;; Now for our lower boundary
      pbidx = where(pbnums eq pnums[ipn], count)
      if count gt 0 then begin
@@ -283,10 +321,16 @@ function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
         ;; unwrap
         pbidx = f_idx[pbidx]
         lower = params[pbidx]
-        if keyword_set(print) then $
+        ;; Make sure we don't put lower beyond the end of our X-axis
+        lower = lower < max(Xin)
+
+        if keyword_set(print) or keyword_set(widget) then $
           print_idx = array_append(pbidx, print_idx)
+        if keyword_set(indices) then $
+          poly_bound = array_append(pbidx, poly_bound)
      endif ;; poly_bounds
-     if upper lt lower and NOT keyword_set(print) then $
+
+     if keyword_set(calculate) and upper lt lower then $
        message, 'ERROR: poly_bounds are not in the right order'
      xidx = where(lower[0] le Xin and Xin lt upper[0], count)
      ;; Handle the case where we might have a non-monotonically
@@ -298,7 +342,8 @@ function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
 
 
      ;; Don't waste time if this polynomial segment is not in range
-     if count eq 0 and NOT keyword_set(print) then CONTINUE
+     if keyword_set(calculate) and count eq 0 then $
+       CONTINUE
 
      ;; POLY_REFS
      pridx = where(prnums eq pnums[ipn], count)
@@ -310,32 +355,42 @@ function pfo_poly, Xin, params, dparams, parinfo=parinfo, idx=idx, $
         ;; Only modify ref if the parameter is not NAN
         if finite(params[pridx]) then begin
            ref = params[pridx]
-           if keyword_set(print) then $
+           if keyword_set(print) or keyword_set(widget)then $
              print_idx = array_append(pridx, print_idx)
+        if keyword_set(indices) then $
+          poly_ref = array_append(pridx, poly_ref)
+
         endif ;; not NAN
 
      endif ;; poly_refs
 
      ;; COEFFICIENTS
-     cidx = where(rcftypes eq pnums[ipn])
+     cidx = where(rcftypes eq pnums[ipn], order)
+     order -= 1
      scidx = sort(cftypes[cidx])
      cidx = f_idx[cidx[scidx]]
 
-     if keyword_set(print) then begin
+     if keyword_set(print) or keyword_set(widget) then begin
         print_idx = array_append(cidx, print_idx)
-        CONTINUE
      endif
-
-     ;; Finally the calculation 
-     yaxis[xidx] = yaxis[xidx] + $
-                   poly(Xin[xidx] - ref[0], params[cidx])
+     if keyword_set(indices) then begin
+        poly_order = array_append(order, poly_order)
+        poly_value = array_append(cidx, poly_value)
+     endif
+     if keyword_set(calculate) then begin
+        ;; Finally the calculation 
+        yaxis[xidx] = yaxis[xidx] + $
+                      poly(Xin[xidx] - ref[0], params[cidx])
+     endif
 
   endfor ;; each polynomial
 
   ;; Return values
-  if keyword_set(print) then $
+  if keyword_set(indices) then $
+    return, f_idx
+  if keyword_set(print) or keyword_set(widget) then $
     return, pfo_null([0], params, parinfo=parinfo, $                  
-                     idx=print_idx, print=print, $
+                     idx=print_idx, print=print, widget=widget,$
                      _EXTRA=extra)
 
   return, yaxis

@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_fcreate.pro,v 1.3 2004/01/15 17:10:11 jpmorgen Exp $
+; $Id: pfo_fcreate.pro,v 1.4 2010/07/17 19:00:27 jpmorgen Exp $
 
 ; pfo_fcreate.pro 
 
@@ -35,7 +35,7 @@ function pfo_fcreate, ftype, parinfo_template=parinfo_template, $
 
   ;; Set the pfo fields of the new parinfo structure to the default
   ;; values
-  struct_assign, !pfo.parinfo, parinfo
+  struct_assign, !pfo.parinfo, parinfo, /nozero
 
   ;; Default command line parameters
   if N_elements(ftype) eq 0 then $
@@ -80,7 +80,7 @@ function pfo_fcreate, ftype, parinfo_template=parinfo_template, $
   if N_elements(value) ne 0 then begin
      npfo = N_elements(parinfo)
      nval = N_elements(value)
-     idx = indgen(min([npfo, nval]))
+     idx = lindgen(min([npfo, nval]))
      struct_array_assign, parinfo, idx, tagname='value', tagval=value
   endif
 

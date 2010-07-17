@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_funct_check.pro,v 1.3 2010/07/14 18:42:02 jpmorgen Exp $
+; $Id: pfo_funct_check.pro,v 1.4 2010/07/17 18:57:59 jpmorgen Exp $
 
 ; pfo_funct_check.pro 
 
@@ -17,14 +17,14 @@
 ; -
 
 function pfo_funct_check, fn, Xin=Xin, params=params, parinfo=parinfo, $
-  idx=idx, npar=npar
+  idx=idx, npar=npar, any_status=any_status
 
   ;; Errors will make more sense in the calling function
-  ON_ERROR, 2
+  ;;ON_ERROR, 2
 
   init = {pfo_sysvar}
   init = {tok_sysvar}
-  
+
   ;; Handle some pathological cases
   nparinfo = N_elements(parinfo)
   npar = -1
@@ -91,42 +91,32 @@ function pfo_funct_check, fn, Xin=Xin, params=params, parinfo=parinfo, $
   ;; !pfo.null and /any_status (select all functions indiscriminately
   ;; -- useful for widget-based editing of function)
   f_idx = idx
-  npar = nparinfo
+  npar = N_elements(idx)
   ;; Now check to see if we want to only return indices to active
   ;; parinfo records (the default)
-  if NOT keyword_set(any_status) then $
+  if NOT keyword_set(any_status) then begin
      f_idx = where(parinfo[idx].pfo.status eq !pfo.active, npar)
-  ;; return -1 a la IDL's where, if no active records of this function
-  ;; are found
-  if npar eq 0 then $
-    return, -1
-
-  ;; Unnest the indices
-  f_idx = idx[f_idx]
+     ;; return -1 a la IDL's where, if no active records of this function
+     ;; are found
+     if npar eq 0 then $
+       return, f_idx
+     ;; Unnest the indices
+     f_idx = idx[f_idx]
+  endif
 
   ;; In the case of fn eq !pfo.null, our work is done, since we use
   ;; that to troll for all active functions in pfo_funct.  In the case
   ;; that fn was specified, we have a little more work to do to make
   ;; sure everything is consistent.
-  if fn ne !pfo.null then $
-    f_idx = where(fix(parinfo[f_idx].pfo.ftype) eq fn, npar)
-  if npar eq 0 then $
-    return, -1
-  ;; Unnest the indices
-  f_idx = idx[f_idx]
-
-  ;; The null function is also used for printing, so don't use it to
-  ;; search for indices.  Also, I am now using it in pfo_funct
-  if fn eq !pfo.null then begin
-     f_idx = where(parinfo[idx].pfo.status eq !pfo.active, npar)
-  endif else begin
-     ;; This is the meat of the code in the normal case
-     f_idx = where(parinfo[idx].pfo.status eq !pfo.active and $
-                   fix(parinfo[idx].pfo.ftype) eq fn, npar)
-  endelse
-
-
-
+  if fn ne !pfo.null then begin
+     ;  Can't reuse f_idx too much and, don't want to clobber idx...
+     g_idx = f_idx
+     f_idx = where(fix(parinfo[g_idx].pfo.ftype) eq fn, npar)
+     if npar eq 0 then $
+       return, f_idx
+     ;; Unnest the indices
+     f_idx = g_idx[f_idx]
+  endif
   ;; Bail here if we don't know how many parameters we should have in
   ;; this function (e.g. poly)
   if !pfo.fnpars[fn] eq 0 then $

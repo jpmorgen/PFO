@@ -31,10 +31,10 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_czt.pro,v 1.1 2009/10/23 20:23:09 jpmorgen Exp $
+; $Id: pfo_czt.pro,v 1.2 2010/07/17 18:58:05 jpmorgen Exp $
 ;-
 function pfo_czt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
-                  create=create, print=print, $
+                  create=create, print=print, widget=widget, $
                   E0=E0, area=area, sigma=sigma, alpha=alpha_in, mu=mu_in, $
                   f_wings=f_in, f_step=f_step, _EXTRA=extra
 
@@ -88,14 +88,16 @@ function pfo_czt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
        E0 = 0
      if N_elements(area) eq 0 then $
        area = 0
+     ;; Sigma has to be non-zero or else the function blows up
      if N_elements(sigma) eq 0 then $
-       sigma = 0
+       sigma = 1d
 
      ;; Don't clobber our inputs when we vectorize
      if N_elements(alpha_in) ne 0 then $
        alpha = alpha_in
+     ;; Alpha needs to be non-zero or else the function blows up
      if N_elements(alpha) eq 0 then $
-       alpha = 0
+       alpha = 1d
      if N_elements(alpha) eq 1 then $
        alpha = [alpha, alpha]
      if N_elements(mu_in) ne 0 then $
@@ -176,11 +178,12 @@ function pfo_czt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
   ;; Make an easy handle for the parameters
   pidx = f_idx[sidx]
 
-  ;; PRINT.  pfo_null can print parameters once they are in order
-  if keyword_set(print) then $
+  ;; PRINT or WIDGET.  pfo_null can handle these once the parameters
+  ;; are in order
+  if keyword_set(print) or keyword_set(widget) then $
     return, pfo_null([0], params, parinfo=parinfo, idx=pidx, print=print, $
-                    _EXTRA=extra)
-     
+                    widget=widget, _EXTRA=extra)
+
   ;; CALCULATE
 
   ;; COMMON ERROR CHECKING CODE

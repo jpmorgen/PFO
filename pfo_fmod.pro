@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_fmod.pro,v 1.2 2010/02/11 19:33:00 jpmorgen Exp $
+; $Id: pfo_fmod.pro,v 1.3 2010/07/17 19:00:34 jpmorgen Exp $
 
 ; pfo_fmod.pro 
 
@@ -17,7 +17,9 @@
 ; -
 
 pro pfo_fmod, parinfo, idx, status=status, ID=ID, fseq=fseq, $
-              inaxis=inaxis, outaxis=outaxis, fop=fop, ftype=ftype, $
+              inaxis=inaxis, infunct=infunct, $
+              outaxis=outaxis, outfunct=outfunct, $
+              fop=fop, ftype=ftype, $
               format=format, eformat=eformat, _EXTRA=extra
 
   ;; If we generate an error, return to the calling code.  THe problem
@@ -54,8 +56,14 @@ pro pfo_fmod, parinfo, idx, status=status, ID=ID, fseq=fseq, $
   if N_elements(inaxis) ne 0 then begin
         struct_array_assign, pfo, tagname='inaxis', tagval=inaxis
   endif
+  if N_elements(infunct) ne 0 then begin
+        struct_array_assign, pfo, tagname='infunct', tagval=infunct
+  endif
   if N_elements(outaxis) ne 0 then begin
         struct_array_assign, pfo, tagname='outaxis', tagval=outaxis
+  endif
+  if N_elements(outfunct) ne 0 then begin
+        struct_array_assign, pfo, tagname='outfunct', tagval=outfunct
   endif
   if N_elements(fop) ne 0 then begin
         struct_array_assign, pfo, tagname='fop', tagval=fop
