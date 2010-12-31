@@ -55,7 +55,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 1.1 2010/07/17 18:59:26 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 1.2 2010/12/31 21:57:13 jpmorgen Exp $
+;
+; $Log: pfo_fit.pro,v $
+; Revision 1.2  2010/12/31 21:57:13  jpmorgen
+; Change error reporting a little
+;
 ;-
 pro pfo_fit, x, y, yerr, parinfo, mpfit_info=mpfit_info, _EXTRA=extra
 
@@ -84,7 +89,8 @@ pro pfo_fit, x, y, yerr, parinfo, mpfit_info=mpfit_info, _EXTRA=extra
              gtol=gtol, nfev=nfev, niter=niter, $
              nfree=nfree, npegged=npegged, $
              perror=perror, status=status, $
-             bestnorm=bestnorm, covar=covar, _EXTRA=extra)
+             bestnorm=bestnorm, covar=covar, errmsg=errmsg, $
+             _EXTRA=extra)
 
   ;; mpfitfun is usually robust with its errors, so if we
   ;; made it here, it has something useful to say in the
@@ -93,7 +99,7 @@ pro pfo_fit, x, y, yerr, parinfo, mpfit_info=mpfit_info, _EXTRA=extra
   keep = 1
   case status of
      0: begin
-        fmesg = 'ERROR: internal coding error: improper input parameters to mpfit or another serious problem.  See error log.'
+        fmesg = 'MPFITFUN: ' + errmsg
         keep = 0
      end
      !pfo.iterstop: begin
@@ -148,6 +154,6 @@ pro pfo_fit, x, y, yerr, parinfo, mpfit_info=mpfit_info, _EXTRA=extra
 
   endif
   if NOT keyword_set(no_status) then $
-    message, /CONTINUE, 'NOTE: mpfitfun returned status ' + strtrim(status, 2) + ' ' + fmesg
+    message, /INFORMATIONAL, 'NOTE: mpfitfun returned status ' + strtrim(status, 2) + ' ' + fmesg
 
 end
