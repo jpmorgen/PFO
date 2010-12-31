@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_funct_check.pro,v 1.4 2010/07/17 18:57:59 jpmorgen Exp $
+; $Id: pfo_funct_check.pro,v 1.5 2010/12/31 19:37:42 jpmorgen Exp $
 
 ; pfo_funct_check.pro 
 
@@ -12,7 +12,7 @@
 ;; The return value is the indices of the parinfo records
 ;; corresponding to the function and npar, the number of parameters
 ;; found.  If no parameters are found, npar=0 and the return value is
-;; -1 (like where)
+;; -1 (like where).  If the function is not properly defined, npar=-1
 
 ; -
 
@@ -38,7 +38,8 @@ function pfo_funct_check, fn, Xin=Xin, params=params, parinfo=parinfo, $
   ;; Check to see if we were called in widget mode.  If so, we want to
   ;; return all of the indices rather than those that are active.
   if size(parinfo, /type) eq !tok.pointer then begin
-     ;; Check to see if we have a valid parinfo in our heap pointer
+     ;; Check to see if we have a valid parinfo in our heap pointer.
+     ;; This catches the case *parinfo = 'none'
      if size(*parinfo, /type) ne !tok.struct then $
        return, npar ;; This is -1 from above
      ;; Make it clear that we have a pointer and find the number of
@@ -53,6 +54,12 @@ function pfo_funct_check, fn, Xin=Xin, params=params, parinfo=parinfo, $
   ;; is never 0
   if nparinfo eq 0 then $
     parinfo = pfo_fcreate(fn)
+
+  ;; We already checked for this for the pointer case, above.
+  if NOT keyword_set(pparinfo) and size(parinfo, /type) ne !tok.struct then $
+    return, npar ;; This is -1 from above
+
+  ;; If we got here, we should have a valid parinfo or pparinfo.
 
   ;; Copy parinfo.values to params if params are not already specified
   ;; (e.g. printing parinfo records)
