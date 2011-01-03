@@ -30,8 +30,9 @@
 ;	to_Xaxis -- output value corresponds to Xaxis
 ;	to_Yaxis -- output value corresponds to Yaxis
 ;
-;	initial_guess -- the initial guess for the solver.  Converted
-;                       to from_axis.  Defaults to 0.
+;	initial_guess -- the initial guess for IDL's fx_root.  Converted
+;                       to from_axis.  Defaults to vector format of
+;                       [0, -100, 100] (start, low, high)
 ;	idx -- optional indices into parinfo to limit function definition
 ;	xaxis --  if you are converting to_Yaxis, you can pick up the
 ;                Xaxis for free in this output keyword
@@ -60,8 +61,11 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_convert_coord.pro,v 1.1 2010/12/10 21:57:53 jpmorgen Exp $
+; $Id: pfo_convert_coord.pro,v 1.2 2011/01/03 21:51:19 jpmorgen Exp $
 ; $Log: pfo_convert_coord.pro,v $
+; Revision 1.2  2011/01/03 21:51:19  jpmorgen
+; Improved initial guess code
+;
 ; Revision 1.1  2010/12/10 21:57:53  jpmorgen
 ; Initial revision
 ;
@@ -135,14 +139,21 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
   if N_elements(initial_guess_in) eq 0 then $
     initial_guess_in = 0d
   initial_guess = initial_guess_in
-  ;; --> I want to allow for proper bracketing with the initial guess vector
-  nig = N_elements(initial_guess)
+  ;; Check to see if the user is providing initial guess, lower and
+  ;; upper bounds
+  dims = size(initial_guess, /dimensions)
+  if dims[0] eq 0 then $
+    initial_guess = [initial_guess, -100, 100]
+  dims = size(initial_guess, /dimensions)
+  if dims[0] ne 3 or N_elements(dims) gt 2 then $
+    message, 'ERROR: initial_guess must be in vector format [guess, low, high].  It is OK to have one such 3-element vector for each input value.'
+
+  nig = 1
+  if N_elements(dims) eq 2 then $
+    nig = dims[1]
   if nig ne npts and nig ne 1 then $
       message, 'ERROR: initial_guess has ' + strtrim(nig, 2) + ' elements but there are ' + strtrim(npts, 2) + ' values'
   
-  if nig eq 1 then $
-    initial_guess = make_array(npts, value=initial_guess)
-
   ;; Convert our initial guess to the proper axis
   case axis of
      !pfo.Xin : 
@@ -154,7 +165,12 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
 
   for i=0,npts-1 do begin
      value = value_in[i]
-     Xin[i] = fx_root([initial_guess[i], initial_guess[i]-100, initial_guess[i]+100], $
+     ;; Handle the case where we just want to propagate one initial
+     ;; guess for all of the values
+     ii = i
+     if nig eq 1 then $
+       ii = 0
+     Xin[i] = fx_root(initial_guess[*, ii], $
                        'pfo_convert_coord_funct', /double, $
                        _EXTRA=extra)
   endfor
