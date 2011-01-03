@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.3 2010/07/17 18:58:33 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.4 2011/01/03 21:40:01 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -38,6 +38,7 @@ pro pfo_sysvar__define
   pfo_parinfo__define, parinfo=pfo_parinfo
   pfo $
     = {pfo_sysvar, $
+       debug	:	0, $    ; debug level 0 =catch, 1=don't catch, 2=xmanager, catch=0
        null	:	0, $	;; IMPORTANT THAT NULL BE 0
        ytemplate:	double(0), $	;; Default Y-axis type and value
        not_used	:	0, $	;; status tokens
@@ -51,10 +52,12 @@ pro pfo_sysvar__define
        $ ;; pfo.status = !pfo.inactive
        fixed	:	1, $ ;; .fixed needs to be 1 when pfo.status=!pfo.inactive 
        free	:	0, $
-       Xin	:	1, $	;; axis tokens
+       none	:	0, $	;; axis tokens
+       Xin	:	1, $
        Xaxis	:	2, $	;; Transformed X-axis
        Yaxis	:	3, $
        $ ;; fop tokens -- in the order they operate
+       noop	:	0, $    ;; Useful for pfo_deriv
        repl	:	1, $	;; Replace contents of target
        mult	:	2, $
        add	:	3, $
@@ -67,13 +70,15 @@ pro pfo_sysvar__define
        sso_funct:	5,  $
        czt	:	6,  $
        pow	:	7,  $
-       bgo	:	8,  $
+       scint	:	8,  $ ;; Generic scintillator
+       bgo	:	8,  $ ;; temporary for debugging
        mgm	:	9,  $	;; Modified Gaussian
        ROI	:	10, $
-       last_fn	:	10, $
+       deriv	:	11, $ ;; derivative -- depends on link
+       last_fn	:	11, $
        $ ;; If you add functions, add to these.  0 parameters means unspecified
-       fnames	:	['null', 'poly', 'deltafn', 'gauss', 'voigt', 'sso_funct', 'czt', 'pow', 'bgo', 'mgm', 'ROI'], $
-       fnpars	:	[0,0,2,3,4,0,10,2,5,3,2], $ ;; Number of params per fn
+       fnames	:	['null', 'poly', 'deltafn', 'gauss', 'voigt', 'sso_funct', 'czt', 'pow', 'scint', 'mgm', 'ROI', 'deriv'], $
+       fnpars	:	[0,0,2,3,4,0,10,2,5,3,2,1], $ ;; Number of params per fn
        $ ;; Tokens for printing
        print	:	1,   $  ;; parameter printing options 1=/print
        ppname	:	2,   $  ;; parameter names only
@@ -100,7 +105,13 @@ pro pfo_sysvar__define
        $;;print	:	1, $ ;; duplicate above
        indices	:	2, $
        widget	:	3, $
-       $ ;; tokens for pfo_multi_ROI_struct
+       $ ;; tokens for pfo_multi_ROI_struct.  Note that defining
+       $ ;; all_ROI this way puts any operations it does up front,
+       $ ;; which short-circuits what you might try to do with fseq in
+       $ ;; other ROIs.  If you want your all-encompassing ROI
+       $ ;; function to operate on the result of other ROI
+       $ ;; calculations, make it a high-number ROI with endpoints and
+       $ ;; minmax(Xin).
        all_spec	:	-1L, $
        all_ROI	:	-1L, $
        parinfo	:	pfo_parinfo}

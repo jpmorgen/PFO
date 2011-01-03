@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_funct_check.pro,v 1.5 2010/12/31 19:37:42 jpmorgen Exp $
+; $Id: pfo_funct_check.pro,v 1.6 2011/01/03 21:39:39 jpmorgen Exp $
 
 ; pfo_funct_check.pro 
 
@@ -69,6 +69,9 @@ function pfo_funct_check, fn, Xin=Xin, params=params, parinfo=parinfo, $
      else $
        params = parinfo.value
   endif
+
+  ;; --> I don't think this is consistent with the *pparinfo
+  ;; stuff, but I might nuke that as I go object-oriented
      
   ;; This should catch typos where the index values of params and
   ;; parinfo were not the same variable.  Oh, but if I am using idx
