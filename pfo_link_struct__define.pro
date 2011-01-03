@@ -1,7 +1,7 @@
 ;+
 ; NAME: pfo_link_struct__define
 ;
-; PURPOSE: Define the parinfo.pfo.link substructure that holds
+; PURPOSE: Define the parinfo.pfo_link substructure that holds
 ; information on linking parameters together.
 ;
 ; CATEGORY: PFO, optional add-in
@@ -35,7 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_link_struct__define.pro,v 1.1 2010/07/17 18:59:55 jpmorgen Exp $
+; $Id: pfo_link_struct__define.pro,v 1.2 2011/01/03 21:48:43 jpmorgen Exp $
+;
+; $Log: pfo_link_struct__define.pro,v $
+; Revision 1.2  2011/01/03 21:48:43  jpmorgen
+; Fixed bug in pfo_funct
+;
 ;-
 
 pro pfo_link_struct__define
@@ -44,6 +49,6 @@ pro pfo_link_struct__define
        ID	: 0, $ ;; Set this in the master function, one ID per function, the same ID for all the parameters, even for the ones that don't participate
        status	: 0, $ ;; See pfo_sysvar__define tokens.  It is not an error to have a slave point to a slave.  This is more a tag for convenience.
        to_ID	: 0, $ ;; set these in the slave functions
-       to_ftype	: 0. $ ;; to_ftype cannot be 0 in the slave
+       to_ftype	: 0. $ ;; to_ftype cannot be 0 in the slave, except for the derivative function
       } 
 end

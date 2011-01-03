@@ -1,7 +1,9 @@
 ;+
 ; NAME: pfo_widget
 ;
-; PURPOSE: Create and manage basic PFO package widget stuff.
+; PURPOSE: Create and manage basic PFO package widget stuff.  This is
+; basically a set of routines that help pfo_funct(/widget) out.  It is not
+; meant to be used independently
 ;
 ; CATEGORY: PFO
 ;
@@ -33,7 +35,7 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_widget.pro,v 1.1 2010/07/17 18:56:48 jpmorgen Exp $
+; $Id: pfo_widget.pro,v 1.2 2011/01/03 21:47:42 jpmorgen Exp $
 ;-
 pro pfo_widget_cleanup, tlb
   ;; Get our state variable from the tlb uvalue
@@ -41,18 +43,21 @@ pro pfo_widget_cleanup, tlb
   ;; Make sure we still have a state variable
   if N_elements(state) eq 0 then $
     return
-  ;; Clear out our widget IDs
-  (*state.pparinfo)[state.idx].pfo_widget.IDs = 0
+  ;; Erase the widgetIDs from our pparinfo, if we have one
+  if size(*state.pparinfo, /type) eq !tok.struct then $
+    (*state.pparinfo)[state.idx].pfo_widget.IDs = 0
 end
 
-pro pfo_widget_destroy, pparinfo, idx=idx
-  ;; Get our tlb from the pparinfo
-  tlbID = pfo_widget(pparinfo, idx=idx)
+pro pfo_widget_destroy, tlbID_or_pparinfo, idx=idx
+  ;; Be polite about what kind of handle we have on the widget
+  tlbID = tlbID_or_pparinfo
+  ;; Hopefully the input is something that pfo_widget can work with
+  ;; (e.g. a parinfo or pparinfo)
+  if size(tlbID_or_pparinfo, /type) ne !tok.long then $
+    tlbID = pfo_widget(tlbID_or_pparinfo, idx=idx)
   ;; If there is none, our job is done
   if tlbID eq 0 then $
     return
-  ;; Erase the widgetIDs from our pparinfo
-  (*pparinfo)[idx].pfo_widget.IDs = 0
 
   ;; Send the windowing system the signal to destroy the widget.  This
   ;; causes a chain of events that eventually ends up calling
@@ -61,9 +66,25 @@ pro pfo_widget_destroy, pparinfo, idx=idx
 end
 
 ;; Return array coordinates of ID.  If ID is not specified, return
-;; array coordinates of all non-zero IDs
+;; array coordinates of all non-zero IDs.  If we have no valid parinfo
+;; yet, n_widgets = -1 and return -1 (like pfo_funct_check)
 function pfo_widget_idx, pparinfo, ID, idx=idx, n_widgets=n_widgets
-  if NOT keyword_set(idx) then $
+  ;; Initialize our error output
+  idx = -1
+  n_widgets = -1
+  ;; Check to see if we have a valid parinfo
+  if size(*pparinfo, /type) ne !tok.struct then $
+    return, n_widgets
+
+  ;; If we made it here, we are probably working with a valid parinfo
+  ;; structure
+  CATCH, err
+  if err ne 0 then begin
+     CATCH, /CANCEL
+     message, !error_state.msg, /CONTINUE
+     message, 'ERROR: You probably don''t have the pfo_widget parinfo struct appended properly to your parinfo.  See pfo_widget_struct__define.pro'
+  endif ;; err
+  if idx eq -1 then $
     idx = lindgen(N_elements(*pparinfo))
   if n_params() eq 1 then begin
      grouped_widget_idx = $
@@ -72,6 +93,7 @@ function pfo_widget_idx, pparinfo, ID, idx=idx, n_widgets=n_widgets
      grouped_widget_idx = $
        where((*pparinfo)[idx].pfo_widget.IDs eq ID, n_widgets)
   endelse
+  CATCH, /CANCEL
   if n_widgets eq 0 then $
     return, -1
 
@@ -95,7 +117,10 @@ pro pfo_widget_event, event
      widget_control, event.ID, get_uvalue=button
      case button of
         'done' : begin
-           pfo_widget_destroy, state.pparinfo
+           ;; Put our state variable back in so that we can access it
+           ;; when we want to delete our widgetIDs.
+           widget_control, event.top, set_uvalue=state, /no_copy
+           pfo_widget_destroy, event.top
            ;; Return now so we don't get an error trying to
            ;; access a dead widget
            return
@@ -120,11 +145,11 @@ function pfo_widget_redraw_event, event
      ;; Get our top level state variable so we have access to pparinfo
      widget_control, event.top, get_uvalue=state, /no_copy
 
-     ;; Use pfo_funct to redraw everything in the parinfo container
-     junk = pfo_funct(parinfo=state.pparinfo, /widget)
+     ;; Use pfo_funct to redraw everything in the parinfo container.
+     junk = pfo_funct(parinfo=*state.pparinfo, pparinfo=state.pparinfo, /widget)
 
 
-     ;; Check to see if we have any event_pro or event_funct
+     ;; Check to see if we have any event_pro or event_func
      tags = tag_names(state)
      junk = where(tags eq 'EVENT_PRO', count)
      if count eq 1 then begin
@@ -274,13 +299,33 @@ function pfo_widget_delimiter_event, event
 end
 
 ;;*************************************************************
-function pfo_widget, pparinfo, idx=idx, group_leader=group_leader, $
+function pfo_widget, pparinfo_in, idx=idx, group_leader=group_leader, $
                      parinfo_containerID=parinfo_containerID, $
+                     pfo_widget_pparinfo=pfo_widget_pparinfo, $
                      event_pro=event_pro, event_funct=event_funct
   init = {pfo_widget_sysvar}
   init = {tok_sysvar}
-  if size(pparinfo, /type) ne !tok.pointer then $
-    message, 'ERROR: you need to create a heap variable for parinfo and pass me a pointer to that memory location in order for me to work properly'
+  
+  ;; Check to see if we were called with a plain old parinfo structure
+  ;; instead of a heap pointer.  We need to have parinfo on the heap
+  ;; so that it can be a return value when this widget is running in
+  ;; blocking mode (that is actually taken care of by the code that
+  ;; creates a heap pointer in pfo_funct).  It also helps us to have
+  ;; the flexibility with the various gyrations parinfo goes through
+  ;; in type (e.g. could be a string = 'none' or named structures
+  ;; depending on the functions we use).  Note that for good memory
+  ;; management, I use the no_copy option.  This has the side-effect
+  ;; of making the parinfo variable you pass undefined in your calling
+  ;; code, but I put it back before I return.
+  if size(pparinfo_in, /type) ne !tok.pointer then begin
+     pparinfo = ptr_new(pparinfo_in, /no_copy)
+     ;; Flag between calls.
+     pfo_widget_pparinfo = pfo_widget_pparinfo
+     ;; Flag for current instance of code to know we can free our heap
+     ;; variable and put parinfo_in back
+     just_created_pparinfo = 1
+  endif else $
+    pparinfo = pparinfo_in
 
   ;; When we are up and running, pfo_widget returns the tlbID of the
   ;; current widget.  Otherwise, pfo_widget builds the widget in two
@@ -297,11 +342,27 @@ function pfo_widget, pparinfo, idx=idx, group_leader=group_leader, $
      widget_idx = pfo_widget_idx(pparinfo, idx=idx, n_widgets=n_widgets)
      if n_widgets gt 0 then begin
         ;; This is our "up and running" case.  Pick the first
-        ;; pfo_widget.IDs to find the tlbID.  Indexing widget_idx like
-        ;; this guarantees covering all shapes and sizes of its return
-        ;; value.
+        ;; pfo_widget.IDs value to find the tlbID.  Indexing
+        ;; widget_idx like this guarantees covering all shapes and
+        ;; sizes of its return value.  No checking is done here to see
+        ;; if pfo_widget.IDs are pointing to sub-widgets in the same
+        ;; tlb.
         ID = (*pparinfo)[widget_idx[0]].pfo_widget.IDs[widget_idx[1]]
         widget_control, ID, get_uvalue=wstate
+        ;; Now assume that pfo_widget.IDs[0] will be set for all
+        ;; parameters that have been widgetized.  If some have not
+        ;; been set, we need a redraw.
+        empty_idx = where((*pparinfo)[idx].pfo_widget.IDs[0] eq 0, count)
+        if count gt 0 then begin
+           ;; --> For now, play with refilling widget.  This might end
+           ;; up putting things in the wrong order.
+           parinfo_containerID = state.parinfo_containerID
+        endif
+        ;; Put our input back the way we got it
+        if keyword_set(just_created_pparinfo) then begin
+           pparinfo_in = temporary(*pparinfo)
+           ptr_free, pparinfo
+        endif
         return, wstate.tlbID
      endif
 
@@ -344,9 +405,10 @@ function pfo_widget, pparinfo, idx=idx, group_leader=group_leader, $
 
      ;; Prepare our "state" variable to carry around in the tlb
      state = {tlbID        : tlbID, $
+              parinfo_containerID: parinfo_containerID, $
               pparinfo     : pparinfo, $
               $ ;; idx into pparinfo
-              idx          : idx $ 
+              idx          : idx $
              }
      ;; Append to the state variable keyowrds that we want to carry
      ;; around
@@ -368,7 +430,7 @@ function pfo_widget, pparinfo, idx=idx, group_leader=group_leader, $
   endif
 
   ;; If we made it here, we are likely being called at the end of
-  ;; pfo_funct for the third part of our widget creation excercise,
+  ;; pfo_funct for the third part of our widget creation exercises,
   ;; sketched out above. when we need to wrap up our widget creation
   ;; stuff.
 
@@ -387,8 +449,29 @@ function pfo_widget, pparinfo, idx=idx, group_leader=group_leader, $
   ;; Zero our per-parameter pointer to make it clear we won't be
   ;; adding anything
   !pfo_widget.ID_idx = 0
+  
+  ;; Check to see if we have created our own heap variable.  If so, we
+  ;; have likely been called directly from the command line or
+  ;; otherwise run in blocking mode.  In this case, we want to put
+  ;; parinfo_in back to parinfo.  This is one way we return our edited
+  ;; parinfo.
+  if keyword_set(pfo_widget_pparinfo) then begin
+     parinfo_in = temporary(*pfo_widget_pparinfo)
+     ptr_free, pfo_widget_pparinfo
+  endif
 
-  ;; Return our tlbID, since that is what we do.
-  return, tlbID
+  ;; By default, pfo_widget returns tlbID for use of routines
+  ;; downstream.
+  retval = tlbID
+  ;; But if we were run in blocking mode (e.g. we were the only widget
+  ;; on the block), when we get here, tlbID it not valid, so return 0.  If so,
+  ;; return our input parinfo (possibly modified by what we have done
+  ;; here).  Return a pointer if we were passed a pointer and a struct
+  ;; if we were passed a struct.  Return 'none' if we have no parinfo.
+  widget_control, tlbID, bad_id=bad_id
+  if keyword_set(bad_id) then $
+    retval = 0
+
+  return, retval
 
 end
