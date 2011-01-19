@@ -61,8 +61,11 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_convert_coord.pro,v 1.3 2011/01/17 18:57:00 jpmorgen Exp $
+; $Id: pfo_convert_coord.pro,v 1.4 2011/01/19 19:55:20 jpmorgen Exp $
 ; $Log: pfo_convert_coord.pro,v $
+; Revision 1.4  2011/01/19 19:55:20  jpmorgen
+; Changing to Newton
+;
 ; Revision 1.3  2011/01/17 18:57:00  jpmorgen
 ; About to delete some commented out code that worked but doesn't seem
 ; to be necessary
@@ -103,7 +106,7 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
   init = {tok_sysvar}
 
 
-  if !pfo.debug eq 0 then begin
+  if !pfo.debug le 0 then begin
      ;; Return to the calling routine with our error
      ON_ERROR, !tok.return
      ;; Note heap leakage if you have !pfo.debug gt 0
@@ -195,9 +198,6 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
         ;; Try to make a good initial guess.  This might take several
         ;; iterations.  Start from 0, since we have no other idea
         initial_guess_in = 0d
-     ;;;; Unless we are doing the trivial conversion from Xin
-        ;;if keyword_set(from_Xin) then $
-        ;;  initial_guess_in = value_in
         initial_guess_direction = 1 ; direction we are searching in
         CATCH, err
         if err ne 0 then begin
@@ -295,7 +295,6 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
   parinfo_in = temporary(*pparinfo)
   ptr_free, pparinfo
 
-  help, Xin
   ;; Return values
   case to_axis of 
      !pfo.Xin:   return, Xin
