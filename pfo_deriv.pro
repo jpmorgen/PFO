@@ -45,9 +45,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_deriv.pro,v 1.1 2011/01/03 21:48:14 jpmorgen Exp $
+; $Id: pfo_deriv.pro,v 1.2 2011/01/20 22:57:13 jpmorgen Exp $
 ;
 ; $Log: pfo_deriv.pro,v $
+; Revision 1.2  2011/01/20 22:57:13  jpmorgen
+; Fixed need for at least 3 input points.  Possibly not a great fix
+;
 ; Revision 1.1  2011/01/03 21:48:14  jpmorgen
 ; Initial revision
 ;
@@ -163,40 +166,57 @@ function pfo_deriv, Xin, params, dparams, parinfo=parinfo, idx=idx, $
   if count eq 0 then $
     return, result
 
-  CATCH, err
-  if err ne 0 then begin
-     CATCH, /CANCEL
-     message, /CONTINUE, !error_state.msg
-     message, 'ERROR: pfo_deriv.ID = ' + strtrim(ID, 2) + ' caused the above error'
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /CONTINUE, !error_state.msg
+        message, 'ERROR: pfo_deriv.ID = ' + strtrim(ID, 2) + ' caused the above error'
+     endif
   endif
+
+  ;; IDL's deriv needs at least 3 points to operate.  If 3 points were
+  ;; not provided, make them.  The best we can do is just increment
+  ;; and decrement by 1 on either side of what we have been given.
+  ;; Also, be polite with memory, remembering to put Xin back, below
+  nXin = N_elements(Xin)
+  Xin_calc = temporary(Xin)
+  if nXin lt 3 then $
+    Xin_calc = [Xin_calc[0] - 1, Xin_calc, Xin_calc[nXin-1] + 1]
+
 
   ;; Note that the function(s) might return yaxis (continuum and
   ;; peaks) or xaxis (dispersion/gain).  Also note that by calculating
   ;; the derivative in this way, functions that act on the accumulated
   ;; x- or y-axis are not properly accounted for unless you include
   ;; all the functions that accumulate the x- or y-axis in your ID.
-  yaxis = pfo_funct(Xin, params, parinfo=parinfo, idx=IDidx, xaxis=xaxis)
+  yaxis = pfo_funct(Xin_calc, params, parinfo=parinfo, idx=IDidx, xaxis=xaxis)
 
   ;; dy determines the dependent variable (e.g. the numerator of
   ;; the differentiation).  dx determines the denominator
 
   case dy of
-     !pfo.Xin	: y = Xin ;; Somewhat silly case, but be general, just in case
+     !pfo.Xin	: y = Xin_calc ;; Somewhat silly case, but be general, just in case
      !pfo.Xaxis	: y = xaxis
      !pfo.Yaxis	: y = yaxis
      else	: message, 'ERROR: improperly set pfo.inaxis value in derivative function'
   endcase
 
   case dx of 
-     !pfo.Xin	: x = Xin
+     !pfo.Xin	: x = Xin_calc
      !pfo.Xaxis	: x = xaxis
      !pfo.Yaxis	: x = yaxis
      else	: message, 'ERROR: improperly set pfo_deriv.dx value in derivative function'
   endcase
 
+  ;; Put Xin back the way we found it.  This should make Xin a scaler 
+  if nXin lt 3 then $
+    Xin = (Xin_calc[1:nXin])[indgen(nXin)] $
+  else $
+    Xin = temporary(Xin_calc)
+
   ;; Use IDL's internal deriv function for calculation
-  result = deriv(x, y)
-  return, result
+  return, deriv(x, y)
   
 end
 
