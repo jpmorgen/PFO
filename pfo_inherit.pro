@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_inherit.pro,v 1.1 2011/01/03 21:37:52 jpmorgen Exp $
+; $Id: pfo_inherit.pro,v 1.2 2011/01/20 22:58:53 jpmorgen Exp $
 ;
 ; $Log: pfo_inherit.pro,v $
+; Revision 1.2  2011/01/20 22:58:53  jpmorgen
+; Fixed bug in indexing
+;
 ; Revision 1.1  2011/01/03 21:37:52  jpmorgen
 ; Initial revision
 ;
@@ -96,7 +99,7 @@ pro pfo_inherit, source, dest, source_idx=source_idx, dest_idx=dest_idx
      ;; the assignemnt (remembering to unwrap).  Note that IDL will
      ;; raise an error if the structures don't match.  There is not
      ;; much we can do at this point if that is the case.
-     dest[dest_idx[didx]] = source[source_idx]     
+     dest[dest_idx[didx]] = source[source_idx[is]]     
   endfor ;; each source
 
 end
