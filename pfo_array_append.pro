@@ -73,31 +73,54 @@
 ; 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_array_append.pro,v 1.1 2010/12/10 22:02:35 jpmorgen Exp $
+; $Id: pfo_array_append.pro,v 1.2 2011/01/20 23:00:37 jpmorgen Exp $
 ;
 ; $Log: pfo_array_append.pro,v $
+; Revision 1.2  2011/01/20 23:00:37  jpmorgen
+; Fixed bug when orig_array undefined, added error messages
+;
 ; Revision 1.1  2010/12/10 22:02:35  jpmorgen
 ; Initial revision
 ;
 ;-
 pro pfo_array_append, orig_array, more_array, null_array=null_array
   init = {tok_sysvar}
+  init = {pfo_sysvar}
+
+  if !pfo.debug le 0 then begin
+     ;; Return to the calling routine with our error
+     ON_ERROR, !tok.return
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, !error_state.msg, /CONTINUE
+        message, 'USAGE: pfo_array_append, orig_array, more_array, null_array=null_array'
+     endif
+  endif ;; not debugging
+
+
   ;; Any errors will probably make more sense in the calling code
   on_error, !tok.return
 
   ;; Check to see if we need to do anything
-  if N_elements(more_array) eq 0 then $
-    return
+  if N_elements(more_array) eq 0 then begin
+     ;; --> I am not sure if I really want this message.  Users can
+     ;; get rid of it with !quiet = 1     
+     message, /INFORMATIONAL, 'NOTE: more_array not specified/undefined'
+     return
+  endif
 
   ;; Trivial case
   if N_elements(orig_array) eq 0 then begin
      orig_array = more_array
+     return
   endif
     
 
   ;; Next easiest case: we are up and running with an existing array.
-  ;; Let IDL's error handling take care of type mismatches
   if N_elements(orig_array) gt 1 then begin
+     if size(orig_array, /type) ne size(more_array, /type) then $
+       message, 'ERROR: when orig_array has more than one element, orig_array and more_array must have the same type.'
      ;; Use the temporary function to save memory
      orig_array = [temporary(orig_array), more_array] 
      return
