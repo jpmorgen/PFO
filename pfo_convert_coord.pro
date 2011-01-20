@@ -13,7 +13,8 @@
 ;
 ; DESCRIPTION: Like IDL's native convert_coord for plotting,
 ; pfo_convert_coord allows points on one axis to be looked up on
-; another.  Uses IDL's fx_root function to do the work.
+; another.  Uses IDL's fx_root function to do the work. -->
+; currently using NEWTON
 ;
 ; INPUTS: value -- value to convert scaler or vector is OK.  Use
 ;                  /from_* to specify which axis value belongs to
@@ -61,8 +62,11 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_convert_coord.pro,v 1.4 2011/01/19 19:55:20 jpmorgen Exp $
+; $Id: pfo_convert_coord.pro,v 1.5 2011/01/20 22:58:24 jpmorgen Exp $
 ; $Log: pfo_convert_coord.pro,v $
+; Revision 1.5  2011/01/20 22:58:24  jpmorgen
+; Trying NEWTON instead of FX_ROOT.
+;
 ; Revision 1.4  2011/01/19 19:55:20  jpmorgen
 ; Changing to Newton
 ;
@@ -284,9 +288,12 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
         ii = i
         if nig eq 1 then $
           ii = 0
-        Xin[i] = fx_root(initial_guess[*, ii], $
-                         'pfo_convert_coord_funct', /double, $
-                         _EXTRA=extra)
+;;        Xin[i] = fx_root(initial_guess[*, ii], $
+;;                         'pfo_convert_coord_funct', /double, $
+;;                         _EXTRA=extra)
+        Xin[i] = newton(initial_guess[0], $
+                        'pfo_convert_coord_funct', /double, $
+                        _EXTRA=extra)
      endfor
   endelse ;; Using fx_root to find Xin
 
