@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_struct__define.pro,v 1.3 2010/07/17 18:59:06 jpmorgen Exp $
+; $Id: pfo_struct__define.pro,v 1.4 2011/02/10 22:31:36 jpmorgen Exp $
 
 ; pfo_struct__define.pro 
 
@@ -17,6 +17,15 @@
 ;; 		parameter)
 ;;	  1	parameter in use
 ;;	 -1	parameter marked for deletion
+;; ofixed	Old mpfit fixed value.  When you set status = 0, you
+;; 		also have to set fixed = 1 or else MPFIT complains.
+;; 		ofixed is a place to store the old value so that when
+;; 		you go back to being active, you know if you were
+;; 		fixed or not.  Use pfo_mode to sort all this stuff
+;; 		out.
+;; fixed_mode	see pfo_mode
+;;	 0	parameter .fixed value can be changed
+;;	 1	parameter .fixed value will not be changed ("permanent")
 ;; ID 	 0-n	Parameter (or function) ID, for use by calling
 ;; 		routine.  Ideally, the calling routine should append
 ;; 		its own well-documented structure onto the pfo_parinfo
@@ -67,10 +76,17 @@
 ;; format and eformat: strings used to format the parameter and error
 ;; 	  during printing
 
+function pfo_struct__init
+  ;; Currently no non-null values in default
+  return, {pfo_struct}
+end
+
 pro pfo_struct__define
   pfo_struct $
     = {pfo_struct, $
        status	: 0, $
+       ofixed	: 0, $
+       fixed_mode:0, $
        ID	: 0, $
        fseq	: 0, $
        inaxis	: 0, $

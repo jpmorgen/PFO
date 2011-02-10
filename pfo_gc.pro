@@ -2,7 +2,7 @@
 ; NAME: pfo_gc
 ;
 ; PURPOSE: Permanently delete or "garbage collect" parameters marked
-; for deletion  with pfo.status = !pfo.delete
+; for deletion with pfo.status = !pfo.delete.  See pfo_mode
 ;
 ; CATEGORY: PFO
 ;
@@ -44,14 +44,15 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_gc.pro,v 1.1 2010/05/13 16:29:59 jpmorgen Exp $
+; $Id: pfo_gc.pro,v 1.2 2011/02/10 22:31:06 jpmorgen Exp $
 ;-
 pro pfo_gc, parinfo
   init = {pfo_sysvar}
+  init = {tok_sysvar}
   ;; Check to see if the parinfo is valid.  Setting parinfo = 'none'
   ;; is the hint that parinfo is empty.  This works well with
   ;; array_append when building up parinfo to begin with too.
-  if size(parinfo, /TNAME) eq 'STRING' then $
+  if size(parinfo, /TYPE) ne !tok.struct then $
     return
 
   ;; Find the parinfo we marked for deletion
