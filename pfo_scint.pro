@@ -31,11 +31,17 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_scint.pro,v 1.1 2010/09/25 20:07:41 jpmorgen Exp $
+; $Id: pfo_scint.pro,v 1.2 2011/02/10 22:26:26 jpmorgen Exp $
+;
+; $Log: pfo_scint.pro,v $
+; Revision 1.2  2011/02/10 22:26:26  jpmorgen
+; Added _REF_EXTRA so sigma passback from gnd_bgo would work
+;
 ;-
 function pfo_scint, Xin, params, dparams, parinfo=parinfo, idx=idx, $
                     create=create, print=print, widget=widget, $
-                    E0=E0, area=area, width=width_in, f_step=f_step, _EXTRA=extra
+                    E0=E0, area=area, width=width_in, f_step=f_step, $
+                    _REF_EXTRA=extra
 
   ;; Generic pfo system initialization
   init = {pfo_sysvar}
