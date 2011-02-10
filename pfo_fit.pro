@@ -55,9 +55,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 1.2 2010/12/31 21:57:13 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 1.3 2011/02/10 22:27:31 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 1.3  2011/02/10 22:27:31  jpmorgen
+; Fix bug in propagation of _EXTRA keywords!
+;
 ; Revision 1.2  2010/12/31 21:57:13  jpmorgen
 ; Change error reporting a little
 ;
@@ -67,10 +70,11 @@ pro pfo_fit, x, y, yerr, parinfo, mpfit_info=mpfit_info, _EXTRA=extra
 
   pfo_link_check, parinfo
 
-
+  ;; Make sure we have at least parinfo.  If the user supplied more
+  ;; arguments, append them properly.
   functargs = {parinfo:parinfo}
   if keyword_set(extra) then $
-    functargs = {parinfo:parinfo, _EXTRA:extra}
+    pfo_struct_append, functargs, extra
 
   ;; I wish that mpfitfun automatically returned these, but it
   ;; doesn't, so borrow them from mpfit, where Craig defines them
