@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.4 2011/01/03 21:40:01 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.5 2011/02/10 22:30:21 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -39,30 +39,31 @@ pro pfo_sysvar__define
   pfo $
     = {pfo_sysvar, $
        debug	:	0, $    ; debug level 0 =catch, 1=don't catch, 2=xmanager, catch=0
-       null	:	0, $	;; IMPORTANT THAT NULL BE 0
+       null	:	0, $	; IMPORTANT THAT NULL BE 0
        ytemplate:	double(0), $	;; Default Y-axis type and value
-       not_used	:	0, $	;; status tokens
+       not_used	:	0, $	; status tokens
        inactive	:	0, $
        not_pfo	:	0, $
        active	:	1, $
        delete	:	-1, $
        $ ;; Companion tokens for .fixed.  
-       $ ;; MPFIT doesn't like vestigial parameters hanging around,
-       $ ;; so you have to set .fixed = !pfo.fixed when you set
-       $ ;; pfo.status = !pfo.inactive
-       fixed	:	1, $ ;; .fixed needs to be 1 when pfo.status=!pfo.inactive 
+       fixed	:	1, $    ; (see pfo_mode)
        free	:	0, $
-       none	:	0, $	;; axis tokens
+       $ ;; Token for pfo.fixed_mode and pfo_mode query keyword
+       permanent:	1, $
+       non_permanent:	0, $
+       indeterminate:	-1,$
+       none	:	0, $	; axis tokens
        Xin	:	1, $
-       Xaxis	:	2, $	;; Transformed X-axis
+       Xaxis	:	2, $	; Transformed X-axis
        Yaxis	:	3, $
        $ ;; fop tokens -- in the order they operate
-       noop	:	0, $    ;; Useful for pfo_deriv
-       repl	:	1, $	;; Replace contents of target
+       noop	:	0, $    ; Useful for pfo_deriv
+       repl	:	1, $	; Replace contents of target
        mult	:	2, $
        add	:	3, $
-       convolve	:	4, $	;; See NOTE in pfo_funct
-       poly	:	1,  $	;; ftype tokens
+       convolve	:	4, $	; See NOTE in pfo_funct
+       poly	:	1,  $	; ftype tokens
        deltafn	:	2,  $
        gauss	:	3,  $
        voigt	:	4,  $
@@ -114,6 +115,8 @@ pro pfo_sysvar__define
        $ ;; minmax(Xin).
        all_spec	:	-1L, $
        all_ROI	:	-1L, $
+       $ ;; Experimenting with various ways of keeping track of the parinfo_template
+       objects_only:	0, $
        parinfo	:	pfo_parinfo}
 
   if N_elements(pfo.fnames) ne pfo.last_fn+1 or $
