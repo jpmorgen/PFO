@@ -12,20 +12,19 @@
 
 ; DESCRIPTION: 
 
-; Case 1: more_struct_or_required_tags is a STRUCT: uses IDL's native
-; create_struct function to append the struct
-; more_struct_or_required_tags to orig_struct.  If orig_struct is
-; undefined, it is initialized as more_struct[_or_required_tags].
-; NOTE: orig_struct is overwritten with the new structure!  This is
-; handy when you want to build up a structure inside a loop (see also
-; pfo_array_append).
+; Case 1: more_struct_or_required_tags is a STRUCT.  Let's call it
+; "more_struct."  Here we just use IDL's native create_struct function
+; to append more_struct to orig_struct.  If orig_struct is undefined,
+; it is initialized as more_struct.  NOTE: orig_struct is overwritten
+; with the new structure!  This is handy when you want to build up a
+; structure inside a loop (like pfo_array_append).
 
-; Case 2: more_struct_or_required_tags is an (array of) STRING: This
-; triggers the creation of tags (each of which can be an entire
-; sub-structure) using the pfo_struct_new sytem.  New tags are created
-; only if they are not in orig_struct already.  NOTE: the format for
-; filenames in the pfo_struct_new system is 'tag_struct__define.'
-; Just pass the 'tag' part in
+; Case 2: more_struct_or_required_tags is an (array of) STRING.  Lets
+; call it "required_tags."  This triggers the creation of tags (each
+; of which can be an entire sub-structure) using the pfo_struct_new
+; sytem.  New tags are created only if they are not in orig_struct
+; already.  NOTE: the format for filenames in the pfo_struct_new
+; system is 'tag_struct__define.'  Just pass the 'tag' part in
 ; more_struct_or_required_tags. pfo_struct_append and pfo_struct_new
 ; append '_struct__define.'
 
@@ -115,9 +114,13 @@
 ; MODIFICATION HISTORY:  This started out life as the function
 ; struct_append, which was not as efficient with memory
 ;
-; $Id: pfo_struct_append.pro,v 1.2 2011/04/29 20:48:02 jpmorgen Exp $
+; $Id: pfo_struct_append.pro,v 1.3 2011/08/01 18:58:32 jpmorgen Exp $
 ;
 ; $Log: pfo_struct_append.pro,v $
+; Revision 1.3  2011/08/01 18:58:32  jpmorgen
+; First reasonably functional version of pfo_obj
+; Improved documentation and error CATCHing
+;
 ; Revision 1.2  2011/04/29 20:48:02  jpmorgen
 ; Going to change the way I build up the required tags
 ;
@@ -138,7 +141,7 @@ pro pfo_struct_append, orig_struct, more_struct_or_required_tags, name=name, $
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        message, !error_state.msg, /CONTINUE
+        message, /NONAME, !error_state.msg, /CONTINUE
         message, 'USAGE: pfo_struct_append, orig_struct, more_struct_or_required_tags, [name=name, modified=modified].  If more_struct_or_required_tags is [an array of type] string, the corresponding tags will be created and initialized with pfo_struct_new and appended to orig_struc'
      endif
   endif ;; not debugging
@@ -160,7 +163,18 @@ pro pfo_struct_append, orig_struct, more_struct_or_required_tags, name=name, $
         if strupcase(name) eq struct_name then $ ;; nope, names are the same
           return
         ;; If we made it here, we want orig_struct to have a new
-        ;; name.  Beware the case where orig_struct has more than one
+        ;; name.  Catch the case where the name conflicts with an
+        ;; existing named structure.  I have seen some strange error
+        ;; messages that don't immediately point me to what is going on.
+        CATCH, err
+        if err ne 0 then begin
+           CATCH, /CANCEL
+           message, /NONAME, !error_state.msg, /CONTINUE
+           message, 'ERROR: I am not sure, but you may have a conflicting structure name=' + strtrim(name, 2)
+        endif
+
+
+        ;; Beware the case where orig_struct has more than one
         ;; element.  create_struct cannot handle arrays
         if Norig_struct eq 1 then begin
            orig_struct = create_struct(temporary(orig_struct), name=name)
@@ -218,13 +232,15 @@ pro pfo_struct_append, orig_struct, more_struct_or_required_tags, name=name, $
         this_struct = $
           pfo_struct_new(more_struct_or_required_tags[it] + '_struct', $
                          descr=more_struct_descr)
-        ;; Put this newly created more_struct under its tag name and
-        ;; append it to more_struct (which may yet to have been
+        ;; Put this newly created piece of more_struct under its tag name and
+        ;; append it to orig_struct (which may yet to have been
         ;; initialized).  We can call ourselves recursively, since we
         ;; are no longer dealing with strings.
-        pfo_struct_append, more_struct, $
+        pfo_struct_append, orig_struct, $
                            create_struct(more_struct_or_required_tags[it], $
                                          temporary(this_struct))
+        ;; Set our flag to indicate that orig_struct has been modified
+        modified = 1
 
         ;; Append the more_struct description to the existing descr
         ;; (if it exists), otherwise, initialize descr
@@ -238,9 +254,13 @@ pro pfo_struct_append, orig_struct, more_struct_or_required_tags, name=name, $
                                            !pfo.not_documented)
      endfor ;; each tag in more_struct_or_required_tags
 
-     ;; Let the standard struct case handle the rest of the operation
-     pfo_struct_append, orig_struct, more_struct, name=name, $
-                        modified=modified, descr=descr
+     ;; Check to see if we have a name.  We need to call ourselves,
+     ;; since we are equipped to deal with arrays of struct and
+     ;; create_struct is not.  Note that modified is guaranteed be set
+     ;; to 1 at this point.
+     if keyword_set(name) then $
+       pfo_struct_append, orig_struct, name=name
+
      return
 
   endif  ;; more_struct_or_required_tags is a string
@@ -281,7 +301,7 @@ pro pfo_struct_append, orig_struct, more_struct_or_required_tags, name=name, $
         new_struct = replicate(temporary(new_struct1), Norig_struct)
         ;; Dump in the orig_struct, making sure we don't disturb
         ;; any template values from more_struct
-        struct_assign, orig_struct, new_struct, /nozero
+        struct_assign, temporary(orig_struct), new_struct, /nozero
         ;; struct_assign seems to handle the one to many mapping with
         ;; no problem, so don't bother checking
         struct_assign, more_struct_or_required_tags, new_struct, /nozero
