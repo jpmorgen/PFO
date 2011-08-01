@@ -56,6 +56,8 @@
 ;	returns !pfo.fixed (1) if fixed, !pfo.free (0) if free, and
 ;	!pfo.indeterminate (-1) if there is a mix of fixed and free
 
+;	_EXTRA args are passed on to pfo_ROI_idx to further limit idx
+
 ; OUTPUTS:
 ;
 ; OPTIONAL OUTPUTS:
@@ -83,25 +85,30 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mode.pro,v 1.1 2011/02/10 22:28:27 jpmorgen Exp $
+; $Id: pfo_mode.pro,v 1.2 2011/08/01 18:31:17 jpmorgen Exp $
 ;
 ; $Log: pfo_mode.pro,v $
+; Revision 1.2  2011/08/01 18:31:17  jpmorgen
+; First reasonably functional version of pfo_obj
+;
 ; Revision 1.1  2011/02/10 22:28:27  jpmorgen
 ; Initial revision
 ;
 ;-
 pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
-              cancel_permanent=cancel_permanent, query=query
+              cancel_permanent=cancel_permanent, query=query, $
+              _REF_EXTRA=extra
   init = {pfo_sysvar}
   init = {tok_sysvar}
 
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
      ;; Return to the calling routine with our error
      ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        message, !error_state.msg, /CONTINUE
+        message, /NONAME, !error_state.msg, /CONTINUE
         message, 'USAGE: pfo_mode, mode, [idx=idx], [/permanent], [/cancel_permanent], [query], where mode is a string: ''fixed'', ''free'', ''inactive'', ''active'', ''delete''.  The permanent flags refer to fixed and free, not delete.  To permanently delete parameters, use the ''delete'' mode and then pfo_gc'
      endif
   endif ;; not debugging
@@ -110,9 +117,10 @@ pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
   npar = N_elements(parinfo)
   if npar eq 0 then $
     return
-  if N_elements(idx) eq 0 then $
-    idx = indgen(npar, type=size(/type, npar))
-  npar = N_elements(idx)
+  pfo_idx, parinfo, idx=idx
+  ;; Narrow with pfo_ROI_idx
+  idx = pfo_ROI_idx(parinfo, idx=idx, _EXTRA=extra)
+
   nonperm_idx = where(parinfo[idx].pfo.fixed_mode ne !pfo.permanent, nonperm_count)
 
   if N_elements(mode) eq 0 then $
@@ -182,7 +190,7 @@ pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
   if lmode ne 'fixed' and lmode ne 'free' and (keyword_set(permanent) or keyword_set(permanent)) then $
     message, 'WARNING: permanent or cancel_permanent flag specified with ' + strtrim(mode, 2) + ' These flags only apply to ''fixed'' and ''free'' mode.  See documentation.'
 
-  if arg_present(query) then begin
+  if arg_present(query) or N_elements(query) ne 0 then begin
      query = !pfo.indeterminate
      if nonperm_count gt 0 then begin
         ;; unwrap
