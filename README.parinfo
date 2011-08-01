@@ -1,0 +1,84 @@
+$Id: README.parinfo,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+
+README.parinfo
+
+The "parinfo" or "parameter information" array is the fundamental data
+structure of the PFO system.  The PFO parinfo was inspired by an input
+parameter of the same name in Craig Markwardt's MFPIT package.  In
+MPFIT, that parinfo array contains one element per parameter of the
+function to be optimized.  The tags in the structure communicate
+information to the parameter optimizer.  This information includes
+whether or not the parameter is fixed or free, what limits it might be
+welcome to wander over, information about how to calculate its numeric
+derivative, etc.  See the MPFIT documentation for full details.  The
+PFO parinfo expands on the MPFIT parinfo concept so that the parinfo
+includes enough information to fully characterize a function.  In this
+way PFO enables a function to be transformed into a data structure
+
+The advantage of transforming a function into a data structure is most
+readily apparent when a function can be expressed as a combination of
+sub-functions.  In this case, the main function function can be easily
+modified using data manipulation techniqnues applied to the parinfo.
+
+The PFO system is designed to make the implementation of new
+sub-functions as easy as possible.  If a new function is defined in a
+file named pfo_<fname>__fdefine.pro, it is automatically incorporated
+into the PFO system.  If you are interested in implementing a function
+in the PFO system, simply find an existing function that has similar
+attributes, and use that pfo_<fname>__fdefine.pro file as a template.
+
+PFO requires a number of tags in addition to the tags used by MPFIT.
+In order to keep the top-level of the parinfo structure from getting
+too crowded, a design decision was made to group these tags into their
+own structures.  The pfo_struct system is available to facilitate this
+process.  See README.pfo_struct for more details about this system.
+Here the tags in parinfo.pfo are discussed.
+
+PFO is currently optimized to solve problems in spectroscopy.  For
+spectroscopic applications, the function being fit to the data usually
+has a background or continuum that is frequently represented by a
+low-order polynomial.  Individual features ("lines" -- a throwback to
+photographic spectroscopy) are represented by functions that have
+peaks (or valleys in the case of absorption spectroscopy) such as the
+Gaussian or Voigt.  In creating a full PFO parinfo
+
+In order to achieve a fully-functioning Envisioning the parinfo structure becoming
+quite complicated, a design de
+
+The first and most important tag is PFO
+
+
+FTYPE
+
+An important design deIn order to make the association between 
+
+
+
+If this function requires an expansion of the
+parinfo structure, in which to store information its critical to its
+operation,  can be used (see README.pfo_struct)
+
+to handle multiple constituent
+functions easily
+
+Each sub-function can be independently created and
+manipulated by data 
+
+is composed of a number of
+constituent parts.
+
+The PFO parinfo concept is most 
+
+  In PFO, a
+function is, in principle, fully described by the parinfo array.  In
+practice, a few data structures in addition to the parinfo are used to
+help the system work more efficiently.  These data structures include
+the pfo_fstruct_array and the pfo_parinfo_template.
+
+PFO implements a system of routines that helps create and maintain the
+parinfo structure.  A good place to start reading to understand this
+system is the documentation in pfo_parinfo_new.pro.  That will refer
+you to the file README.names, which is designed to be a quick
+reference to the naming conventions in the PFO system.  Another good
+read is the pfo_funct documentation, since pfo_funct interprets
+parinfo arrays.

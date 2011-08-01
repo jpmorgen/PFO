@@ -1,0 +1,93 @@
+$Id: README.names,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+
+$Log: README.names,v $
+Revision 1.1  2011/08/01 19:18:16  jpmorgen
+Initial revision
+
+
+README.names -- Documentation of naming conventions for PFO system
+
+PFO FUNCTIONS:
+
+pfo_<fname>__fdefine: (not implemented yet) Register function fname in
+	the dynamic list of pfo functions.  Also registers number of
+	parameters, if known (0 parameters indicates number of
+	parameters of this function might vary -- e.g. pfo_poly).
+	Called by pfo_fdefine.  pfo_fdefine can search the entire
+	IDL_PATH to register all pfo functions.  pfo_fdefine, <fname>
+	is called by pfo_parinfo_new, <fname>.
+
+pfo_<fname>__init: (not implemented yet) Called by pfo_parinfo_new to
+	create a new strand of parinfo for function fname.  Accepts
+	keyword parameters that help initilize the new parinfo.
+	Intermediate processing of the strand (e.g. with the pfo_link
+	system) might be necessary.  After intermediate processing,
+	the strand should be joind to an existing parinfo with
+	pfo_array_append and then pfo_parinfo_update should be called
+	to automatically sort out any interdependencies
+
+pfo_<fname>__calc: (currently, this is just pfo_<fname> without print,
+	widget, etc. keywords)  Called by pfo_funct to calculate
+	function fname given the input axis specified in
+	parinfo.pfo.inaxis, combined with the operation specified in
+	parinfo.pfo.fop with the contents of parinfo.pfo.oaxis.
+	parinfo.pfo.infunct and parinfo.pfo.outfunct also operate, if
+	specified.
+
+pfo_<fname>__print: (currently, this is the print keyword to
+	pfo_<fname>) Called by pfo_funct to print the function in the
+	IDL command line window
+
+pfo_<fname>__widget: (currently, this is the widget keyword to
+	pfo_<fname>) Called by pfo_funct to create a widget to display
+	the function in IDL GUI format
+
+pfo_<fname>__indices (not sure I really need this if I have the getpar
+functionality)
+
+pfo_<fname>__fgetpar: parameter index using name as reference
+
+STRUCTURES:
+
+<tagname>_struct__define: define the structure for a structure called
+	tagname_struct.  This is a basic feature of IDL since version
+	5 or so, but we expand on it with the function pfo_struct_new.
+	<tagname>_struct__define will initialize tags to IDL "null"
+	values.  This does not always serve our purposes.
+	<tagname>_struct__init fixes this.
+
+<tagname>_struct__init: called by pfo_struct_new(tagname).
+	This function initializes the struct created by
+	<tagname>_struct__define.  The analogy to the init method of
+	an object reference is intended.  pfo_struct_new also
+	optionally creates a parallel structure called descr, which
+	contains the documentation for the tags in <tagname>_struct.
+
+<tagname>_struct__set_tag: the analogy of a set_property method.
+	Keywords correspond to tags
+
+<tagname>_struct__get_tag: the analogy of a get_property method.
+	Keywords correspond to tags
+
+The routine pfo_struct_setget_tag access is __set_tag and __get_tag
+	"methods"
+
+
+<parameter_optimizer>_parinfo_struct__define: currently only mpfit is
+	supported.  This defines the top-level struct of the parinfo
+
+pfo_<name>_cw: a compound widget designed to interface with the
+	pfo_cw communication system.
+
+pfo_<name>_cw_obj: an object, typically defined in the file
+	pfo_<name>_cw.pro that serves as the "controlling object" of
+	the widget, a la David Fanning's fsc_field.
+
+pfo_<name>_obj__define.pro: These files contain code that is
+	eventually collected together to define the pfo_obj.  In
+	principle, everything under the PFO sun could be collected
+	into pfo_obj.  In practice, a devision is made between the
+	objects which control compound widgets and pfo_obj.  pfo_obj
+	is intended primarily for data-storage object and has methods
+	that focus on providing that data efficiently to external
+	routines, such as the compound widget controlling objects.
