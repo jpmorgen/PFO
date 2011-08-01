@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mpfit_obj__define.pro,v 1.1 2011/07/29 13:40:14 jpmorgen Exp $
+; $Id: pfo_mpfit_obj__define.pro,v 1.2 2011/08/01 19:18:16 jpmorgen Exp $
 ;
 ; $Log: pfo_mpfit_obj__define.pro,v $
+; Revision 1.2  2011/08/01 19:18:16  jpmorgen
+; *** empty log message ***
+;
 ; Revision 1.1  2011/07/29 13:40:14  jpmorgen
 ; Initial revision
 ;
@@ -46,26 +49,43 @@
 ;; Wrapper so that mpfit can call the pfo_obj->deviates method
 function pfo_mpfit_obj_kernel, $
    params, $ 		;; Required positional parameter passed by MPFIT
+   Xin=Xin, $		;; from MPFIT functargs keyword (optional)
    pfo_obj=pfo_obj, $	;; from MPFIT functargs keyword
-   _REF_EXTRA=extra
+   idx=idx, $		;; from MPFIT functargs keyword (NOT ALLOWED -- use pfo_mode to mark parameters as inactive)
+   ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
+   iROI=iROI, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
+   _REF_EXTRA=extra ;; keyword arguments passed to pfo_obj->deviates()
 
-   init = {pfo_sysvar}
-   init = {tok_sysvar}
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
 
-   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
-   if !pfo.debug le 0 then begin
-      ;; Return to the calling routine with our error
-      ON_ERROR, !tok.return
-      CATCH, err
-      if err ne 0 then begin
-         CATCH, /CANCEL
-         message, /NONAME, !error_state.msg, /CONTINUE
-         message, 'ERROR: Caught above error.  Returning NaN to calling routine.'
-         return, !values.d_nan
-      endif
-   endif ;; not debugging
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     ;; Return to the calling routine with our error
+     ON_ERROR, !tok.return
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: Caught above error.  Returning NaN to calling routine.'
+        return, !values.d_nan
+     endif
+  endif ;; not debugging
 
-  return, pfo_obj->deviates(params=params, _EXTRA=extra)
+  ;; Make sure the user does't try to use the idx keyword to limit
+  ;; parinfo at this point.  We are counting on saving memory by
+  ;; passing the the encapsulated parinfo by reference everywhere,
+  ;; rather than copying it into some subset of itself.
+  if N_elements(idx) + N_elements(ispec) + N_elements(iROI) ne 0 then $
+     message, 'ERROR: I cannot limit parinfo by idx, ispec, or iROI at this point.  Use "pfo_mode, parinfo, !pfo.inactive, idx=idx" instead.'
+
+  ;; The hide_NAN and hide_infinity flags (if present) are passed to
+  ;; pfo_obj->deviates() via _EXTRA.  These flags can help keep MPFIT
+  ;; ignore the regions between ROIs, ignore points with Yerr=0, and
+  ;; avoid areas where the parinfo function becomes infinite.  The
+  ;; last of these might generate some strange results, since the
+  ;; effective number of datapoints may change drastically.
+  return, pfo_obj->deviates(Xin=Xin, params=params, _EXTRA=extra)
 end
 
 ;; MPFIT Iterproc customized for pfo
@@ -101,13 +121,13 @@ pro pfo_mpfit_iterproc, $
 
   ;; Print the definitions of the functions used before the first iteration.
   if iter eq 1 then begin
-     print, pfo_parinfo_parse(parinfo, params, /print, /param_names_only, pfo_obj=pfo_obj)
+     print, pfo_parinfo_parse(parinfo, params=params, /print, /param_names_only, pfo_obj=pfo_obj)
   endif
   print, '-------------------------------------------------'
   print, iter, fnorm, dof, $
-    format='("Iter ",I6,"   chi-sq = ",G15.8,"          dof = ",I0)'
+         format='("Iter ",I6,"   chi-sq = ",G15.8,"          dof = ",I0)'
   print, '-------------------------------------------------'
-  print, pfo_parinfo_parse(parinfo, params, /print, /brief, pfo_obj=pfo_obj)
+  print, pfo_parinfo_parse(parinfo, params=params, /print, /brief, pfo_obj=pfo_obj)
 
   if obj_valid(pfo_obj) and keyword_set(plot) then $
      pfo_obj->plot, params=params, _EXTRA=iterargs
@@ -152,9 +172,9 @@ pro pfo_mpfit_iterproc, $
            answer = strupcase(answer)
            for ki = 0,1000 do flush_input = get_kbrd(0)
         endrep until $
-          answer eq 'S' or $
-          answer eq 'Q' or $
-          answer eq 'N'
+           answer eq 'S' or $
+           answer eq 'Q' or $
+           answer eq 'N'
 
         case answer of 
            'S'	:	mperr = !pfo.iterstop
@@ -187,6 +207,8 @@ function pfo_mpfit_obj::fit, $
    mpfit_msg=mpfit_msg, $ ;; (output) mpfit status code translated into text (used when status is positive.  mpfit_errmsg contains error message for negative status values
    params, $ ;; starting parameters, if different than parinfo.value
    FUNCTARGS=functargs_in, $ ;; arguments (in addition to pfo_obj) that will be passed to mpfit_kernel
+   hide_NAN=hide_NAN, $ ;; Hide instances of NAN from calculation of deviates (default = yes or property value)
+   hide_infinity=hide_infinity, $ ;; Hide instances of NAN from calculation of deviates (default = yes or property value)
    NFEV=nfev, $ ;; (output) number of mpfit_kernel calls
    MAXITER=maxiter, $ ;; maximum number of fit iterations
    mpfit_errmsg=mpfit_errmsg, $ ;; (output) string containing MPFIT output error message
@@ -200,151 +222,178 @@ function pfo_mpfit_obj::fit, $
    ITERPROC=iterproc, $ ;; name of kernel function (MYFUNCT) used by MPFIT to call residual method
    ITERARGS=iterargs_in, $ ;; keyword arguments passed to iterproc
    COVAR=covar, $ ;; (output) covariance matrix for best-fit params
-   BESTNORM=bestnorm ;; (output) chi sq = total(deviates^2)
+   BESTNORM=bestnorm, $ ;; (output) chi sq = total(deviates^2)
+   idx=idx, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
+   ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
+   iROI=iROI, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
+   _REF_EXTRA=extra
 
-   init = {pfo_sysvar}
-   init = {tok_sysvar}
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
 
-   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
-   if !pfo.debug le 0 then begin
-      ;; Return to the calling routine with our error
-      ON_ERROR, !tok.return
-      CATCH, err
-      if err ne 0 then begin
-         CATCH, /CANCEL
-         message, /NONAME, !error_state.msg, /CONTINUE
-         message, 'ERROR: Caught above error.  Returning 0', /CONTINUE
-         return, 0
-      endif
-   endif ;; not debugging
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     ;; Return to the calling routine with our error
+     ON_ERROR, !tok.return
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: Caught above error.  Returning 0', /CONTINUE
+        return, 0
+     endif
+  endif ;; not debugging
 
-   ;; MPFIT_MAX_STATUS.  Maximum number of fit iterations
-   if N_elements(mpfit_max_status) eq 0 then mpfit_max_status = self.mpfit_max_status
+  ;; IDX (not allowed).  Make sure the user does't try to use the idx
+  ;; keyword to limit parinfo at this point.  We are counting on
+  ;; saving memory by passing the the encapsulated parinfo by
+  ;; reference everywhere, rather than copying it into some subset of
+  ;; itself.
+  if N_elements(idx) + N_elements(ispec) + N_elements(iROI) ne 0 then $
+     message, 'ERROR: I cannot limit parinfo by idx, ispec, or iROI at this point.  Use "pfo_mode, parinfo, !pfo.inactive, idx=idx" instead.'
 
-   ;; MPFIT_KERNEL.  Let the user select a different kernel function.
-   ;; This is one way to connect to a different way of calculating the
-   ;; deviates.  The other would be to defined a new pfo_obj that
-   ;; would override the deviates method....
-   if N_elements(mpfit_kernel) eq 0 then mpfit_kernel = self.mpfit_kernel
+  ;; MPFIT_MAX_STATUS.  Maximum number of fit iterations
+  if N_elements(mpfit_max_status) eq 0 then mpfit_max_status = self.mpfit_max_status
 
-   ;; FUNCTARGS.  Handle any extra arguments that the user wants to
-   ;; pass to the routines that do the calculations.  Note that the
-   ;; externally provided functargs should not include pfo_obj
-   functargs = {pfo_obj:self}
-   ;; Prefer command-line specified functargs over property (e.g. do
-   ;; not concatenate command line and property functargs)
-   if N_elements(functargs_in) ne 0 then begin
-      pfo_struct_append, functargs, functargs_in
-   endif else begin
-      if N_elements(*self.pFunctargs) ne 0 then $
-         pfo_struct_append, functargs, *self.pFunctargs
-   endelse
+  ;; MPFIT_KERNEL.  Let the user select a different kernel function.
+  ;; This is one way to connect to a different way of calculating the
+  ;; deviates.  The other would be to defined a new pfo_obj that
+  ;; would override the deviates method....
+  if N_elements(mpfit_kernel) eq 0 then mpfit_kernel = self.mpfit_kernel
 
-   ;; MAXITER.  Maximum number of fit iterations
-   if N_elements(maxiter) eq 0 then maxiter = self.maxiter
+  ;; HIDE_INFINITY.  Determines if we should hide instances of
+  ;; infinity from our deviates.  Default is !tok.yes, since then we
+  ;; can use Yerr = 0 to mark missing data points.  Also is a little
+  ;; polite to functions that are blowing up on portions of their
+  ;; ranges.  You may wish to use !tok.no, 
+  if N_elements(hide_infinity) eq 0 then hide_infinity = self.hide_infinity
 
-   ;; NPRINT.  Iterproc is called every nprint iterations
-   if N_elements(nprint) eq 0 then nprint = self.nprint
-   
-   ;; MPFIT_QUIET.  MPFIT's quiet keyword
-   if N_elements(mpfit_quiet) eq 0 then mpfit_quiet = self.mpfit_quiet
-   
-   ;; FTOL.  Stop criterion for reduction in sum of squares
-   if N_elements(ftol) eq 0 then ftol = self.ftol
+  ;; HIDE NAN.  Like hide_infinity, but a little more fundamental to
+  ;; PFO.  The Yaxis is initialized to NAN.  If you use ROIs,
+  ;; you won't calculate Yaxis between ROIs.  Leaving this at
+  ;; the default value of !tok.yes assures that these points are left
+  ;; out of the deviates so
+  if N_elements(hide_NAN) eq 0 then hide_NAN = self.hide_NAN
+  
+  ;; FUNCTARGS.  These are the arguments to the MPFIT kernel function,
+  ;; which basically just calls self->deviates() with all these
+  ;; keywords except self.
+  functargs = {pfo_obj:self, hide_infinity:hide_infinity, hide_NAN:hide_NAN}
 
-   ;; XTOL.  Stop criterion for relative error between two consecutive iterations
-   if N_elements(xtol) eq 0 then xtol = self.xtol
+  ;; Prefer command-line specified functargs over property (e.g. do
+  ;; not concatenate command line and property functargs)
+  if N_elements(functargs_in) ne 0 then begin
+     pfo_struct_append, functargs, functargs_in
+  endif else begin
+     if N_elements(*self.pFunctargs) ne 0 then $
+        pfo_struct_append, functargs, *self.pFunctargs
+  endelse
 
-   ;; GTOL.  Stop criterion for cos of angle between fvec and any column of the jacobian 
-   if N_elements(gtol) eq 0 then gtol = self.gtol
+  ;; MAXITER.  Maximum number of fit iterations
+  if N_elements(maxiter) eq 0 then maxiter = self.maxiter
 
-   ;; ITERPROC.  Procedure to call every niter iterations
-   if N_elements(iterproc) eq 0 then iterproc = self.iterproc
+  ;; NPRINT.  Iterproc is called every nprint iterations
+  if N_elements(nprint) eq 0 then nprint = self.nprint
+  
+  ;; MPFIT_QUIET.  MPFIT's quiet keyword
+  if N_elements(mpfit_quiet) eq 0 then mpfit_quiet = self.mpfit_quiet
+  
+  ;; FTOL.  Stop criterion for reduction in sum of squares
+  if N_elements(ftol) eq 0 then ftol = self.ftol
 
-   ;; ITERARGS.  Handle any extra arguments that the user wants to
-   ;; pass to the iterproc.  Note that the externally provided
-   ;; iterargs should not include pfo_obj
-   iterargs = {pfo_obj:self}
-   ;; Prefer command-line specified iterargs over property (e.g. do
-   ;; not concatenate command line and property iterargs)
-   if N_elements(iterargs_in) ne 0 then begin
-      pfo_struct_append, iterargs, iterargs_in
-   endif else begin
-      if N_elements(*self.pIterargs) ne 0 then $
-         pfo_struct_append, iterargs, *self.pIterargs
-   endelse
+  ;; XTOL.  Stop criterion for relative error between two consecutive iterations
+  if N_elements(xtol) eq 0 then xtol = self.xtol
 
-   ;; Initialize output property
-   self.nfev = 0
-   self.mpfit_errmsg = ''
-   self.niter = 0
-   self.mpfit_status = !tok.nowhere
-   ptr_free, self.pcovar
-   self.pcovar = ptr_new(/allocate_heap)
-   self.bestnorm = 0D
+  ;; GTOL.  Stop criterion for cos of angle between fvec and any column of the jacobian 
+  if N_elements(gtol) eq 0 then gtol = self.gtol
 
-   new_params = mpfit(mpfit_kernel, params, functargs=functargs, NFEV=nfev, MAXITER=maxiter, ERRMSG=mpfit_errmsg, NPRINT=nprint, QUIET=mpfit_quiet, ftol=ftol, xtol=xtol, gtol=gtol, niter=niter, status=mpfit_status, iterproc=iterproc, iterargs=iterargs, covar=covar, perror=perror, bestnorm=bestnorm, parinfo=*self.pparinfo)
+  ;; ITERPROC.  Procedure to call every niter iterations
+  if N_elements(iterproc) eq 0 then iterproc = self.iterproc
 
-   ;; Save these output keywords into property, if MPFIT provides then
-   if N_elements(nfev		) gt 0 then self.nfev 		= nfev
-   if N_elements(mpfit_errmsg	) gt 0 then self.mpfit_errmsg 	= mpfit_errmsg
-   if N_elements(niter		) gt 0 then self.niter 		= niter
-   if N_elements(mpfit_status	) gt 0 then self.mpfit_status 	= mpfit_status
+  ;; ITERARGS.  Handle any extra arguments that the user wants to
+  ;; pass to the iterproc.  Note that the externally provided
+  ;; iterargs should not include pfo_obj
+  iterargs = {pfo_obj:self}
+  ;; Prefer command-line specified iterargs over property (e.g. do
+  ;; not concatenate command line and property iterargs)
+  if N_elements(iterargs_in) ne 0 then begin
+     pfo_struct_append, iterargs, iterargs_in
+  endif else begin
+     if N_elements(*self.pIterargs) ne 0 then $
+        pfo_struct_append, iterargs, *self.pIterargs
+  endelse
 
-   mpfit_msg = 'mpfit returned status ' + strtrim(mpfit_status, 2) + ' '
+  ;; Initialize output property
+  self.nfev = 0
+  self.mpfit_errmsg = ''
+  self.niter = 0
+  self.mpfit_status = !tok.nowhere
+  ptr_free, self.pcovar
+  self.pcovar = ptr_new(/allocate_heap)
+  self.bestnorm = 0D
 
-   ;; Translate our mpfit_status
-   case mpfit_status of
-      -18: mpfit_msg += mpfit_errmsg
-      -16: mpfit_msg += 'A parameter or function value has become infinite or undefined.  ' + mpfit_errmsg
-      !pfo.iterstop: begin
-         mpfit_msg += 'WARNING: user interrupted fit, KEEPING parameters, but errors can''t be calculated'
-         (*self.pparinfo).value = new_params
-      end
-      !pfo.iterquit: mpfit_msg += 'WARNING: user interrupted fit, RESETTING parameters'
-      !tok.nowhere:  mpfit_msg += 'ERROR: fit does not seem to have been attempted!'
-      0: mpfit_msg += mpfit_errmsg ;; (bad input to mpfit)
-      1: mpfit_msg += 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2)
-      2: mpfit_msg += 'which means parameters are not changing by more than XTOL' + strtrim(xtol, 2)
-      3: mpfit_msg += 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2) + ' AND the parameters are not changing by more than XTOL' + strtrim(xtol, 2)
-      4: mpfit_msg += 'which means the abs value of the cosine of the angle between fvec and any column of the jacobian is at most GTOL=' + strtrim(gtol, 2)
-      5: mpfit_msg += 'WARNING: this means MAXITER=' + strtrim(maxiter,2) + ' was reached'
-      6: mpfit_msg += 'WARNING: this means FTOL=' + strtrim(ftol,2) + ' is too small no further reduction in the sum of squares is possible.'
-      7: mpfit_msg += 'WARNING: this means XTOL=' + strtrim(xtol,2) + ' is too small no further improvement in the approximate solution x is possible.'
-      8: mpfit_msg += 'WARNING: this means GTOL=' + strtrim(gtol,2) + ' is too small fvec is orthogonal to the columns of the jacobian to the specified precision.'
-      9: message, 'ERROR: code not set up to handle external procedure'
-      else: begin
-         if status le 0 then begin
-            mpfit_msg += 'ERROR: STATUS value is in the range of a user-defined error'
-         endif
-      end
-   endcase
+  new_params = mpfit(mpfit_kernel, params, functargs=functargs, NFEV=nfev, MAXITER=maxiter, ERRMSG=mpfit_errmsg, NPRINT=nprint, QUIET=mpfit_quiet, ftol=ftol, xtol=xtol, gtol=gtol, niter=niter, status=mpfit_status, iterproc=iterproc, iterargs=iterargs, covar=covar, perror=perror, bestnorm=bestnorm, parinfo=*self.pparinfo, _EXTRA=extra)
 
-   ;; Put our mpfit_msg into our property
-   self.mpfit_msg = mpfit_msg
+  ;; Save these output keywords into property, if MPFIT provides then
+  if N_elements(nfev		) gt 0 then self.nfev 		= nfev
+  if N_elements(mpfit_errmsg	) gt 0 then self.mpfit_errmsg 	= mpfit_errmsg
+  if N_elements(niter		) gt 0 then self.niter 		= niter
+  if N_elements(mpfit_status	) gt 0 then self.mpfit_status 	= mpfit_status
 
-   ;; Check to see if our fit had some problem
-   if mpfit_status le 0 or mpfit_status gt mpfit_max_status then $
-      return, 0
+  mpfit_msg = 'mpfit returned status ' + strtrim(mpfit_status, 2) + ' '
 
-   ;; If we made it here, we have a good fit
+  ;; Translate our mpfit_status
+  case mpfit_status of
+     -18: mpfit_msg += mpfit_errmsg
+     -16: mpfit_msg += 'A parameter or function value has become infinite or undefined.  ' + mpfit_errmsg
+     !pfo.iterstop: begin
+        mpfit_msg += 'WARNING: user interrupted fit, KEEPING parameters, but errors can''t be calculated'
+        (*self.pparinfo).value = new_params
+     end
+     !pfo.iterquit: mpfit_msg += 'WARNING: user interrupted fit, RESETTING parameters'
+     !tok.nowhere:  mpfit_msg += 'ERROR: fit does not seem to have been attempted!'
+     0: mpfit_msg += mpfit_errmsg ;; (bad input to mpfit)
+     1: mpfit_msg += 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2)
+     2: mpfit_msg += 'which means parameters are not changing by more than XTOL' + strtrim(xtol, 2)
+     3: mpfit_msg += 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2) + ' AND the parameters are not changing by more than XTOL' + strtrim(xtol, 2)
+     4: mpfit_msg += 'which means the abs value of the cosine of the angle between fvec and any column of the jacobian is at most GTOL=' + strtrim(gtol, 2)
+     5: mpfit_msg += 'WARNING: this means MAXITER=' + strtrim(maxiter,2) + ' was reached'
+     6: mpfit_msg += 'WARNING: this means FTOL=' + strtrim(ftol,2) + ' is too small no further reduction in the sum of squares is possible.'
+     7: mpfit_msg += 'WARNING: this means XTOL=' + strtrim(xtol,2) + ' is too small no further improvement in the approximate solution x is possible.'
+     8: mpfit_msg += 'WARNING: this means GTOL=' + strtrim(gtol,2) + ' is too small fvec is orthogonal to the columns of the jacobian to the specified precision.'
+     9: message, 'ERROR: code not set up to handle external procedure'
+     else: begin
+        if status le 0 then begin
+           mpfit_msg += 'ERROR: STATUS value is in the range of a user-defined error'
+        endif
+     end
+  endcase
 
-   ;; First save off our old parinfo, if desired
-   if arg_present(undo) or N_elements(undo) ne 0 then $
-      undo = *self.pparinfo
-   ;; Put our new params and errors into the parinfo.  Try this two
-   ;; ways so that we can (1) test it and (2) use
-   ;; its code to invalidate our cache.  The commented out line is
-   ;; slower but more concise
-   ;;self->parinfo_call_procedure, 'pfo_struct_setget_tag', /set, value=new_params, error=perror, pfo_obj=self
-   (*self.pparinfo).value = new_params
-   (*self.pparinfo).error = perror
-   self->invalidate_cache
+  ;; Put our mpfit_msg into our property
+  self.mpfit_msg = mpfit_msg
 
-   *self.pcovar = covar
-   self.bestnorm = bestnorm
-   ;; Return 1 to indicate successful fit
-   return, 1
+  ;; Check to see if our fit had some problem
+  if mpfit_status le 0 or mpfit_status gt mpfit_max_status then $
+     return, 0
+
+  ;; If we made it here, we have a good fit
+
+  ;; First save off our old parinfo, if desired
+  if arg_present(undo) or N_elements(undo) ne 0 then $
+     undo = *self.pparinfo
+  ;; Put our new params and errors into the parinfo.  Try this two
+  ;; ways so that we can (1) test it and (2) use
+  ;; its code to invalidate our cache.  The commented out line is
+  ;; slower but more concise
+  ;;self->parinfo_call_procedure, 'pfo_struct_setget_tag', /set, value=new_params, error=perror, pfo_obj=self
+  (*self.pparinfo).value = new_params
+  (*self.pparinfo).error = perror
+  self->invalidate_cache
+
+  *self.pcovar = covar
+  self.bestnorm = bestnorm
+  ;; Return 1 to indicate successful fit
+  return, 1
 
 end
 
@@ -355,6 +404,8 @@ pro pfo_mpfit_obj::get_property, $
    mpfit_kernel=mpfit_kernel, $ ;; name of kernel function (MYFUNCT) used by MPFIT to call residual method
    mpfit_msg=mpfit_msg, $ ;; (output) mpfit status code translated into text (used when status is positive.  mpfit_errmsg contains error message for negative status values
    functargs=functargs, $ ;; arguments (in addition to pfo_obj) that will be passed to mpfit_kernel
+   hide_NAN=hide_NAN, $ ;; Hide instances of NAN from calculation of deviates (default = yes or property value)
+   hide_infinity=hide_infinity, $ ;; Hide instances of infinity from calculation of deviates (default = yes or property value)
    nfev=nfev, $ ;; (output) number of mpfit_kernel calls
    maxiter=maxiter, $ ;; maximum number of fit iterations
    mpfit_errmsg=mpfit_errmsg, $ ;; string containing MPFIT output error message
@@ -375,6 +426,8 @@ pro pfo_mpfit_obj::get_property, $
   if arg_present(mpfit_kernel	) or N_elements(mpfit_kernel	) gt 0 then mpfit_kernel 	= self.mpfit_kernel
   if arg_present(mpfit_msg	) or N_elements(mpfit_msg	) gt 0 then mpfit_msg		= self.mpfit_msg
   if arg_present(functargs	) or N_elements(functargs	) gt 0 then functargs		= *self.pFunctargs
+  if arg_present(hide_NAN	) or N_elements(hide_NAN	) gt 0 then hide_NAN		= self.hide_NAN
+  if arg_present(hide_infinity	) or N_elements(hide_infinity	) gt 0 then hide_infinity	= self.hide_infinity
   if arg_present(nfev		) or N_elements(nfev		) gt 0 then nfev		= self.nfev
   if arg_present(maxiter	) or N_elements(maxiter		) gt 0 then maxiter		= self.maxiter
   if arg_present(mpfit_errmsg	) or N_elements(mpfit_errmsg	) gt 0 then mpfit_errmsg	= self.mpfit_errmsg
@@ -399,6 +452,8 @@ pro pfo_mpfit_obj::set_property, $
    mpfit_max_status=mpfit_max_status, $ ;; maximum value of MPFIT output status code
    mpfit_kernel=mpfit_kernel, $ ;; name of kernel function (MYFUNCT) used by MPFIT to call residual method
    functargs=functargs, $ ;; arguments (in addition to pfo_obj) that will be passed to mpfit_kernel
+   hide_NAN=hide_NAN, $ ;; Hide instances of NAN from calculation of deviates (default = yes or property value)
+   hide_infinity=hide_infinity, $ ;; Hide instances of infinity from calculation of deviates (default = yes or property value)
    maxiter=maxiter, $ ;; maximum number of fit iterations
    nprint=nprint, $ ;; Iterproc is called every nprint iterations
    mpfit_quiet=mpfit_quiet, $ ;; MPFIT's quiet keyword
@@ -408,11 +463,14 @@ pro pfo_mpfit_obj::set_property, $
    iterproc=iterproc, $ ;; Procedure to call every niter iterations
    iterargs=iterargs, $ ;; keyword arguments passed to iterproc
    bestnorm=bestnorm, $ ;; (output) chi sq = total(deviates^2)
+   Yerr=Yerr, $ ;; override pfo_data_obj handling of Yerr in order to print message about deviates
    _REF_EXTRA=extra
 
   if N_elements(mpfit_max_status) gt 0 then self.mpfit_max_status 	= mpfit_max_status
   if N_elements(mpfit_kernel	) gt 0 then self.mpfit_kernel 		= mpfit_kernel
   if N_elements(functargs	) gt 0 then *self.pfunctargs 		= functargs
+  if N_elements(hide_NAN	) gt 0 then self.hide_NAN 		= hide_NAN
+  if N_elements(hide_infinity	) gt 0 then self.hide_infinity 		= hide_infinity
   if N_elements(maxiter		) gt 0 then self.maxiter 		= maxiter
   if N_elements(nprint		) gt 0 then self.nprint 		= nprint
   if N_elements(mpfit_quiet	) gt 0 then self.mpfit_quiet 		= mpfit_quiet
@@ -423,8 +481,16 @@ pro pfo_mpfit_obj::set_property, $
   if N_elements(iterargs	) gt 0 then *self.piterargs 		= iterargs
   if N_elements(bestnorm	) gt 0 then self.bestnorm 		= bestnorm
 
+  ;; Work with Yerr=0 values in the context of our property in this object
+  if N_elements(Yerr) gt 0 then begin
+     junk = where(Yerr eq 0, count)
+     if count gt 0 and NOT keyword_set(self.hide_infinity) then begin
+        message, /INFORMATIONAL, 'WARNING: Yerr=0 for ' + strtrim(count, 2) + ' out of ' + strtrim(N_elements(Yerr), 2) + ' points and the hide_infinity flag is not set.  When deviates are calculated for these points, they will be infinite and crash MPFIT.  Setting hide_infinity effectively removes these points from the data (and any function points that happen to evaluate to infinity)'
+     endif ;; some zero Yerrs
+  endif ;; Yerr
+
   ;; Pass everything onto inherited routines
-  self->pfo_calc_obj::set_property, _EXTRA=extra
+  self->pfo_calc_obj::set_property, Yerr=Yerr, _EXTRA=extra
 
 end
 
@@ -490,6 +556,10 @@ function pfo_mpfit_obj::init, $
 
   ;; This is a default value that is unlikely to change
   self.mpfit_kernel = 'pfo_mpfit_obj_kernel'
+  ;; Hide instances of NAN and infinity from calculation of deviates
+  ;; for mpfit.  See explanations of hide* in pfo_mpfit_obj::fit.
+  self.hide_NAN = !tok.yes
+  self.hide_infinity = !tok.yes
   ;; Start by accepting pretty much any positive MPFIT termination code
   self.mpfit_max_status = 8
   ;; From MPFIT
@@ -529,6 +599,8 @@ pro pfo_mpfit_obj__define
       mpfit_kernel	: '', $ ;; name of kernel function (MYFUNCT) used by MPFIT to call residual method
       mpfit_msg		: '', $ ;; (output) mpfit status code translated into text (used when status is positive.  mpfit_errmsg contains error message for negative status values
       pFunctargs	: ptr_new(), $ ;; pointer to arguments (in addition to pfo_obj) that will be passed to mpfit_kernel
+      hide_NAN		: 0B, $ ;; Hide instances of NAN from calculation of deviates (default = yes or property value)
+      hide_infinity	: 0B, $ ;; Hide instances of infinity from calculation of deviates (default = yes or property value)
       nfev		: 0L, $ ;; (output) number of calls to kernel function
       maxiter		: 0L, $ ;; maximum number of fit iterations
       mpfit_errmsg	: '', $ ;; string containing MPFIT output error message
