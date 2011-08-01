@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_delimiter.pro,v 1.1 2003/12/19 00:04:39 jpmorgen Exp $
+; $Id: pfo_delimiter.pro,v 1.2 2011/08/01 18:37:36 jpmorgen Exp $
 
 ; pfo_delimiter.pro 
 
@@ -17,11 +17,16 @@ function pfo_delimiter, side, params, parinfo, idx, _EXTRA=extra
   ;; We won't get halt lines this way, but we will get the routine
   ;; name.
 
-  CATCH, err
-  if err ne 0 then begin
-     CATCH, /CANCEL
-     message, !error_state.msg
-  endif
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.  Returning "?"', /CONTINUE
+        return, '?'
+     endif
+  endif ;; not debugging
 
   ;; Try to convey the most information possible with the delimiter.
   ;; Start with the normal free parameter
@@ -31,7 +36,7 @@ function pfo_delimiter, side, params, parinfo, idx, _EXTRA=extra
      delimiter = ' <  '
      ;; check to see if we have hit the limit.  Use
      ;; mpmaxstep as a measure of "close"
-     if params[idx] - parinfo[idx].limits[side] lt $
+     if abs(params[idx] - parinfo[idx].limits[side]) le $
        parinfo[idx].mpmaxstep then begin
         delimiter = ' <* '
      endif ;; close
@@ -39,7 +44,7 @@ function pfo_delimiter, side, params, parinfo, idx, _EXTRA=extra
 
   ;; Fixed
   if parinfo[idx].fixed eq 1 then $
-    delimiter = '| '
+    delimiter = ' |  '
 
   return, delimiter
 
