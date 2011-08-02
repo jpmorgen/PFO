@@ -35,9 +35,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_calc_obj__define.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_calc_obj__define.pro,v 1.2 2011/08/02 18:18:47 jpmorgen Exp $
 ;
 ; $Log: pfo_calc_obj__define.pro,v $
+; Revision 1.2  2011/08/02 18:18:47  jpmorgen
+; Release to Tom
+; Inherit pfo_plot_obj here, set_property bug fix, improved descr
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -45,6 +49,19 @@
 
 ;; Invalidate cached values frees our heap variables so that we can
 ;; allocate them anew as undefined variables
+
+;; Print basic information about contents of property
+pro pfo_calc_obj::print, $
+   _REF_EXTRA=extra
+
+  self->pfo_data_obj::print, _EXTRA=extra
+  print, 'Xaxis cache: ' + strtrim(N_elements(*self.pXaxis), 2) + ' points'
+  print, 'Yaxis cache: ' + strtrim(N_elements(*self.pYaxis), 2) + ' points'
+  print, 'deviates cache: ' + strtrim(N_elements(*self.pdeviates), 2) + ' points'
+  print, 'ROI_Xin_idx cache: ' + strtrim(N_elements(*self.pROI_Xin_idx), 2) + ' points'
+  self->pfo_parinfo_obj::print, _EXTRA=extra
+
+end
 
 pro pfo_calc_obj::invalidate_cache
   ptr_free, self.pXaxis
@@ -376,40 +393,42 @@ end
 ;; data (Xin) and function (parinfo), just pass get property onto the
 ;; inherited routines
 pro pfo_calc_obj::get_property, $
+   init_Yaxis=init_Yaxis, $ ;; maps to Yaxis_init, initial value of Yaxis (0 or NaN)
    Xaxis=Xaxis, $
    Yaxis=Yaxis, $
    deviates=deviates, $
    dXaxis_dXin=dXaxis_dXin, $
    _REF_EXTRA=extra
-  
+
+  if arg_present(init_Yaxis) or N_elements(init_Yaxis) ne 0  then init_Yaxis = self.init_Yaxis
   ;; X, Y axes and deviates.  Use the self->[XY]axis methods, since
   ;; they are carefully thought out.  Pass the /no_copy onto
   ;; self->[XY]axis with _EXTRA.
-  if arg_present(Xaxis) or N_elements(Xaxis) ne 0 then $
-     Xaxis = self->Xaxis(_EXTRA=extra)
-  if arg_present(Yaxis) or N_elements(Yaxis) ne 0  then $
-     Yaxis = self->Yaxis(_EXTRA=extra)
-  if arg_present(deviates) or N_elements(deviates) ne 0  then $
-     deviates = self->deviates(_EXTRA=extra)
-  if arg_present(dXaxis_dXin) or N_elements(dXaxis_dXin) ne 0  then $
-     dXaxis_dXin = self->dXaxis_dXin(_EXTRA=extra)
+  if arg_present(Xaxis) or N_elements(Xaxis) ne 0 then Xaxis = self->Xaxis(_EXTRA=extra)
+  if arg_present(Yaxis) or N_elements(Yaxis) ne 0  then Yaxis = self->Yaxis(_EXTRA=extra)
+  if arg_present(deviates) or N_elements(deviates) ne 0  then deviates = self->deviates(_EXTRA=extra)
+  if arg_present(dXaxis_dXin) or N_elements(dXaxis_dXin) ne 0  then dXaxis_dXin = self->dXaxis_dXin(_EXTRA=extra)
 
   self->pfo_data_obj::get_property, _EXTRA=extra
   self->pfo_parinfo_obj::get_property, _EXTRA=extra
+  self->pfo_plot_obj::get_property, _EXTRA=extra
 
 end
 
 ;; Override set property of items that affect the cache
 pro pfo_calc_obj::set_property, $
+   init_Yaxis=init_Yaxis, $ ;; maps to Yaxis_init, initial value of Yaxis (0 or NaN)
    Xin=Xin, $
    Yin=Yin, $
    Yerr=Yerr, $
    parinfo_array=parinfo_array, $
    _REF_EXTRA=extra
 
+  if N_elements(init_Yaxis) ne 0 then self.Yaxis_init = init_Yaxis
+
   ;; Check to see if we are setting anything that would invalidate our
   ;; caches
-  if N_elements(Xin) + N_elements(Yin) + N_elements(Yerr) + N_elements(parinfo) ne 0 then $
+  if N_elements(Xin) + N_elements(Yin) + N_elements(Yerr) + N_elements(parinfo_array) ne 0 then $
      self->invalidate_cache
 
   ;; Pass everything onto inherited routines
@@ -419,6 +438,7 @@ pro pfo_calc_obj::set_property, $
      Yerr=Yerr, $
      _EXTRA=extra
   self->pfo_parinfo_obj::set_property, parinfo_array=parinfo_array, _EXTRA=extra
+  self->pfo_plot_obj::set_property, _EXTRA=extra
 
 end
 
@@ -439,9 +459,16 @@ function pfo_calc_obj::descr
   endif ;; not debugging
 
   descr = *self.ppfo_calc_obj_descr
-  pfo_struct_append, descr, {pfo_data_obj: self->pfo_data_obj::descr()}
-  pfo_struct_append, descr, {pfo_parinfo_obj: self->pfo_parinfo_obj::descr()}
+  if pfo_struct_tag_present(descr, 'superclasses') then begin
+     for isc=0, N_elements(descr.superclasses)-1 do begin
+        sc = descr.superclasses[isc]
+        scd = call_method(sc+'::descr', self)
+        pfo_struct_append, descr, create_struct(sc, scd)
+     endfor ;; each superclass
+  endif ;; any superclasses
+
   return, descr
+
 end
 
 pro pfo_calc_obj::cleanup
@@ -454,6 +481,7 @@ pro pfo_calc_obj::cleanup
 
   self->pfo_data_obj::cleanup
   self->pfo_parinfo_obj::cleanup
+  self->pfo_plot_obj::cleanup
 end
 
 function pfo_calc_obj::init, $
@@ -478,11 +506,23 @@ function pfo_calc_obj::init, $
   ;; Create our documentation string
   self.ppfo_calc_obj_descr $
      = ptr_new( $
-     {README	: 'pfo_calc_obj encapsulates all of the shared information necessary for calculating PFO functions.', $
-      SUPERCLASSES: 'pfo_data_obj, pfo_parinfo_obj', $
-      PROPERTY	: 'Xaxis, Yaxis', $
-      METHODS	: 'Xaxis, Yaxis'} $
-              )
+     {README	: 'pfo_calc_obj encapsulates all of the shared information necessary for calculating, plotting, and printing PFO functions.', $
+      SUPERCLASSES: ['pfo_data_obj', 'pfo_parinfo_obj', 'pfo_plot_obj'], $
+      METHODS	: ['Xaxis()', 'Yaxis()', 'ROI_Xin_idx()', 'deviates()', 'dXaxis_dXin()', 'parinfo_call_procedure (invalidates cache)', 'parinfo_call_function() (invalidates cache)', 'invalidate_cache', 'print']} $
+     )
+
+  ;; Grab a decent guess at what our property is from the list of
+  ;; keywords in our get_property method
+  ri = routine_info('pfo_parinfo_obj::get_property', /parameters)
+  property = ri.kw_args
+  good_idx = where(stregex(property, '_EXTRA') lt 0, count)
+  if count ne 0 then $
+     pfo_struct_append, *self.ppfo_calc_obj_descr, $
+                        {PROPERTY: property[good_idx]}
+
+
+  ;; Initialize property
+  self.Yaxis_init = !pfo.Yaxis_init
 
   ;; Turn our null reference pointers into undefined variables
   self.pXaxis = ptr_new(/allocate_heap)
@@ -493,9 +533,13 @@ function pfo_calc_obj::init, $
 
   ;; Call our superclass init methods
   ok = self->pfo_data_obj::init(p0, p1, p2, _EXTRA=extra)
-  if NOT ok then $
-     return, 0
-  return, self->pfo_parinfo_obj::init(_EXTRA=extra)
+  if NOT ok then return, 0
+  ok = self->pfo_parinfo_obj::init(_EXTRA=extra)
+  if NOT ok then return, 0
+  ok = self->pfo_plot_obj::init(_EXTRA=extra)
+  if NOT ok then return, 0
+
+  return, 1
 
 end
 
@@ -503,12 +547,15 @@ pro pfo_calc_obj__define
   objectClass = $
      {pfo_calc_obj, $
       ppfo_calc_obj_descr: ptr_new(), $ ;; Pointer to description structure
+      Yaxis_init	: 0d, $		;; Override of !pfo.Yaxis_init, so functions can start from NaN (default) or 0
       pXaxis		: ptr_new(), $	;; Cached internal Xaxis -- calculated only from internal Xin and parinfo.value
       pYaxis		: ptr_new(), $	;; Cached Yaxis -- calculated only from internal Xin and parinfo.value
       pROI_Xin_idx	: ptr_new(), $  ;; Cached indices into Xin for the active ROI(s)
       pdeviates		: ptr_new(), $	;; Cached deviates -- calculated only from internal Xin and parinfo.value
       pdXaxis_dXin	: ptr_new(), $	;; Cached value of dXaxis/dXin for converting Y-axis of plots to read in Xaxis units
       inherits pfo_data_obj, $ 		;; data
-      inherits pfo_parinfo_obj $	;; parinfo (function definition)
+      inherits pfo_parinfo_obj, $	;; parinfo (function definition)
+      inherits pfo_plot_obj $		;; plotting commands
      }
+
 end
