@@ -34,18 +34,23 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj__define.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_parinfo_obj__define.pro,v 1.2 2011/08/02 18:15:59 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj__define.pro,v $
+; Revision 1.2  2011/08/02 18:15:59  jpmorgen
+; Release to Tom
+; Init bug fixes, improved messages, improved descr
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
 ;-
 
+;; Print parinfo in full format
 pro pfo_parinfo_obj::print, $
    _REF_EXTRA=extra
 
-  print, pfo_parinfo_parse(/print, *self.pparinfo, pfo_obj=self, _EXTRA=extra)
+  print, pfo_parinfo_parse(/print, *self.pparinfo, pfo_obj=self, /full, _EXTRA=extra)
 
 end
 
@@ -297,8 +302,23 @@ pro pfo_parinfo_obj::set_property, $
   pfo_fstruct_descr=pfo_fstruct_descr, $
   no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
+  init = {tok_sysvar}
+  init = {pfo_sysvar}
+
   ;; parinfo
   if N_elements(parinfo) gt 0 then begin
+     ;; We can't just copy the parinfo in here without checking
+     ;; to see if the user has been registering its functions with our
+     ;; *self.ppfo_fstruct_array
+     if N_elements(*self.ppfo_fstruct_array) eq 0 then begin
+        ;; Our best guess is that the user has been accumulating
+        ;; things in PFO COMMON block
+        message, /INFORMATIONAL, 'NOTE: reading associations between function numbers and names from PFO COMMON block'
+        oobjects_only = !pfo.objects_only
+        !pfo.objects_only = !tok.no
+        pfo_finfo, fstruct_array=*self.ppfo_fstruct_array
+        !pfo.objects_only = oobjects_only
+     endif ;; setting up fstruct_array
      if keyword_set(no_copy) then $
        *self.pparinfo = temporary(parinfo) $
      else $
@@ -340,11 +360,32 @@ pro pfo_parinfo_obj::set_property, $
 end ;; set_property
 
 function pfo_parinfo_obj::descr
-  return, *self.pparinfo_obj_descr
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.', /CONTINUE
+        return, 'Not documented.'
+     endif
+  endif ;; not debugging
+
+  descr = *self.ppfo_parinfo_obj_descr
+  if pfo_struct_tag_present(descr, 'superclasses') then begin
+     for isc=0, N_elements(descr.superclasses)-1 do begin
+        sc = descr.superclasses[isc]
+        scd = call_method(sc+'::descr', self)
+        pfo_struct_append, descr, create_struct(sc, scd)
+     endfor ;; each superclass
+  endif ;; any superclasses
+
+  return, descr
+
 end
 
 pro pfo_parinfo_obj::cleanup
-  ptr_free, self.pparinfo_obj_descr
+  ptr_free, self.ppfo_parinfo_obj_descr
   ptr_free, self.pparinfo	
   ptr_free, self.pparinfo_template
   ptr_free, self.pparinfo_descr
@@ -352,7 +393,13 @@ pro pfo_parinfo_obj::cleanup
   ptr_free, self.ppfo_fstruct_descr
 end
 
-function pfo_parinfo_obj::init, _REF_EXTRA=extra
+function pfo_parinfo_obj::init, $
+   parinfo_array=parinfo_array, $
+   parinfo_template=parinfo_template, $
+   parinfo_descr=parinfo_descr, $
+   pfo_fstruct_array=pfo_fstruct_array, $
+   pfo_fstruct_descr=pfo_fstruct_descr, $
+   no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
   init = {pfo_sysvar}
 
@@ -368,12 +415,19 @@ function pfo_parinfo_obj::init, _REF_EXTRA=extra
   endif ;; not debugging
 
   ;; Create our documentation string
-  self.pparinfo_obj_descr $
+  self.ppfo_parinfo_obj_descr $
      = ptr_new( $
      {README	: 'pfo_parinfo_obj stores the parinfo and associated information used by the PFO system', $
-      PROPERTY	: 'parinfo, parinfo_template, parinfo_descr, pfo_fstruct_array, pfo_fstruct_descr', $
-      METHODS	: 'set_property, get_property, descr(), call_procedure, call_function'} $
+      METHODS	: 'parinfo, print, parinfo_call_procedure, parinfo_call_function'} $
               )
+  ;; Grab a decent guess at what our property is from the list of
+  ;; keywords in our get_property method
+  ri = routine_info('pfo_parinfo_obj::get_property', /parameters)
+  property = ri.kw_args
+  good_idx = where(stregex(property, '_EXTRA') lt 0, count)
+  if count ne 0 then $
+     pfo_struct_append, *self.ppfo_parinfo_obj_descr, $
+                        {PROPERTY: property[good_idx]}
 
   ;; Turn our null reference pointers into undefined variables
   self.pparinfo = ptr_new(/allocate_heap)
@@ -383,7 +437,14 @@ function pfo_parinfo_obj::init, _REF_EXTRA=extra
   self.ppfo_fstruct_descr = ptr_new(/allocate_heap)
 
   ;; Call our set_property routine to convert any keywords to property
-  self->set_property, _EXTRA=extra
+  self->set_property, $
+   parinfo_array=parinfo_array, $
+   parinfo_template=parinfo_template, $
+   parinfo_descr=parinfo_descr, $
+   pfo_fstruct_array=pfo_fstruct_array, $
+   pfo_fstruct_descr=pfo_fstruct_descr, $
+   no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+
 
   ;; If we made it here, our object should be initialized properly
   return, 1
@@ -394,7 +455,7 @@ pro pfo_parinfo_obj__define
 
   objectClass = $
     {pfo_parinfo_obj, $
-     pparinfo_obj_descr:ptr_new(), $ ;; Pointer to description structure
+     ppfo_parinfo_obj_descr:ptr_new(), $ ;; Pointer to description structure
      pparinfo	:	ptr_new(), $ ;; Pointer to parinfo array (function definition)
      pparinfo_template: ptr_new(), $ ;; Pointer to template for creating new parinfo records
      pparinfo_descr:	ptr_new(), $ ;; Pointer to structure that documents the parinfo structure
