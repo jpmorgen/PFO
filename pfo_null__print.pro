@@ -33,9 +33,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__print.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_null__print.pro,v 1.2 2011/08/02 18:23:10 jpmorgen Exp $
 ;
 ; $Log: pfo_null__print.pro,v $
+; Revision 1.2  2011/08/02 18:23:10  jpmorgen
+; Release to Tom
+; Change to getting Yaxis_init from pfo_obj or !pfo.Yaxis_init
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -94,14 +98,19 @@ function pfo_null__print, $
      brief = 1
   if keyword_set(param_names_only) + keyword_set(brief) + keyword_set(full) ne 1 then $
      message, 'ERROR: specify only one keyword: param_names_only, brief, or full.  Default is brief.'
-  
+
+  ;; Get our default Yaxis value from pfo_obj, if specified
+  Yaxis_init = !pfo.Yaxis_init
+  if obj_valid(pro_obj) then $
+     pfo_obj->get_property, Yaxis_init=Yaxis_init
+
   ;; Start with our standard parinfo function preamble.  We only print
-  ;; this once.  This works out to: "X = Xin; Y = 0" unless tokens have
+  ;; this once.  This works out to: "X = Xin; Y = NaN" unless tokens have
   ;; been changed.
   preamble = ''
   if keyword_set(first_funct) then $
      preamble = !pfo.axis_string[!pfo.Xaxis] + ' = ' + !pfo.axis_string[!pfo.Xin] + $
-               '; ' + !pfo.axis_string[!pfo.Yaxis] + ' = 0'
+               '; ' + !pfo.axis_string[!pfo.Yaxis] + ' = ' + strtrim(Yaxis_init, 2)
 
   ;; Check to see if we have anything to print (this is generally not used)
   junk = where(parinfo[idx].mpprint ne 0, count)
