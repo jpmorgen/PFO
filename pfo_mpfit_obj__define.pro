@@ -35,9 +35,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mpfit_obj__define.pro,v 1.3 2011/08/02 15:39:58 jpmorgen Exp $
+; $Id: pfo_mpfit_obj__define.pro,v 1.4 2011/08/02 18:21:23 jpmorgen Exp $
 ;
 ; $Log: pfo_mpfit_obj__define.pro,v $
+; Revision 1.4  2011/08/02 18:21:23  jpmorgen
+; Release to Tom
+; Fix property name
+;
 ; Revision 1.3  2011/08/02 15:39:58  jpmorgen
 ; Release to Tom
 ; Improved property names
@@ -566,7 +570,7 @@ pro pfo_mpfit_obj::cleanup
   ptr_free, self.ppfo_mpfit_obj_descr
   ptr_free, self.pmpfit_functargs
   ptr_free, self.pmpfit_Iterargs
-  ptr_free, self.pcovar
+  ptr_free, self.pmpfit_covar
 
   self->pfo_calc_obj::cleanup
 end
