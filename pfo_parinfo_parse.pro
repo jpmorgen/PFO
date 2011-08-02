@@ -10,7 +10,7 @@
 
 ; yaxis = pfo_parinfo_parse(/CALC, parinfo [, params=params] Xin=Xin[, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, pfo_obj=pfo_obj][, xaxis=xaxis][, ROI_Xin_idx=ROI_Xin_idx][, keyowrds to pfo_<fname> routines])
 
-; to_print = pfo_parinfo_parse(/PRINT, parinfo[, params=params][, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, status_mask=status_mask][, pfo_obj=pfo_obj][, keyowrds to pfo_<fname> routines])
+; toprint = pfo_parinfo_parse(/PRINT, parinfo[, params=params][, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, status_mask=status_mask][, pfo_obj=pfo_obj][, keyowrds to pfo_<fname> routines])
 
 ; widget_id = pfo_parinfo_parse(/WIDGET, parinfo[, params=params][, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, pfo_obj=pfo_obj][, status_mask=status_mask][, keyowrds to pfo_<fname>__widget routines])
 
@@ -160,9 +160,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.2 2011/08/02 18:16:57 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.2  2011/08/02 18:16:57  jpmorgen
+; Release to Tom
+; Updated for !pfo.Yaxis_init, better handling of no parinfo input
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -197,15 +201,6 @@ function pfo_parinfo_parse, $
 
   ;; Do some setup work
 
-  ;; Make sure parinfo and params are defined.  Also keep params local.
-  pfo_parinfo2params, parinfo, params, params_in
-
-  ;; Use pfo_fidx to get indices
-  use_idx = pfo_fidx(parinfo, idx=idx, npar=n_use, status_mask=status_mask)
-
-  ;; Narrow with pfo_ROI_idx
-  use_idx = pfo_ROI_idx(parinfo, idx=use_idx, ispec=ispec, iROI=iROI, allspec=allspec, allROI=allROI, count=n_use)
-
   ;; Set up our different actions for the meat of the code.  Doing it this way allows us to use case statements and saves
   ;; huge indents.  Chose actions as a bitmask so that they don't overlap when we add them together.  This way we can check
   ;; for invalid multiple actions
@@ -230,157 +225,122 @@ function pfo_parinfo_parse, $
      !pfo.print : begin
         ;; PRINTING
         action_method = '__print'
-        ;; Initialize output
+        ;; Check to see if we have anything to print
+        if N_elements(parinfo) eq 0 then $
+           return, 'NO FUNCTION'
         toprint = ''
-;;        ;; Default is verbose
-;;        toprint = 'X = Xin; Y = 0' + !tok.newline
-;;        firstprint = 1          ; flag for newline stuff
-;;        ;; don't be verbose if we just want the parameters
-;;        if size(print, /type) ne !tok.string then begin
-;;           ;; Single-line basic parameter concise print
-;;           if print eq !pfo.print then $
-;;             toprint = ''
-;;        endif ;; --> don't remember why we were passed a string
-        ;; Make sure at least one parameter wants to be printed.
-        if n_use eq 0 or total(parinfo[use_idx].mpprint) eq 0 then $
-          return, toprint
      end ;; print
 
-     !pfo.widget : begin
-        ;; WIDGET
-        action_method = '__widget'
-        ;; Check to see if we need to create our own top-level widget
-        if N_elements(parentID) eq 0 then $
-          message, 'ERROR: parentID must be set'
-
-
-        message, 'ERROR: need new code'
-
-        ;; Here we benefit from being passed a heap pointer.  The widget code can handle pointers or regular variables,
-        ;; so switch back to pointer mode if that is what we were passed
-        if keyword_set(pparinfo) then begin
-           ;; Move the data back to the heap
-           *pparinfo = temporary(parinfo)
-           ;; Point parinfo at it.  Except for a local pointer variable, pparinfo, we are back in the original
-           ;; configuration.
-           parinfo = pparinfo
-        endif else begin
-           ;; For syntactical purposes in the widget code, allow us to always work with heap pointers.
-           pparinfo = ptr_new(parinfo, /no_copy)
-           parinfo = pparinfo
-           just_created_pparinfo = 1
-        endelse
-
-        ;; widget=0 is destroy, /widget is create or refill
-        if widget eq 0 then begin
-           ;;  Signal to destroy the widget.
-           pfo_widget_destroy, pparinfo
-           ;; Clean up after our temporary pparinfo, if appropriate
-           if keyword_set(just_created_pparinfo) then begin
-              parinfo = temporary(*pparinfo)
-              ptr_free, pparinfo
-           endif
-           ;;  We return the return value of pfo_widget, which is the tlbID of the widget if it is still running or
-           ;;  parinfo if it was the only widget on the block.  We couldn't destroying it through this method
-           ;;  unless other code is running, so returning 0 is appropriate.
-           return, 0L
-        endif ;; destroy widget
-        ;; If we got here, we are going to create or fill the widget.  This call does either depending on what it
-        ;; finds in the pparinfo.
-        pfo_widget_tlbID = $
-          pfo_widget(parinfo, idx=use_idx, parinfo_containerID=parinfo_containerID, $
-                     pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
-        ;; Set widgetID for the primitives.  Note this will be the tlbID of an existing widget that is going to be
-        ;; refilled or the parinfo_containerID (the widget with the scroll bars) of a widget that is being created
-        widgetID = pfo_widget_tlbID
-        if keyword_set(parinfo_containerID) then begin
-           widgetID = parinfo_containerID
-           ;; Start with our generic axis initializations.  I don't plan to have any changes possible in this, so
-           ;; don't bother storing it anywhere.
-           rowID = widget_base(parinfo_containerID, row=1)
-           junkID = widget_label(rowID, value='X = Xin; Y = 0')
-        end
-
-        ;; Check to see if there is anything in our parinfo.  If not, just raise the empty frame
-        if n_use le 0 then begin
-           retval = pfo_widget(parinfo, idx=idx, $
-                               parinfo_containerID=parinfo_containerID, $
-                               pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
-           ;; Clean up after our temporary pparinfo, if appropriate
-           if keyword_set(just_created_pparinfo) then begin
-              if N_elements(*pparinfo) gt 0 then $
-                parinfo = temporary(*pparinfo)
-              ptr_free, pparinfo
-           endif
-           return, retval
-
-        endif
-
-        ;; Put parinfo stuff back into non-pointer mode so all the code below works smoothly
-        if keyword_set(pparinfo) then $
-          parinfo = temporary(*pparinfo)
-
-     end ;; widget
+;;     !pfo.widget : begin
+;;        ;; WIDGET
+;;        action_method = '__widget'
+;;        ;; Check to see if we need to create our own top-level widget
+;;        if N_elements(parentID) eq 0 then $
+;;          message, 'ERROR: parentID must be set'
+;;
+;;
+;;        message, 'ERROR: need new code'
+;;
+;;        ;; Here we benefit from being passed a heap pointer.  The widget code can handle pointers or regular variables,
+;;        ;; so switch back to pointer mode if that is what we were passed
+;;        if keyword_set(pparinfo) then begin
+;;           ;; Move the data back to the heap
+;;           *pparinfo = temporary(parinfo)
+;;           ;; Point parinfo at it.  Except for a local pointer variable, pparinfo, we are back in the original
+;;           ;; configuration.
+;;           parinfo = pparinfo
+;;        endif else begin
+;;           ;; For syntactical purposes in the widget code, allow us to always work with heap pointers.
+;;           pparinfo = ptr_new(parinfo, /no_copy)
+;;           parinfo = pparinfo
+;;           just_created_pparinfo = 1
+;;        endelse
+;;
+;;        ;; widget=0 is destroy, /widget is create or refill
+;;        if widget eq 0 then begin
+;;           ;;  Signal to destroy the widget.
+;;           pfo_widget_destroy, pparinfo
+;;           ;; Clean up after our temporary pparinfo, if appropriate
+;;           if keyword_set(just_created_pparinfo) then begin
+;;              parinfo = temporary(*pparinfo)
+;;              ptr_free, pparinfo
+;;           endif
+;;           ;;  We return the return value of pfo_widget, which is the tlbID of the widget if it is still running or
+;;           ;;  parinfo if it was the only widget on the block.  We couldn't destroying it through this method
+;;           ;;  unless other code is running, so returning 0 is appropriate.
+;;           return, 0L
+;;        endif ;; destroy widget
+;;        ;; If we got here, we are going to create or fill the widget.  This call does either depending on what it
+;;        ;; finds in the pparinfo.
+;;        pfo_widget_tlbID = $
+;;          pfo_widget(parinfo, idx=use_idx, parinfo_containerID=parinfo_containerID, $
+;;                     pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
+;;        ;; Set widgetID for the primitives.  Note this will be the tlbID of an existing widget that is going to be
+;;        ;; refilled or the parinfo_containerID (the widget with the scroll bars) of a widget that is being created
+;;        widgetID = pfo_widget_tlbID
+;;        if keyword_set(parinfo_containerID) then begin
+;;           widgetID = parinfo_containerID
+;;           ;; Start with our generic axis initializations.  I don't plan to have any changes possible in this, so
+;;           ;; don't bother storing it anywhere.
+;;           rowID = widget_base(parinfo_containerID, row=1)
+;;           junkID = widget_label(rowID, value='X = Xin; Y = 0')
+;;        end
+;;
+;;        ;; Check to see if there is anything in our parinfo.  If not, just raise the empty frame
+;;        if n_use le 0 then begin
+;;           retval = pfo_widget(parinfo, idx=idx, $
+;;                               parinfo_containerID=parinfo_containerID, $
+;;                               pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
+;;           ;; Clean up after our temporary pparinfo, if appropriate
+;;           if keyword_set(just_created_pparinfo) then begin
+;;              if N_elements(*pparinfo) gt 0 then $
+;;                parinfo = temporary(*pparinfo)
+;;              ptr_free, pparinfo
+;;           endif
+;;           return, retval
+;;
+;;        endif
+;;
+;;        ;; Put parinfo stuff back into non-pointer mode so all the code below works smoothly
+;;        if keyword_set(pparinfo) then $
+;;          parinfo = temporary(*pparinfo)
+;;
+;;     end ;; widget
 
      !pfo.indices : begin
         ;; INDICES
         action_method = '__indices'
+        ;; Return !tok.nowhere if we have no
+        if N_elements(parinfo) eq 0 then $
+          return, !tok.nowhere
      end ;; indices
 
      !pfo.calc : begin
         ;; CALCULATING
         action_method = '__calc'
-        ;; OBSELETE
-        ;;        ;; Raise an error if we don't have a good parinfo.  We might want to change this to return 0 or something
-        ;;        ;; else more quietly, but doing it this way make sure the callers are conscientious about checking for
-        ;;        ;; size(parinfo, /type) eq !tok.struct
-        ;;        if n_use lt 0 then $
-        ;;          message, 'ERROR: improperly formatted function.  Check parinfo.'
-
         ;; Internal xaxis for calculations like dispersion relation.  Start from Xin.  Naturally raises an error if no Xin
         xaxis = Xin
 
-        ;; Initialize our Y axis.  Make sure it is the same dimensions as Xin
+        ;; Get our default Yaxis value from pfo_obj, if specified, otherwise from the pfo system variable
+        Yaxis_init = !pfo.Yaxis_init
+        if obj_valid(pro_obj) then $
+           pfo_obj->get_property, Yaxis_init=Yaxis_init
+
+        ;; Initialize our Y axis.  Make sure it has the same dimensions and type as Xin
         yaxis = Xin
-        ;; Set all the values to NaN.  --> First function acting on Y must replace Y axis
         yaxis[*] = !values.d_NAN
 
         ;; Check to see if we have any calculation to do (note xaxis return keyword is properly initialized)
-        if n_use eq 0 then $
-          return, yaxis
+        if N_elements(parinfo) eq 0 then begin
+           ;; Check to see if user wants ROI_Xin_idx return
+           if N_elements(ROI_Xin_idx) ne 0 or arg_present(ROI_Xin_idx) then $
+              pfo_idx, Xin, idx=ROI_Xin_idx
+           return, yaxis
+        endif ;; no parinfo
 
         ;; Initialize our internal calculation axes in case we have *axis = !pfo.none
         x = xaxis
         y = yaxis
-
-        ;; For efficiency sake, calculate ROI_Xaxis here if we are going to be working with ROIs that depend on Xaxis
-        if pfo_struct_tag_present(parinfo, 'pfo_ROI') then begin
-           ;; Check to see if we have any ROIs.  Do this "in the raw" so that we can get the 
-           ;; rest of the parameters we need for calculating the Xaxis.
-           ROI_idx = where(floor(parinfo[use_idx].pfo.ftype) eq $
-                               pfo_fnum('pfo_ROI', pfo_obj=pfo_obj), nROI_pars, $
-                               complement=no_ROI_idx, ncomplement=n_non_ROI)
-           if nROI_pars gt 0 then begin
-              ;; unwrap
-              ROI_idx = use_idx[ROI_idx]
-              ;; Check to see if any ROIs are referenced to Xaxis
-              junk = where(parinfo[ROI_idx].pfo.inaxis eq !pfo.Xaxis, nXaxis)
-              if nXaxis gt 0 then begin
-                 ;; Use pfo_Xaxis to calc the Xaxis.  Make sure we
-                 ;; remove ROIs from the calculation to avoid an infinite
-                 ;; loop (I actually though of this before the first loop
-                 ;; occured... :-)
-                 ROI_Xaxis = Xin
-                 if n_non_ROI gt 0 then begin
-                    ;; unwrap
-                    no_ROI_idx = use_idx[no_ROI_idx]
-                    ;; pfo_Xaxis takes care of filtering out the no_ROI_idx that don't contribute to the Xaxis
-                    ROI_Xaxis = pfo_Xaxis(Xin, params, parinfo=parinfo, idx=no_ROI_idx, $
-                                          _EXTRA=extra)
-                 endif ;; some non-ROI parameters in the parinfo
-              endif ;; some ROIs in Xaxis coordinates
-           endif ;; some ROIs
-        endif ;; ispec/ROI tag present
 
      end ;; /CALC
 
@@ -388,10 +348,48 @@ function pfo_parinfo_parse, $
 
   endcase ;; setting up for actions
 
+  ;; Make sure parinfo and params are defined.  Also keep params local.
+  pfo_parinfo2params, parinfo, params, params_in
+
+  ;; Use pfo_fidx to get indices
+  use_idx = pfo_fidx(parinfo, idx=idx, npar=n_use, status_mask=status_mask)
+
+  ;; Narrow with pfo_ROI_idx
+  use_idx = pfo_ROI_idx(parinfo, idx=use_idx, ispec=ispec, iROI=iROI, allspec=allspec, allROI=allROI, count=n_use)
+
   ;; Now that our inputs have been verified, no longer CATCH errors at this level.  If an error does occur, allow the normal
   ;; IDL stop for easier interactive debugging.  Of course, any errors can still be caught by the calling routine.
   CATCH, /CANCEL
   ON_ERROR, !tok.stop
+
+  ;; For efficiency sake, calculate ROI_Xaxis here if we are going to be working with ROIs that depend on Xaxis
+  if action eq !pfo.calc and pfo_struct_tag_present(parinfo, 'pfo_ROI') then begin
+        ;; Check to see if we have any ROIs.  Do this "in the raw" so that we can get the 
+        ;; rest of the parameters we need for calculating the Xaxis.
+        ROI_idx = where(floor(parinfo[use_idx].pfo.ftype) eq $
+                        pfo_fnum('pfo_ROI', pfo_obj=pfo_obj), nROI_pars, $
+                        complement=no_ROI_idx, ncomplement=n_non_ROI)
+        if nROI_pars gt 0 then begin
+           ;; unwrap
+           ROI_idx = use_idx[ROI_idx]
+           ;; Check to see if any ROIs are referenced to Xaxis
+           junk = where(parinfo[ROI_idx].pfo.inaxis eq !pfo.Xaxis, nXaxis)
+           if nXaxis gt 0 then begin
+              ;; Use pfo_Xaxis to calc the Xaxis.  Make sure we
+              ;; remove ROIs from the calculation to avoid an infinite
+              ;; loop (I actually though of this before the first loop
+              ;; occured... :-)
+              ROI_Xaxis = Xin
+              if n_non_ROI gt 0 then begin
+                 ;; unwrap
+                 no_ROI_idx = use_idx[no_ROI_idx]
+                 ;; pfo_Xaxis takes care of filtering out the no_ROI_idx that don't contribute to the Xaxis
+                 ROI_Xaxis = pfo_Xaxis(Xin, params, parinfo=parinfo, idx=no_ROI_idx, $
+                                       _EXTRA=extra)
+              endif ;; some non-ROI parameters in the parinfo
+           endif ;; some ROIs in Xaxis coordinates
+        endif ;; some ROIs
+     endif ;; calc setup of ROI_Xaxis
 
   ;; Now untangle the various levels of ispec, iROI, fseq, axes, etc.
   ;; This is the basic interpreter, so it is common to printing and
@@ -439,7 +437,7 @@ function pfo_parinfo_parse, $
         iROI_idx = iROI_r_idx[iROI_r_idx[iu_iROI]:iROI_r_idx[iu_iROI+1]-1]
         ;; unwrap so that these are indices into parinfo
         iROI_idx = ispec_idx[temporary(iROI_idx)]
-;;if iu_iROI eq 1 then stop
+
         ;; Seach for ROI functions in our set of indices
         ROI_idx = pfo_fidx(parinfo, 'pfo_ROI', idx=iROI_idx, nfunct=nROI, pfo_obj=pfo_obj)
 
@@ -529,8 +527,6 @@ function pfo_parinfo_parse, $
                        fop_idx = fop_r_idx[fop_r_idx[ifop]:fop_r_idx[ifop+1]-1]
                        fop_idx = outaxis_idx[temporary(fop_idx)]
 
-                       if parinfo[fop_idx[ifop]].pfo.fop eq !pfo.repl and N_fop gt 1 then $
-                         message, 'ERROR: more than one transforming/replacing operation in this sequence acting on the same axis combination.'
                        ;; Functions: Recall that ftype is a real number, with the integer determining the function type and
                        ;; the decimal the parameter of that function.  We want to work with the integer part, the fnum.
                        ;; Save them for use below
@@ -774,18 +770,18 @@ function pfo_parinfo_parse, $
   ;; Return value depends on our action
   case action of
      !pfo.print : return, toprint
-     !pfo.widget : begin
-        retval = pfo_widget(parinfo, idx=idx, $
-                            parinfo_containerID=parinfo_containerID, $
-                            pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
-        ;; Clean up after our temporary pparinfo, if appropriate
-        if keyword_set(just_created_pparinfo) then begin
-           parinfo = temporary(*pparinfo)
-           ptr_free, pparinfo
-        endif
-        return, retval
-
-     end
+;;     !pfo.widget : begin
+;;        retval = pfo_widget(parinfo, idx=idx, $
+;;                            parinfo_containerID=parinfo_containerID, $
+;;                            pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
+;;        ;; Clean up after our temporary pparinfo, if appropriate
+;;        if keyword_set(just_created_pparinfo) then begin
+;;           parinfo = temporary(*pparinfo)
+;;           ptr_free, pparinfo
+;;        endif
+;;        return, retval
+;;
+;;     end
      !pfo.indices : return, indices_idx
      !pfo.calc : return, yaxis
      else :
