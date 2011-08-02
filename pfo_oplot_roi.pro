@@ -34,7 +34,6 @@
 ;   xaxis=xaxis, $ ;; X-axis from pfo_obj->plot, so xaxes lines up
 ;   Xunits=Xunits, $ ;; determines if Xaxis reads in Xin or Xaxis
 ;   Yunits=Yunits, $ ;; When X-axis reads in Xaxis, determines if Yaxis reads in Yin or Yin/(dXaxis/dXin)
-;   parinfo=parinfo, $ ;; parinfo array defining function to be plotted
 ;   params=params, $ ;; params to use in preference to encapsulated parinfo.value
 ;   idx=idx, $ ;; idx into parinfo for which plot is desired (unusual)
 ;   ispec=ispec, $ ;; ispec(s) to plot (oplot routine should loop over these, as appropriate)
@@ -65,9 +64,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_roi.pro,v 1.1 2011/08/01 18:26:21 jpmorgen Exp $
+; $Id: pfo_oplot_roi.pro,v 1.2 2011/08/02 15:43:39 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_roi.pro,v $
+; Revision 1.2  2011/08/02 15:43:39  jpmorgen
+; Release to Tom
+; Removed parinfo argument to guarantee encapsulated parinfo is used
+;
 ; Revision 1.1  2011/08/01 18:26:21  jpmorgen
 ; Initial revision
 ;
@@ -77,7 +80,6 @@ pro pfo_oplot_ROI, $
    xaxis=xaxis, $ ;; X-axis from pfo_obj->plot, so xaxes lines up
    Xunits=Xunits, $ ;; determines if Xaxis reads in Xin or Xaxis
    Yunits=Yunits, $ ;; When X-axis reads in Xaxis, determines if Yaxis reads in Yin or Yin/(dXaxis/dXin)
-   parinfo=parinfo, $ ;; parinfo array defining function to be plotted
    params=params, $ ;; params to use in preference to encapsulated parinfo.value
    idx=idx, $ ;; idx into parinfo for which plot is desired (unusual)
    ispec=ispec, $ ;; ispec(s) to plot (oplot routine should loop over these, as appropriate)
