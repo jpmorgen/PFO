@@ -44,6 +44,10 @@
 ;	pfo_obj: pfo_obj that is storing the pfo_fstruct_array.  If
 ;	not defined, the PFO COMMON block is queried
 
+;       fstruct_array (output): the array which stores the fname, fnum,
+;       and fdescr can be returned on this keyword to ease import of
+;       parinfos formed outside of a pfo_obj-enabled system
+
 
 ;
 ; OUTPUTS:
@@ -73,21 +77,26 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_finfo.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_finfo.pro,v 1.2 2011/08/02 18:27:51 jpmorgen Exp $
 ;
 ; $Log: pfo_finfo.pro,v $
+; Revision 1.2  2011/08/02 18:27:51  jpmorgen
+; Release to Tom
+; Take out /no_copy stuff, enable pfo_obj to extract fstruct_array in
+; case user started making parinfos outside of pfo_obj system.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
 ;-
 pro pfo_finfo, $
-  fname=fname, $
-  fnum=fnum, $
-  fnpars=fnpars, $
-  fdescr=fdescr, $
-  pfo_fstruct_descr=pfo_fstruct_descr, $
-  pfo_obj=pfo_obj
-  
+   fname=fname, $
+   fnum=fnum, $
+   fnpars=fnpars, $
+   fdescr=fdescr, $
+   pfo_fstruct_descr=pfo_fstruct_descr, $
+   pfo_obj=pfo_obj, $
+   fstruct_array=fstruct_array
 
   init = {pfo_sysvar}
   init = {tok_sysvar}
@@ -99,27 +108,16 @@ pro pfo_finfo, $
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        ;; Put our information back into pfo_obj
-        if N_elements(pfo_obj) ne 0 then begin
-           pfo_obj->set_property, $
-             pfo_fstruct_array=fstruct_array, $
-             pfo_fstruct_descr=fstruct_descr, $
-             /no_copy
-        endif ;; putting info back into pfo_obj
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_finfo[, fname=fname] [,fnum=fnum] [,fnpars=fnpars] [, fdescr=fdescr] [, fidx=fidx] [, fpidx=fpidx] [, parsed_idx=parsed_idx] [, parinfo=parinfo | pfo_obj=pfo_obj]'
+        message, 'USAGE: pfo_finfo[, fname=fname] [,fnum=fnum] [,fnpars=fnpars] [, fdescr=fdescr] [, pfo_obj=pfo_obj] [, pfo_fstruct_descr=pfo_fstruct_descr] [, fstruct_array=fstruct_array]'
      endif
   endif ;; not debugging
 
   ;; Extract the fstruct stuff from pfo_obj, if specified.
   if N_elements(pfo_obj) gt 0 then begin
-     ;; WARNING!  This uses the "octopus stomach" method of gutting
-     ;; the pfo_parinfo_obj of its property.  Thus, in this routine,
-     ;; we can't call any other pfo_parinfo_obj methods!
      pfo_obj->get_property, $
        pfo_fstruct_array=fstruct_array, $
-       pfo_fstruct_descr=fstruct_descr, $
-       /no_copy
+       pfo_fstruct_descr=fstruct_descr
   endif else begin
      ;; Check to see if we are in object oriented-only mode but the
      ;; user forgot to pass pfo_obj
@@ -170,7 +168,7 @@ pro pfo_finfo, $
            if arg_present(fname            ) or N_elements(fname            ) ne 0 then fname  = fstruct_array[fnum].fname
            if arg_present(fnpars           ) or N_elements(fnpars           ) ne 0 then fnpars = fstruct_array[fnum].fnpars
            if arg_present(fdescr           ) or N_elements(fdescr           ) ne 0 then fdescr = fstruct_array[fnum].fdescr 
-           if arg_present(pfo_fstruct_descr) or N_elements(pfo_fstruct_descr) ne 0 then pfo_fstruct_descr = fstruct_descr
+           if N_elements(fstruct_descr) ne 0 and (arg_present(pfo_fstruct_descr) or N_elements(pfo_fstruct_descr) ne 0) then pfo_fstruct_descr = fstruct_descr
 
         endif else begin
            ;; fnum out of range
@@ -179,14 +177,6 @@ pro pfo_finfo, $
 
         ;; If we have no match, we will be quietly returning with
         ;; "blank" values as output
-
-        ;; Put information back into pfo_obj
-        if N_elements(pfo_obj) ne 0 then begin
-           pfo_obj->set_property, $
-             pfo_fstruct_array=fstruct_array, $
-             pfo_fstruct_descr=fstruct_descr, $
-             /no_copy
-        endif ;; put information back into pfo_obj
 
         return
 
@@ -229,26 +219,17 @@ pro pfo_finfo, $
         if arg_present(fname            ) or N_elements(fname            ) ne 0 then fname  = fstruct_array[fnum].fname
         if arg_present(fnpars           ) or N_elements(fnpars           ) ne 0 then fnpars = fstruct_array[fnum].fnpars
         if arg_present(fdescr           ) or N_elements(fdescr           ) ne 0 then fdescr = fstruct_array[fnum].fdescr 
-        if arg_present(pfo_fstruct_descr) or N_elements(pfo_fstruct_descr) ne 0 then pfo_fstruct_descr = fstruct_descr
+           if N_elements(fstruct_descr) ne 0 and (arg_present(pfo_fstruct_descr) or N_elements(pfo_fstruct_descr) ne 0) then pfo_fstruct_descr = fstruct_descr
      endif ;; proper match 
 
      ;; If we have no match, we will be quietly returning with "blank"
      ;; values as output
 
-     ;; Put information back into pfo_obj
-     if N_elements(pfo_obj) ne 0 then begin
-        pfo_obj->set_property, $
-          pfo_fstruct_array=fstruct_array, $
-          pfo_fstruct_descr=fstruct_descr, $
-          /no_copy
-     endif ;; put information back into pfo_obj
-
      return
 
   endif ;; fname
 
-  ;; For now assume undefined fname AND fnum is an error, althought it
-  ;; doesn't really bug us at this level.
-  message, 'ERROR: either a fname or fnum must be specified'
+  ;; In order to allow smooth return of fstruct_array, don't
+  ;; raise an error if we get here.
 
 end
