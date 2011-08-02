@@ -70,9 +70,13 @@
 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_idx.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_idx.pro,v 1.2 2011/08/02 18:21:04 jpmorgen Exp $
 ;
 ; $Log: pfo_idx.pro,v $
+; Revision 1.2  2011/08/02 18:21:04  jpmorgen
+; Release to Tom
+; Error now returns to caller rather than being caught
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -82,17 +86,9 @@ pro pfo_idx, array, idx=idx, type=type, created=created, N_array=N_array
   init = {pfo_sysvar}
   init = {tok_sysvar}
 
-  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
-  if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
-     CATCH, err
-     if err ne 0 then begin
-        CATCH, /CANCEL
-        message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_idx, array, idx=idx[, type=type][, created=created]'
-     endif
-  endif ;; not debugging
+  ;; This routine is reasonably simple and well debugged, so it is
+  ;; probably OK to just go back to the caller
+  ON_ERROR, !tok.return
 
   ;; Probably most convenient if we catch the error of no array here.
   if N_elements(array) eq 0 then $
