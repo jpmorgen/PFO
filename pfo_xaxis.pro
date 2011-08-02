@@ -44,9 +44,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_xaxis.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_xaxis.pro,v 1.2 2011/08/02 18:20:22 jpmorgen Exp $
 ;
 ; $Log: pfo_xaxis.pro,v $
+; Revision 1.2  2011/08/02 18:20:22  jpmorgen
+; Release to Tom
+; Improve handling of no parinfo
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -59,6 +63,10 @@ function pfo_Xaxis, parinfo, Xin=Xin, idx=idx, _REF_EXTRA=extra
   ;; Intrinsically makes sure Xin exists, sets default Xaxis if no
   ;; parinfo transformation of Xin to Xaxis exists
   Xaxis = Xin
+
+  ;; If we don't have a parinfo, our work is done
+  if N_elements(parinfo) eq 0 then $
+     return, Xaxis
 
   ;; Make sure idx exists
   pfo_idx, parinfo, idx=idx
