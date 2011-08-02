@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.6 2011/08/01 18:28:11 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.7 2011/08/02 15:42:30 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -40,7 +40,8 @@ pro pfo_sysvar__define
        popt	:	'MPFIT', $ ; default parameter optimizer
        debug	:	0, $    ; debug level 0 =catch, 1=don't catch, 2=xmanager, catch=0
        null	:	0, $	; IMPORTANT THAT NULL BE 0
-       ytemplate:	double(0), $	;; Default Y-axis type and value
+       $ ;; Initial value of Yaxis in pfo_parinfo_parse, /calc.  If NaN, the deviates and plotting system works better, but you need to make sure that the first function to operate in each ROI has parinfo.pfo.fp = !pfo.replace.  If 0d, you can just have all functions combine additively
+       Yaxis_init:	!values.d_nan, $
        not_used	:	0, $	; status tokens
        not_pfo	:	0, $
        active	:	1, $
@@ -105,7 +106,7 @@ pro pfo_sysvar__define
        iterproc	:	'pfo_iterproc', $
        iterstop	:	-2, $   ;; stop fit, keep values
        iterquit	:	-3, $   ;; stop fit, discard values
-       plotwin	:	31,  $ ;; default PFO plot window.  Personally I prefer upper right (30).
+       plotwin	:	 0, $   ;; default PFO plot window (upper right)
        $ ;; tokens for actions in pfo_funct to keep code clean
        $;;print	:	1, $ ;; duplicate above
        calc	:	2, $
