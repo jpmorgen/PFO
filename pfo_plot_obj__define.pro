@@ -33,9 +33,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_obj__define.pro,v 1.2 2011/08/02 15:41:15 jpmorgen Exp $
+; $Id: pfo_plot_obj__define.pro,v 1.3 2011/08/02 18:19:41 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_obj__define.pro,v $
+; Revision 1.3  2011/08/02 18:19:41  jpmorgen
+; Release to Tom
+; Check for undefined Xin and Yin for graceful exit
+;
 ; Revision 1.2  2011/08/02 15:41:15  jpmorgen
 ; Release to Tom
 ; Improved property names, play with quick plotting of an intruding
@@ -118,6 +122,16 @@ pro pfo_plot_obj::plot, $
      Eparinfo = temporary(*self.pparinfo)
      *self.pparinfo = temporary(parinfo_in)
      self->invalidate_cache
+  endif
+
+  ;; Check to see if we have anything to plot
+  if N_elements(*self.pXin) eq 0 then begin
+     message, /INFORMATIONAL, 'NOTE: Xin not defined.  Cannot plot data.'
+     return
+  endif
+  if N_elements(*self.pYin) eq 0 then begin
+     message, /INFORMATIONAL, 'NOTE: Yin not defined.  Cannot plot data.'
+     return
   endif
 
   ;; Grab defaults from our property, if not specified on command line
@@ -271,7 +285,7 @@ pro pfo_plot_obj::plot, $
      ;; Grab our deviates, which may already be cached and find the
      ;; yrange value for the active ROIs
      deviates = self->deviates(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
-     yrange = minmax(deviates[self->ROI_Xin_idx(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)])
+     yrange = minmax(deviates[self->ROI_Xin_idx(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)], /nan)
 
      resid_position = [0.1,0.08, 0.98, 0.25]
      plot, [0], $
