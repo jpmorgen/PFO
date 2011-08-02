@@ -33,9 +33,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_data_obj__define.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_data_obj__define.pro,v 1.2 2011/08/02 18:22:14 jpmorgen Exp $
 ;
 ; $Log: pfo_data_obj__define.pro,v $
+; Revision 1.2  2011/08/02 18:22:14  jpmorgen
+; Release to Tom
+; Fix init method, add printing
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -162,11 +166,11 @@ end
 ;; The new_data method works like init when it comes to using the
 ;; set_property method to do the real work.
 pro pfo_data_obj::new_data, $
-   p0, $	;; Xin or Yin
-   p1, $	;; Yin
-   p2, $	;; Yerr
-   quiet=quiet, $ ;; don't reportchange
-   _REF_EXTRA=extra ;; pass on to set_property method
+   p0, $        ;; Xin or Yin
+   p1, $        ;; Yin
+   p2, $        ;; Yerr
+   quiet=quiet, $ ;; don't report change
+   no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
   ;; We are called by routines which always mention p0, p1, p2, even
   ;; if they ar enot defined.  This means we cannot use N_params() to
@@ -184,48 +188,76 @@ pro pfo_data_obj::new_data, $
   ;; parameters and keywords simultaneously.  Let set_property handle
   ;; the type conversion to double and any attendant messaging
   case N_positional_params of
-     0: begin
-        ;; It is a bad idea to call the init method without providing
-        ;; data, since all of the rest of the 
-        if NOT keyword_set(quiet) then $
-           message, /INFORMATIONAL, 'WARNING: no positional parameters provided to pfo_data__init.  Xin, Yin, and Yerr are not initalized!  Remember to initialize ALL THREE when it comes time to use the pfo_obj.  Use /quiet switch or pfo_quiet to supress this message.'
-        self->set_property,_EXTRA=extra
-     end
+     0: ;; Hope that the user initializes data with set_property
      1: begin
         ;; Assume y-axis was specified in the p0 slot.  Make Xin read
         ;; in channels starting from 0, of the same type as Yin
         pfo_idx, p0, idx=Xin, type=size(/type, p0)
         ;; Assume Yerr is Poisson.
-        self->set_property, Xin=Xin, $
-                            Yin=p0, $
-                            Yerr=sqrt(p0), $
-                            _EXTRA=extra
+        self->set_property, $
+           Xin=Xin, $
+           Yin=p0, $
+           Yerr=sqrt(p0), $
+           no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
      end
      2: begin
         ;; Assume Xin and Yin are specified.  Assume Yerr is Poisson
         ;; --> Could use some options to set statistics
-        self->set_property, Xin=p0, $
-                            Yin=p1, $
-                            Yerr=sqrt(p1), $
-                            _EXTRA=extra
+        self->set_property, $
+           Xin=p0, $
+           Yin=p1, $
+           Yerr=sqrt(p1), $
+           no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
      end
      3: begin
         ;; No ambiguities
-        self->set_property, Xin=p0, $
-                            Yin=p1, $
-                            Yerr=p2, $
-                            _EXTRA=extra
+        self->set_property, $
+           Xin=p0, $
+           Yin=p1, $
+           Yerr=p2, $
+           no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
      end
   endcase 
 
 end
 
+;; Print basic information about contents of property
+pro pfo_data_obj::print, _EXTRA=extra
+  print, 'Xin: ' + strtrim(N_elements(*self.pXin), 2) + ' points'
+  print, 'Yin: ' + strtrim(N_elements(*self.pYin), 2) + ' points'
+  print, 'Yerr: ' + strtrim(N_elements(*self.pYerr), 2) + ' points'
+  print, 'Weights: ' + strtrim(N_elements(*self.pweights), 2) + ' points'
+end
+
+
 function pfo_data_obj::descr
-  return, *self.pdata_obj_descr
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.', /CONTINUE
+        return, 'Not documented.'
+     endif
+  endif ;; not debugging
+
+  descr = *self.ppfo_data_obj_descr
+  if pfo_struct_tag_present(descr, 'superclasses') then begin
+     for isc=0, N_elements(descr.superclasses)-1 do begin
+        sc = descr.superclasses[isc]
+        scd = call_method(sc+'::descr', self)
+        pfo_struct_append, descr, create_struct(sc, scd)
+     endfor ;; each superclass
+  endif ;; any superclasses
+
+  return, descr
+
 end
 
 pro pfo_data_obj::cleanup
-  ptr_free, self.pdata_obj_descr
+  ptr_free, self.ppfo_data_obj_descr
   ptr_free, self.pXin
   ptr_free, self.pYin
   ptr_free, self.pYerr
@@ -233,13 +265,17 @@ pro pfo_data_obj::cleanup
 
 end ;; pfo_data_obj::cleanup
 
-;; Handle the initialization of the pfo_data_obj in such a way as we
-;; always have
+;; Handle the initialization of the pfo_data_obj.  Make sure we pull
+;; down the keywords that we are prepared to deal with.
 function pfo_data_obj::init, $
-   p0, $	;; Xin or Yin
-   p1, $	;; Yin
-   p2, $	;; Yerr
-   _REF_EXTRA=extra
+   p0, $        ;; Xin or Yin
+   p1, $        ;; Yin
+   p2, $        ;; Yerr
+   Xin=Xin, $	;; X-axis, usually in natural units
+   Yin=Yin, $	;; data Y-axis
+   Yerr=Yerr, $	;; 1-sigma error bars on data
+   weights=weights, $ ;; weight(s) used to calculate deviates (used in preference to yerr)
+   no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
   init = {pfo_sysvar}
 
@@ -255,12 +291,19 @@ function pfo_data_obj::init, $
   endif ;; not debugging
 
   ;; Create our documentation string
-  self.pdata_obj_descr $
+  self.ppfo_data_obj_descr $
      = ptr_new( $
      {README	: 'pfo_data_obj stores data (e.g. Xin, Yin, Yerr) used by the PFO system', $
-      PROPERTY	: 'Xin, Yin, Yerr', $
-      METHODS	: 'set_property, get_property, descr(), Xin(),  Yin(), Yerr()'} $
+      METHODS	: 'Xin(),  Yin(), Yerr(), print'} $
               )
+  ;; Grab a decent guess at what our property is from the list of
+  ;; keywords in our get_property method
+  ri = routine_info('pfo_data_obj::get_property', /parameters)
+  property = ri.kw_args
+  good_idx = where(stregex(property, '_EXTRA') lt 0, count)
+  if count ne 0 then $
+     pfo_struct_append, *self.ppfo_data_obj_descr, $
+                        {PROPERTY: property[good_idx]}
 
   ;; Turn our null reference pointers into undefined variables
   self.pXin = ptr_new(/allocate_heap)
@@ -268,8 +311,20 @@ function pfo_data_obj::init, $
   self.pYerr = ptr_new(/allocate_heap)
   self.pweights = ptr_new(/allocate_heap)
 
-  ;; Use new_data method to handle positional and keyword parameters
-  self->new_data, p0, p1, p2, _EXTRA=extra
+  ;; Use new_data method to handle positional parameters
+  self->new_data, $
+     p0, $        ;; Xin or Yin
+     p1, $        ;; Yin
+     p2, $        ;; Yerr
+     no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+
+  ;; Keyword parameters can override positional parameters
+  self->set_property, $
+     Xin=Xin, $	;; X-axis, usually in natural units
+     Yin=Yin, $	;; data Y-axis
+     Yerr=Yerr, $	;; 1-sigma error bars on data
+     weights=weights, $ ;; weight(s) used to calculate deviates (used in preference to yerr)
+     no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
   return, 1
 
@@ -282,7 +337,7 @@ pro pfo_data_obj__define
   ;; that large arrays sit in only one place in memory (the heap)
   objectClass = $
      {pfo_data_obj, $
-      pdata_obj_descr:	ptr_new(), $   	;; Pointer to description structure
+      ppfo_data_obj_descr:	ptr_new(), $   	;; Pointer to description structure
       pXin      :       ptr_new(), $ 	;; Pointer to input X-axis
       pYin      :       ptr_new(), $ 	;; Pointer to input Y-axis
       pYerr     :       ptr_new(), $ 	;; Pointer to input Y-axis errors
