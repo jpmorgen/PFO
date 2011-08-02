@@ -34,13 +34,31 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj__define.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_obj__define.pro,v 1.2 2011/08/02 18:28:25 jpmorgen Exp $
 ;
 ; $Log: pfo_obj__define.pro,v $
+; Revision 1.2  2011/08/02 18:28:25  jpmorgen
+; Release to Tom
+; Improve descr
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
 ;-
+
+;; Inherited routines implicitly picked up if we don't need to
+;; do anything special here.
+;;pro pfo_obj::get_property, $
+;;   _REF_EXTRA=extra
+;;  ;; Pass everything onto inherited routines
+;;  self->pfo_mpfit_obj::get_property, _EXTRA=extra
+;;end
+;;
+;;pro pfo_obj::set_property, $
+;;   _REF_EXTRA=extra
+;;  ;; Pass everything onto inherited routines
+;;  self->pfo_mpfit_obj::set_property, _EXTRA=extra
+;;end
 
 ;; Each inherited class should have a descr method.
 function pfo_obj::descr
@@ -59,9 +77,14 @@ function pfo_obj::descr
   endif ;; not debugging
 
   descr = *self.ppfo_obj_descr
-  pfo_struct_append, descr, {pfo_mpfit_obj: self->pfo_mpfit_obj::descr()}
-  pfo_struct_append, descr, {pfo_plot_obj: self->pfo_plot_obj::descr()}
-  return, descr
+  if pfo_struct_tag_present(descr, 'superclasses') then begin
+     for isc=0, N_elements(descr.superclasses)-1 do begin
+        sc = descr.superclasses[isc]
+        scd = call_method(sc+'::descr', self)
+        pfo_struct_append, descr, create_struct(sc, scd)
+     endfor ;; each superclass
+  endif ;; any superclasses
+
 end
 
 pro pfo_obj::cleanup
@@ -93,7 +116,7 @@ function pfo_obj::init, $
   self.ppfo_obj_descr $
      = ptr_new( $
      {README	: 'pfo_obj is the default top-level object of the PFO system', $
-      SUPERCLASSES: 'pfo_mpfit_obj, pfo_plot_obj', $
+      SUPERCLASSES: 'pfo_mpfit_obj', $
       PROPERTY	: '', $
       METHODS	: ''} $
               )
@@ -102,8 +125,8 @@ function pfo_obj::init, $
   ok = self->pfo_mpfit_obj::init(p0, p1, p2, _EXTRA=extra)
   if NOT ok then $
      return, 0
-     
-  return, self->pfo_plot_obj::init(_EXTRA=extra)
+
+  return, 1
 
 end
 
@@ -112,7 +135,6 @@ pro pfo_obj__define
   objectClass = $
      {pfo_obj, $
       ppfo_obj_descr: ptr_new(), $  ;; Pointer to description structure
-      inherits pfo_mpfit_obj,  $
-      inherits pfo_plot_obj $
+      inherits pfo_mpfit_obj  $
       }
 end
