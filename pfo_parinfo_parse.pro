@@ -21,7 +21,12 @@
 ; pfo_parinfo_parse parses a parinfo array according to the following
 ; hierarchy:
 
-;   ispec, iROI, fseq, inaxis, outaxis, fop, ftype, ID
+;   ispec, iROI, fseq, inaxis, outaxis, fop, ftype, ID (old)
+;   ispec, iROI, fseq, outaxis, fop, inaxis, ftype, ID
+
+; Each of these are sorted in numeric order before they are
+; processed.  The numeric order of the axis and fop tokens can be
+; found in pfo_sysvar__define.pro
 
 ; The final level is an individual instance of a PFO-enabled function.
 ; The appropriate "method" of this function is called ("__CALC,"
@@ -115,15 +120,14 @@
 ;	peak_fn_idx = pfo_parinfo_parse(/INDICES, parinfo, expand_idx=peak_idx)
 
 ;       terminate_idx: put termination marks (!tok.nowhere) after each
-;       set of indices in all returned index lists.  These cab be
+;       set of indices in all returned index lists.  These can be
 ;       parsed with pfo_idx_parse
 
 ;   Additional keywords for /WIDGET
 
-;	parentID (required): the parentID of a widget in which this
-;	compound widget will be displayed.  If you don't have
-;	one handy, you can use pfo_parinfo_widget, which creates a
-;	generic top level base
+;       parentID (optional): the parentID of a widget in which this
+;       compound widget will be displayed.  If not specified, a
+;       free-floating widget will be created
 
 ; OUTPUTS:
 
@@ -160,9 +164,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.2 2011/08/02 18:16:57 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.3 2011/08/12 12:06:25 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.3  2011/08/12 12:06:25  jpmorgen
+; About to change order of parsing
+;
 ; Revision 1.2  2011/08/02 18:16:57  jpmorgen
 ; Release to Tom
 ; Updated for !pfo.Yaxis_init, better handling of no parinfo input
@@ -172,16 +179,66 @@
 ;
 ;-
 
-;; We need to make sure pfo_ROI__calc doesn't get interpreted as an array if we haven't compiled the file pfo_roi_fdefine.pro
+;; We need to make sure pfo_ROI__calc doesn't get interpreted as an array if we haven't compiled the file pfo_roi_fdefine.pro yet
 forward_function pfo_ROI__calc
+
+;; This is a helper function that keeps the code below from getting cluttered when dealing with errors at each nested loop level
+function pfo_parinfo_parse_catch, action, toprint, indices_idx, yaxis, error, containerID
+
+  error = 1
+
+  ;; Prepare terminal message and retval
+  terminal_msg = 'WARNING: caught the above error.  '
+  print_msg = '% PFO_PARINFO_PARSE: ERROR: Function did not parse properly.  See terminal window.'
+  case action of
+     !pfo.print : begin
+        terminal_msg += 'Returning what I have so far.'
+        retval = toprint + !tok.newline + print_msg
+     end
+     !pfo.widget : begin
+        terminal_msg += 'Returning an invalid widgetID.'
+        retval = !tok.nowhere
+     end
+     !pfo.indices : begin
+        if N_elements(indices_idx) eq 0 then begin
+           terminal_msg += 'Returning -1'
+           retval = !tok.nowhere
+        endif else begin
+           terminal_msg += 'Returning what I have so far.'
+           retval = indices_idx
+        endelse
+     end
+     !pfo.calc : begin
+        terminal_msg += 'Returning what I have so far.'
+        retval = yaxis
+     end
+  endcase ;; different error return values for different actions
+
+  ;; Print terminal message
+  message, /NONAME, !error_state.msg, /CONTINUE
+  message, /CONTINUE, terminal_msg + '  You can use pfo_debug to help track down the problem.'
+
+  ;; Do additional display, if necessary
+  case action of
+     !pfo.widget : begin
+        if N_elements(containerID) ne 0 then $
+           if widget_info(containerID, /valid_ID) then $
+              ID = widget_text(containerID, value=print_msg)
+        junk = dialog_message('% PFO_PARINFO_PARSE: ERROR: Function did not parse properly.  See terminal window for details.')
+     end
+  endcase ;; different additional display for different actions
+
+  return, retval
+
+end
 
 function pfo_parinfo_parse, $
    parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
-   status_mask=status_mask, $
+   status_mask=status_mask, error=error, $
    calc=calc, Xin=Xin, xaxis=xaxis, ROI_Xin_idx=ROI_Xin_idx, convol_center=convol_center, $
    print=print, $
    indices=indices, expand_idx=expand_idx, terminate_idx=terminate_idx, $
-   widget=widget, parentID=parentID, $
+   widget=widget, parentID=parentID_in, group_leader, containerID=containerID, $
    _REF_EXTRA=extra
 
   init = {tok_sysvar}
@@ -214,6 +271,34 @@ function pfo_parinfo_parse, $
   if keyword_set(widget) then $
     action += !pfo.widget
 
+  case action of
+     !pfo.print : 
+     !pfo.widget : 
+     !pfo.indices :
+     !pfo.calc : 
+     else : message, 'ERROR: specify one of /CALC, /PRINT, /WIDGET, /INDICES'
+  endcase ;; setting up for actions
+
+  ;; Done checking the action switches.  In case we have some unforeseen problem, stop in this routine
+  ON_ERROR, !tok.stop
+
+
+  ;; Now catch errors that happen during our initial setup or that happen in the pfo_parinfo_parse loop code before the each
+  ;; function is called.  The later should not happen.
+
+  ;; CATCH: because we have to use CATCH to do basic program control (IDL resolve_routine and routine_info don't give
+  ;; us graceful exit options), we can't have a global CATCH statement
+  ;; that takes care of all our errors nicely.  We therefore have to reinitiate a CATCH condition at the top of each loop.
+  ;; Start with one here.
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error)
+     endif ;; error
+  endif ;; not debugging
+
   ;; Do some initial setup
 
   ;; For printing and widget display, we might want to have an introduction to the overall function (e.g. column headings).
@@ -231,81 +316,61 @@ function pfo_parinfo_parse, $
         toprint = ''
      end ;; print
 
-;;     !pfo.widget : begin
-;;        ;; WIDGET
-;;        action_method = '__widget'
-;;        ;; Check to see if we need to create our own top-level widget
-;;        if N_elements(parentID) eq 0 then $
-;;          message, 'ERROR: parentID must be set'
-;;
-;;
-;;        message, 'ERROR: need new code'
-;;
-;;        ;; Here we benefit from being passed a heap pointer.  The widget code can handle pointers or regular variables,
-;;        ;; so switch back to pointer mode if that is what we were passed
-;;        if keyword_set(pparinfo) then begin
-;;           ;; Move the data back to the heap
-;;           *pparinfo = temporary(parinfo)
-;;           ;; Point parinfo at it.  Except for a local pointer variable, pparinfo, we are back in the original
-;;           ;; configuration.
-;;           parinfo = pparinfo
-;;        endif else begin
-;;           ;; For syntactical purposes in the widget code, allow us to always work with heap pointers.
-;;           pparinfo = ptr_new(parinfo, /no_copy)
-;;           parinfo = pparinfo
-;;           just_created_pparinfo = 1
-;;        endelse
-;;
-;;        ;; widget=0 is destroy, /widget is create or refill
-;;        if widget eq 0 then begin
-;;           ;;  Signal to destroy the widget.
-;;           pfo_widget_destroy, pparinfo
-;;           ;; Clean up after our temporary pparinfo, if appropriate
-;;           if keyword_set(just_created_pparinfo) then begin
-;;              parinfo = temporary(*pparinfo)
-;;              ptr_free, pparinfo
-;;           endif
-;;           ;;  We return the return value of pfo_widget, which is the tlbID of the widget if it is still running or
-;;           ;;  parinfo if it was the only widget on the block.  We couldn't destroying it through this method
-;;           ;;  unless other code is running, so returning 0 is appropriate.
-;;           return, 0L
-;;        endif ;; destroy widget
-;;        ;; If we got here, we are going to create or fill the widget.  This call does either depending on what it
-;;        ;; finds in the pparinfo.
-;;        pfo_widget_tlbID = $
-;;          pfo_widget(parinfo, idx=use_idx, parinfo_containerID=parinfo_containerID, $
-;;                     pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
-;;        ;; Set widgetID for the primitives.  Note this will be the tlbID of an existing widget that is going to be
-;;        ;; refilled or the parinfo_containerID (the widget with the scroll bars) of a widget that is being created
-;;        widgetID = pfo_widget_tlbID
-;;        if keyword_set(parinfo_containerID) then begin
-;;           widgetID = parinfo_containerID
-;;           ;; Start with our generic axis initializations.  I don't plan to have any changes possible in this, so
-;;           ;; don't bother storing it anywhere.
-;;           rowID = widget_base(parinfo_containerID, row=1)
-;;           junkID = widget_label(rowID, value='X = Xin; Y = 0')
-;;        end
-;;
-;;        ;; Check to see if there is anything in our parinfo.  If not, just raise the empty frame
-;;        if n_use le 0 then begin
-;;           retval = pfo_widget(parinfo, idx=idx, $
-;;                               parinfo_containerID=parinfo_containerID, $
-;;                               pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
-;;           ;; Clean up after our temporary pparinfo, if appropriate
-;;           if keyword_set(just_created_pparinfo) then begin
-;;              if N_elements(*pparinfo) gt 0 then $
-;;                parinfo = temporary(*pparinfo)
-;;              ptr_free, pparinfo
-;;           endif
-;;           return, retval
-;;
-;;        endif
-;;
-;;        ;; Put parinfo stuff back into non-pointer mode so all the code below works smoothly
-;;        if keyword_set(pparinfo) then $
-;;          parinfo = temporary(*pparinfo)
-;;
-;;     end ;; widget
+     !pfo.widget : begin
+        ;; WIDGET
+        action_method = '__widget'
+        ;; pfo_parinfo_parse(/widget) is going to be called in a variety of circumstances: no existing top-level widget, a
+        ;; widget into which you want to insert the parinfo widgets, and internally from pfo_parinfo_container_cw_obj when the
+        ;; pfo_obj->widget_repopulate method is called.  It is the later case that necessitates that we set things up to call
+        ;; pfo_parinfo_parse recursively so that fundamentally what pfo_parinfo_parse does is insert function widgets into
+        ;; the pfo_parinfo_container_cw
+        if N_elements(containerID) eq 0 then begin
+           ;; This is the first time through.  We need to set up our nested widgets
+           ;; Check to see if we need to create our own top-level widget.  Do so in a way that doesn't muck with an
+           ;; undefined parentID in the calling routine
+           if N_elements(parentID_in) ne 0 then $
+              parentID = parentID_in
+           ;; --> this will get improved to pfo_parinfo_widget
+           if N_elements(parentID) eq 0 then $
+              parentID = pfo_generic_base(title='PFO PARINFO EDITOR', group_leader=group_leader, realize=0, pfo_obj=pfo_obj)
+           ;; To avoid excessive redraws of widgets, turn off update in parent widget until we are done --> this might go
+           ;; faster if I could turn off redraw in the tlb.  But I can't figure out how to get at the tlb with
+           ;; widget_infor or widget_control.  tlb is available to events.  If I notice this being a problem, I can just pass
+           ;; tlb as an additional argument....           
+           widget_control, parentID, update=0
+
+           ;; Create the container into which the parinfo will be displayed.  We need to pass on any args that are necessary
+           ;; for drawing the widget.  NOTE: if any of these args indicate that this instance of the pfo_parinfo_container_cw
+           ;; should not be registered in the repopulate list (e.g. idx), the calling widget had better be listed there, or
+           ;; else the widgets created here won't be in sink with the parinfo they are referencing.
+           pfo_parinfo_container_cwID = $
+              pfo_parinfo_container_cw(parentID, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
+                             status_mask=status_mask, $
+                             containerID=containerID, cw_obj=pfo_parinfo_container_cw_obj, $
+                             _EXTRA=extra)
+           ;; Call ourselves recursively with our containerID.  This call is similar to the call pfo_parinfo_container_cw_obj
+           ;; issues when it receives a repopulate request.  Note that the return request in this case is the list of 
+           junk = pfo_parinfo_parse(/widget, parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
+                                     status_mask=status_mask, containerID=containerID, _EXTRA=extra)
+
+           ;; Now that we are done putting all of the widgets together, do one redraw.
+           widget_control, parentID, update=1
+
+           ;; Return the ID of the top-most widget we have created here, since that is what the users will expect
+           if N_elements(parentID_in) eq 0 then begin
+              ;; Realize the widget
+              widget_control, /realize, parentID
+              return, parentID
+           endif
+           return, pfo_parinfo_container_cwID
+        endif ;; Don't have a container yet
+        
+        if NOT widget_info(containerID, /valid_ID) then $
+           message, 'ERROR: invalid containerID.  This should not happen.  Are you using containerID in your calling routine?'
+
+        ;; If we made it here, we have a valid containerID into which to dump our pfo function widgets
+
+     end ;; widget
 
      !pfo.indices : begin
         ;; INDICES
@@ -322,9 +387,9 @@ function pfo_parinfo_parse, $
         xaxis = Xin
 
         ;; Get our default Yaxis value from pfo_obj, if specified, otherwise from the pfo system variable
-        Yaxis_init = !pfo.Yaxis_init
-        if obj_valid(pro_obj) then $
-           pfo_obj->get_property, Yaxis_init=Yaxis_init
+        init_Yaxis = !pfo.init_Yaxis
+        if obj_valid(pfo_obj) then $
+           pfo_obj->get_property, init_Yaxis=init_Yaxis
 
         ;; Initialize our Y axis.  Make sure it has the same dimensions and type as Xin
         yaxis = Xin
@@ -334,7 +399,7 @@ function pfo_parinfo_parse, $
         if N_elements(parinfo) eq 0 then begin
            ;; Check to see if user wants ROI_Xin_idx return
            if N_elements(ROI_Xin_idx) ne 0 or arg_present(ROI_Xin_idx) then $
-              pfo_idx, Xin, idx=ROI_Xin_idx
+              pfo_idx, Xin, ROI_Xin_idx
            return, yaxis
         endif ;; no parinfo
 
@@ -343,8 +408,6 @@ function pfo_parinfo_parse, $
         y = yaxis
 
      end ;; /CALC
-
-     else : message, 'ERROR: specify one of /CALC, /PRINT, /WIDGET, /INDICES'
 
   endcase ;; setting up for actions
 
@@ -357,10 +420,6 @@ function pfo_parinfo_parse, $
   ;; Narrow with pfo_ROI_idx
   use_idx = pfo_ROI_idx(parinfo, idx=use_idx, ispec=ispec, iROI=iROI, allspec=allspec, allROI=allROI, count=n_use)
 
-  ;; Now that our inputs have been verified, no longer CATCH errors at this level.  If an error does occur, allow the normal
-  ;; IDL stop for easier interactive debugging.  Of course, any errors can still be caught by the calling routine.
-  CATCH, /CANCEL
-  ON_ERROR, !tok.stop
 
   ;; For efficiency sake, calculate ROI_Xaxis here if we are going to be working with ROIs that depend on Xaxis
   if action eq !pfo.calc and pfo_struct_tag_present(parinfo, 'pfo_ROI') then begin
@@ -418,6 +477,15 @@ function pfo_parinfo_parse, $
      junk = pfo_uniq(make_array(n_use, value=0B), reverse_indices=ispec_r_idx, N_uniq=N_ispec)
   endelse
   for iu_ispec=0, N_ispec-1 do begin
+     ;; Catch at each loop level because of CATCH below
+     if !pfo.debug le 0 then begin
+        CATCH, err
+        if err ne 0 then begin
+           CATCH, /CANCEL
+           return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+        endif ;; error
+     endif ;; not debugging
+
      ;; Pick out the ith set of indices that point to identical values
      ispec_idx = ispec_r_idx[ispec_r_idx[iu_ispec]:ispec_r_idx[iu_ispec+1]-1]
      ;; unwrap so that these are indices into parinfo
@@ -433,6 +501,15 @@ function pfo_parinfo_parse, $
      endelse
 
      for iu_iROI=0, N_iROI-1 do begin
+        ;; Catch at each loop level because of CATCH below
+        if !pfo.debug le 0 then begin
+           CATCH, err
+           if err ne 0 then begin
+              CATCH, /CANCEL
+              return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+           endif ;; error
+        endif ;; not debugging
+
         ;; Pick out the ith set of indices that point to identical values
         iROI_idx = iROI_r_idx[iROI_r_idx[iu_iROI]:iROI_r_idx[iu_iROI+1]-1]
         ;; unwrap so that these are indices into parinfo
@@ -462,6 +539,15 @@ function pfo_parinfo_parse, $
         ;; Loop through our ROI(s).  If no ROIs were found, the whole
         ;; Xin axis is a ROI, so we need to go through at least once.
         for itROI=0, max([1, nROI])-1 do begin
+           ;; Catch at each loop level because of CATCH below
+           if !pfo.debug le 0 then begin
+              CATCH, err
+              if err ne 0 then begin
+                 CATCH, /CANCEL
+                 return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+              endif ;; error
+           endif ;; not debugging
+
            ;; When we are calculating, set up the indices into Xin/xaxis
            if action eq !pfo.calc then begin
               if nROI eq 0 then begin
@@ -499,6 +585,15 @@ function pfo_parinfo_parse, $
            junk = parinfo[iROI_idx].pfo.fseq
            junk = pfo_uniq(junk, sort(junk), reverse_indices=fseq_r_idx, N_uniq=N_fseq)
            for iseq=0, N_fseq-1 do begin
+              ;; Catch at each loop level because of CATCH below
+              if !pfo.debug le 0 then begin
+                 CATCH, err
+                 if err ne 0 then begin
+                    CATCH, /CANCEL
+                    return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+                 endif ;; error
+              endif ;; not debugging
+
               ;; Pick out the ith set of indices that point to identical values
               fseq_idx = fseq_r_idx[fseq_r_idx[iseq]:fseq_r_idx[iseq+1]-1]
               ;; unwrap so that these are indices into parinfo
@@ -508,6 +603,15 @@ function pfo_parinfo_parse, $
               junk = parinfo[fseq_idx].pfo.inaxis
               junk = pfo_uniq(junk, sort(junk), reverse_indices=inaxis_r_idx, N_uniq=N_inaxis)
               for iinaxis=0, N_inaxis-1 do begin
+                 ;; Catch at each loop level because of CATCH below
+                 if !pfo.debug le 0 then begin
+                    CATCH, err
+                    if err ne 0 then begin
+                       CATCH, /CANCEL
+                       return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+                    endif ;; error
+                 endif ;; not debugging
+
                  ;; Pick out the ith set of indices that point to identical values
                  inaxis_idx = inaxis_r_idx[inaxis_r_idx[iinaxis]:inaxis_r_idx[iinaxis+1]-1]
                  ;; unwrap so that these are indices into parinfo
@@ -517,6 +621,14 @@ function pfo_parinfo_parse, $
                  junk = parinfo[inaxis_idx].pfo.outaxis
                  junk = pfo_uniq(junk, sort(junk), reverse_indices=outaxis_r_idx, N_uniq=N_outaxis)
                  for ioutaxis=0, N_outaxis-1 do begin
+                    ;; Catch at each loop level because of CATCH below
+                    if !pfo.debug le 0 then begin
+                       CATCH, err
+                       if err ne 0 then begin
+                          CATCH, /CANCEL
+                          return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+                       endif ;; error
+                    endif ;; not debugging
                     outaxis_idx = outaxis_r_idx[outaxis_r_idx[ioutaxis]:outaxis_r_idx[ioutaxis+1]-1]
                     outaxis_idx = inaxis_idx[temporary(outaxis_idx)]
 
@@ -524,6 +636,15 @@ function pfo_parinfo_parse, $
                     junk = parinfo[outaxis_idx].pfo.fop
                     junk = pfo_uniq(junk, sort(junk), reverse_indices=fop_r_idx, N_uniq=N_fop)
                     for ifop=0, N_fop-1 do begin
+                       ;; Catch at each loop level because of CATCH below
+                       if !pfo.debug le 0 then begin
+                          CATCH, err
+                          if err ne 0 then begin
+                             CATCH, /CANCEL
+                             return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+                          endif ;; error
+                       endif ;; not debugging
+
                        fop_idx = fop_r_idx[fop_r_idx[ifop]:fop_r_idx[ifop+1]-1]
                        fop_idx = outaxis_idx[temporary(fop_idx)]
 
@@ -533,6 +654,15 @@ function pfo_parinfo_parse, $
                        fnums = floor(parinfo[fop_idx].pfo.ftype)
                        junk = pfo_uniq(fnums, sort(fnums), reverse_indices=fnum_r_idx, N_uniq=N_fnums)
                        for ifnum=0, N_fnums-1 do begin
+                          ;; Catch at each loop level because of CATCH below
+                          if !pfo.debug le 0 then begin
+                             CATCH, err
+                             if err ne 0 then begin
+                                CATCH, /CANCEL
+                                return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+                             endif ;; error
+                          endif ;; not debugging
+
                           fnum_idx = fnum_r_idx[fnum_r_idx[ifnum]:fnum_r_idx[ifnum+1]-1]
                           fnum_idx = fop_idx[temporary(fnum_idx)]
 
@@ -548,9 +678,17 @@ function pfo_parinfo_parse, $
                           junk = parinfo[fnum_idx].pfo.ID
                           junk = pfo_uniq(junk, sort(junk), reverse_indices=ID_r_idx, N_uniq=N_IDs)
                           for iID=0, N_IDs-1 do begin
+                             ;; Catch at each loop level because of CATCH below
+                             if !pfo.debug le 0 then begin
+                                CATCH, err
+                                if err ne 0 then begin
+                                   CATCH, /CANCEL
+                                   return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+                                endif ;; error
+                             endif ;; not debugging
+
                              ID_idx = ID_r_idx[ID_r_idx[iID]:ID_r_idx[iID+1]-1]
                              ID_idx = fnum_idx[temporary(ID_idx)]
-
                              ;; Even with all this work, there still might be multiple instances of function fnum.  npar is
                              ;; the total number of parameters of function fnum
                              npar = N_elements(ID_idx)
@@ -585,11 +723,26 @@ function pfo_parinfo_parse, $
 
                              ;; Call or print the functions in parray one at a time.
                              for iIDfn=long(0), nfunct-1 do begin
+                                ;; Catch at each loop level because of CATCH below
+                                if !pfo.debug le 0 then begin
+                                   CATCH, err
+                                   if err ne 0 then begin
+                                      CATCH, /CANCEL
+                                      return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+                                   endif ;; error
+                                endif ;; not debugging
+
                                 ;; Assemble parameters for this particular instance of the function.  Reform is necessary to
                                 ;; remove vestigial dimensions
                                 fidx = reform(ID_idx[fidx_array[iIDfn, *]])
 
                                 case action of
+                                   ;; WIDGET
+                                   !pfo.widget: begin
+                                      ;; Make the first positional parameter pfo_*__widget its proper parent
+                                      x = containerID
+                                   end
+
                                    ;; INDICES
                                    !pfo.indices : begin
                                       ;; Check to see if the user wants to expand an idx into all of the idx of that
@@ -674,7 +827,6 @@ function pfo_parinfo_parse, $
                                    resolve_routine, funct_name, /no_recompile, /either
                                    init_params = routine_info(funct_name, /functions, /parameters)
                                 endelse ;; first time through checking for fname__action
-                                CATCH, /CANCEL
 
                                 ;; Catch errors in our primitive functions unless the user is in PFO debugging mode
                                 if !pfo.debug le 0 then begin
@@ -687,7 +839,7 @@ function pfo_parinfo_parse, $
                                             toprint = toprint + ' %PFO_PARINFO_PARSE: ERROR: Caught the following error while calling ' + funct_name + ': ' + !error_state.msg + ')'
                                          end
                                          !pfo.widget : begin
-                                            junk = widget_text(widgetID, value='Caught the following error while calling ' + funct_name + ': ' + !error_state.msg)
+                                            junk = widget_text(containerID, value='Caught the following error while calling ' + funct_name + ': ' + !error_state.msg)
                                          end
                                          else:
                                       endcase ;; putting error into text output methods
@@ -710,7 +862,7 @@ function pfo_parinfo_parse, $
                                                    fname=fname, first_funct=first_funct, $
                                                    pfo_obj=pfo_obj, $
                                                    _EXTRA=extra, $
-                                                   widget=widgetID, $
+                                                   cw_obj=cw_obj, $
                                                    Xorig=Xin, xaxis=xaxis)
 
                                 ;; Set our first_funct flag to 0, since we are done with it
@@ -719,12 +871,8 @@ function pfo_parinfo_parse, $
                                 case action of 
                                    !pfo.print : toprint += fy
                                    !pfo.widget : begin
-                                      ;; Add the closing parenthesis to our function
-                                      if keyword_set(parinfo_containerID) then begin
-                                         rowID = widget_base(parinfo_containerID, row=1)
-                                         junkID = $
-                                           widget_label(rowID, value=')', uvalue={tlbID : pfo_widget_tlbID})
-                                      endif
+                                      pfo_array_append, widget_IDs, fy
+                                      pfo_array_append, cw_objs, cw_obj
                                    end
                                    !pfo.calc : begin
                                       ;; CALCULATING
@@ -754,7 +902,6 @@ function pfo_parinfo_parse, $
                                    end ;; calculating
                                    else :
                                 endcase ;; action
-
                              endfor  ;; each instance of fnum with this ID (iIDfn)
                           endfor ;; iID
                        endfor ;; ifnum
@@ -770,18 +917,7 @@ function pfo_parinfo_parse, $
   ;; Return value depends on our action
   case action of
      !pfo.print : return, toprint
-;;     !pfo.widget : begin
-;;        retval = pfo_widget(parinfo, idx=idx, $
-;;                            parinfo_containerID=parinfo_containerID, $
-;;                            pfo_widget_pparinfo=pfo_widget_pparinfo, _EXTRA=extra)
-;;        ;; Clean up after our temporary pparinfo, if appropriate
-;;        if keyword_set(just_created_pparinfo) then begin
-;;           parinfo = temporary(*pparinfo)
-;;           ptr_free, pparinfo
-;;        endif
-;;        return, retval
-;;
-;;     end
+     !pfo.widget : return, widget_IDs
      !pfo.indices : return, indices_idx
      !pfo.calc : return, yaxis
      else :
