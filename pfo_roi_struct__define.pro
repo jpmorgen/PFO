@@ -46,13 +46,246 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.2 2011/08/17 02:41:42 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.2  2011/08/17 02:41:42  jpmorgen
+; About to delete some code I found handy to fix a problem I may have
+; fixed a better way
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
 ;-
+
+;; Helper procedure returns current ispec and iROI
+pro pfo_ROI_struct_cw_obj::get_iROI_ispec, ispec=ispec, iROI=iROI
+
+  ;; Get output ROI_struct and ROI_struct current values
+  self.pfo_obj->parinfo_call_procedure, $
+     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     taglist_series=['pfo', 'pfo_ROI'], ispec=ispec, iROI=iROI, ftype=ftype
+
+  junk = uniq(iROI, sort(iROI))
+  if N_elements(junk) ne 1 then begin
+     message, 'ERROR: more than one iROI specified for ' + pfo_fname(ftype[0], pfo_obj=self.pfo_obj) + ' idx = ' + pfo_array2str(*self.pidx) + '.  If this function can really work that way, call this widget on each parameter individually'
+  endif
+
+  ;; If we made it here, the first element should be all we need
+  ispec = ispec[0]
+  iROI = iROI[0]
+
+end
+
+function pfo_ROI_struct_cw_obj::event, event
+
+  sn = tag_names(event, /structure_name)
+  if sn ne 'FSC_FIELD_EVENT' then $
+     message, 'ERROR: unexpected event'
+
+  ;; We will always swallow the event
+  retval = !tok.nowhere
+
+  ;; Check to see if we have changed our values
+  self->get_iROI_ispec, ispec=ispec, iROI=iROI
+
+  widget_control, self.ispecID, get_value=w_ispec
+  widget_control, self.iROIID, get_value=w_iROI
+
+  ;; Check to see if user has erased value in field.  In this case
+  ;; fsc_field returns NAN
+  if NOT finite(w_ispec) or NOT finite(w_iROI) then begin
+     ;; Put existing values back
+     self.pfo_obj->refresh, idx=(*self.pidx)[0]
+     return, retval
+  endif
+
+  ;; No change means swallow the event
+  if ispec eq w_ispec and iROI eq w_iROI then $
+     return, retval
+
+  ;; If we made it here, we have a valid change in ispec or iROI.
+
+  ;; Having troubles with combination of /cr_only and /focus_events in
+  ;; fsc_field.  I think what is going on is that when a cr event is
+  ;; processed, the repopulate (specifically the clear container)
+  ;; causes a loss of keyboard focus.  That second event cannot be
+  ;; processed by the cw_obj that is in the process of dying.
+  ;; Solution: turn off event processing
+;;  self.ispec_obj->SetProperty, event_func=''
+;;  self.iROI_obj->SetProperty, event_func=''
+
+;;   ;; Solution (for now): kill fsc_field widgets from the bottom up.
+;;   ;; NOTES: tried to turn of event processing in fsc_field by doing a
+;;   ;; widget_control, event_func='' and that had no effect.  Destroying
+;;   ;; the widget before changing the ispec and iROI values in parinfo
+;;   ;; seems to work better
+;;   widget_control, self.parentID, update=0
+;;   widget_control, self.ispecID, /destroy
+;;   widget_control, self.iROIID, /destroy
+
+  ;; Get ready to change our value(s) in the parinfo
+  self->repopfresh_check, undo
+
+  ;; Write it into the parinfo
+  self.pfo_obj->parinfo_call_procedure, $
+     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     taglist_series='pfo_ROI', ispec=w_ispec, iROI=w_iROI
+
+  ;; Change our value(s) in the parinfo.  This catches any errors and
+  ;; issues a refresh, if possible instead of a repopulate
+  self->repopfresh_check, undo
+
+  return, retval
+end
+
+;; Refresh method.  pfo_cw_obj handles error catching
+pro pfo_ROI_struct_cw_obj::refresh
+
+  ;; Refresh our display
+  self->get_iROI_ispec, ispec=ispec, iROI=iROI
+  ;; Check to see if we killed ourselves for event processing problems
+  if NOT widget_info(self.ispecID, /valid_ID) then begin
+     ;; Widgets are gone, so redraw them
+     widget_control, self.parentID, update=0
+     self->populate
+     widget_control, self.parentID, update=1
+  endif else begin
+     ;; Widgets still there, just write in the updated values
+     widget_control, self.ispecID, set_value=ispec
+     widget_control, self.iROIID, set_value=iROI
+  endelse
+
+end
+
+pro pfo_ROI_struct_cw_obj::populate, $
+   _REF_EXTRA=extra ;; for now, swallow any extra keywords
+
+  self->get_iROI_ispec, ispec=ispec, iROI=iROI
+
+  ;; Use fsc_field to handle numeric/text entry.  FSC_field requries
+  ;; event_func be set or else keyword focus events aren't reported.
+  ;; To get the widgets to display where I want them, I have to work
+  ;; with the pfo_cw_obj base, not the container.  That is OK, since I
+  ;; set event_func manually and the container isn't needed for
+  ;; repopulation.
+  self.ispecID = fsc_field(self.containerID, title='ispec:', $
+                           /highlight, $
+                           value=ispec, digits=3, xsize=3, $
+                           uvalue={method:'event', obj:self}, $
+                           event_func='pfo_cw_event_func', $
+                           /cr_only, /focus_events, /nonsensitive, $
+                           object=object)
+  self.ispec_obj = object
+  self.iROIID = fsc_field(self.containerID, title='iROI:', $
+                          /highlight, $
+                          value=iROI, digits=3, xsize=3, $
+                          uvalue={method:'event', obj:self}, $
+                          event_func='pfo_cw_event_func', $
+                          /cr_only, /focus_events, $
+                          object=object)
+  self.iROI_obj = object
+
+  ;; Register ourselves in the refresh list.  
+  self->register_refresh
+
+end
+
+;; Cleanup method
+pro pfo_ROI_struct_cw_obj::cleanup
+  ;; Turn off keyboard focus before we kill our widgets so extra
+  ;; keyboard focus events during death don't cause segmentation
+  ;; faults
+  if obj_valid(self.ispec_obj) then begin
+     self.ispec_obj->SetProperty, event_func=''
+     self.iROI_obj->SetProperty, event_func=''
+  endif ;; if fsc_field widgets still exist, turn off event processing until they die
+
+  ;; Call our inherited cleaup routines
+  self->pfo_parinfo_cw_obj::cleanup
+end
+
+;; Init method
+function pfo_ROI_struct_cw_obj::init, $
+   parentID, $ ;; widgetID of parent widget
+   _REF_EXTRA=extra ;; All other input parameters are passed to underlying routines via _REF_EXTRA
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.  Object not properly initialized ', /CONTINUE
+        return, 0
+     endif
+  endif ;; not debugging
+
+  ;; Call our inherited init routines.  This puts pfo_obj into self,
+  ;; among other things.  Make the tlb a row base, so ispec and iROI
+  ;; appear side-by-side
+  ok = self->pfo_parinfo_cw_obj::init(parentID, /row, _EXTRA=extra)
+  if NOT ok then return, 0
+
+  ;; Register with the refresh list
+  self->register_refresh
+
+  ;; Create our container
+  self->create_container, /row
+
+  ;; Build our widget
+  self->populate, _EXTRA=extra
+
+  ;; If we made it here, we have successfully set up our container.  
+  return, 1
+
+end
+
+;; Object class definition
+pro pfo_ROI_struct_cw_obj__define
+  objectClass = $
+     {pfo_ROI_struct_cw_obj, $
+      ispecID	: 0L, $ ;; widget ID(s) used in refresh method
+      iROIID	: 0L, $ ;; widget ID(s) used in refresh method
+      ispec_obj	: obj_new(), $ ;; object controlling fsc_field widget
+      iROI_obj	: obj_new(), $ ;; object controlling fsc_field widget
+      inherits pfo_parinfo_cw_obj}
+end
+
+;; The __widget "method" is used to display ispec and iROI on the same
+;; line as the equation, since they, since they apply to the entire
+;; function.  Because this is used in the
+;; pfo_obj->parinfo_call_procedure and pfo_struct_call_procedure
+;; systems, parinfo must be the first poositional argument.  Because
+;; it is a widget, the parent widget ID should not be far behind!
+
+function pfo_ROI_struct__widget, $
+   parinfo, $ ;; entire parinfo array passed by reference (usually from pfo_obj)
+   parentID, $ ;; The rowID of our equation line
+   equation=equation, $ ;; flag to trigger our code
+   _REF_EXTRA=extra
+
+  ;; Initialize output
+  cwID = !tok.nowhere
+
+  ;; If we are not on the equation line, we have nothing to do
+  if NOT keyword_set(equation) then $
+     return, cwID
+
+  ;; Create our controlling object
+  cw_obj = obj_new('pfo_roi_struct_cw_obj', parentID, _EXTRA=extra)
+
+  ;; The init method creates the widget and stores its ID in self.tlb.
+  ;; Use the getID method to access it.  We return this ID, since that
+  ;; is what people expect when they call a widget creation function.
+  ;; What people will probably really want is the object to do the
+  ;; heavy-duty control.  Default to a nonsense widgetID unless the
+  ;; object creation was sucessful.
+  if obj_valid(cw_obj) then begin
+     cwID = cw_obj->tlbID()
+  endif ;; valid cw_obj
+
+end
 
 ;; The __print "method" is used in full printing to print ispec and
 ;; iROI _on the same line as the equation_.  
@@ -79,6 +312,7 @@ pro pfo_ROI_struct__print, $
 
 end
 
+
 ;; A __get_tag routine is optional but recommended.  It lets you map
 ;; tagnames to keywords in a procedure call
 ;; (e.g. pfo_struct_setget_tag).  This is the analog of a get_property
@@ -98,33 +332,31 @@ pro pfo_ROI_struct__get_tag, $
    iROI    	= iROI, $
    ROI_color	= ROI_color
 
-   init = {pfo_sysvar}
-  init = {tok_sysvar}
   if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_struct__get_tag, parinfo, idx=idx, [tag=tag, ...], [taglist_series=taglist_series, [/taglist_strict]]'
+        message, 'ERROR: caught the above error.  Returning with what I have done so far ', /CONTINUE
+        return
      endif
   endif ;; not debugging
 
+  ;; Make sure idx exists
+  pfo_idx, parinfo, idx
+
   ;; Put our struct into a tag, if necessary
-  pfo_struct_tagify, parinfo, 'PFO_ROI', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; If we made it here, we are good to copy our tags into the
   ;; keywords
-  if N_elements(idx) eq 0 then $
-     idx = lindgen(N_elements(parinfo))
 
   if arg_present(ispec) or N_elements(ispec) ne 0 then ispec = parinfo[idx].pfo_ROI.ispec
   if arg_present(iROI ) or N_elements(iROI ) ne 0 then iROI  = parinfo[idx].pfo_ROI.iROI
   if arg_present(ROI_color) or N_elements(ROI_color ) ne 0 then ROI_color  = parinfo[idx].pfo_ROI.ROI_color
 
   ;; Put our struct into a tag, if necessary
-  pfo_struct_tagify, parinfo, 'PFO_ROI', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; Pass on keywords processed in series to the next top-level tag
   ;; listed in taglist_series.  
@@ -148,33 +380,31 @@ pro pfo_ROI_struct__set_tag, $
    iROI    	= iROI, $
    ROI_color	= ROI_color                          
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
   if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_ROI_struct__set_tag, parinfo, idx=idx, [tag=tag, ...], [taglist_series=taglist_series, [/taglist_strict]]'
+        message, 'ERROR: caught the above error.  Returning with what I have done so far ', /CONTINUE
+        return
      endif
   endif ;; not debugging
 
+  ;; Make sure idx exists
+  pfo_idx, parinfo, idx
+
   ;; Put our struct into a tag, if necessary
-  pfo_struct_tagify, parinfo, 'PFO_ROI', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; If we made it here, we are good to copy our keywords into the
   ;; tags
-  if N_elements(idx) eq 0 then $
-    idx = lindgen(N_elements(parinfo))
 
   if N_elements(ispec) ne 0 then parinfo[idx].pfo_ROI.ispec = ispec
   if N_elements(iROI ) ne 0 then parinfo[idx].pfo_ROI.iROI  = iROI
   if N_elements(ROI_color ) ne 0 then parinfo[idx].pfo_ROI.ROI_color  = ROI_color
 
   ;; Put our tag back on the top-level, if necessary
-  pfo_struct_tagify, parinfo, 'PFO_ROI', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; Pass on keywords processed in series to the next top-level tag
   ;; listed in taglist_series.  
@@ -188,10 +418,6 @@ end
 function pfo_ROI_struct__init, $
   descr=descr, $ ;; descr is a return keyword that contains the structure documentation
   _REF_EXTRA=extra ;; keyword parameters to pass by reference (to save memory) to our __set_tag routine
-
-  ;; Read in our pfo tokens
-  init = {tok_sysvar}
-  init = {pfo_sysvar}
 
   ;; Create our struct initialized with generic IDL null values.  We
   ;; could also have called:
@@ -220,6 +446,7 @@ function pfo_ROI_struct__init, $
   if !pfo.debug le 0 then begin
      CATCH, err
      if err ne 0 then begin
+        CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
         message, /INFORMATIONAL, 'WARNING: the above error was produced.  Use pfo_debug to help fix error, pfo_quiet, to suppress reporting (not recommended).' 
         return, parinfo 
@@ -233,6 +460,12 @@ end
 
 ;; Standard IDL named structure definition 
 pro pfo_ROI_struct__define
+
+  ;; Read in system variables for all routines in this file.
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
+
+  ;; Define our named structure
   pfo_ROI_struct = $
     {pfo_ROI_struct, $
      $ ;; Make iROI and ispec type integer so that we have plenty of room to grow.  Long would be overkill
