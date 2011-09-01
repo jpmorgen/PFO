@@ -45,14 +45,20 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct_tagify.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_struct_tagify.pro,v 1.2 2011/09/01 22:20:42 jpmorgen Exp $
 ;
 ; $Log: pfo_struct_tagify.pro,v $
+; Revision 1.2  2011/09/01 22:20:42  jpmorgen
+; Added cool feature to grab fname from calling routine
+;
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
 ;-
-pro pfo_struct_tagify, parinfo, tagname, tagified=tagified
+pro pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; Don't do any error catching here.  Let all errors be caught in
   ;; calling code
@@ -61,6 +67,10 @@ pro pfo_struct_tagify, parinfo, tagname, tagified=tagified
   tn = tag_names(parinfo)
   sn = tag_names(parinfo, /structure_name)
   N_parinfo = N_elements(parinfo)
+
+  ;; Get our tagname from help
+  help, calls=calls
+  tagname = strmid(calls[1], 0, strpos(calls[1], '_STRUCT__'))
 
   ;; Check if we need to set our tag back to the top-level
   if keyword_set(tagified) then begin
