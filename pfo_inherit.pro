@@ -46,9 +46,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_inherit.pro,v 1.2 2011/01/20 22:58:53 jpmorgen Exp $
+; $Id: pfo_inherit.pro,v 1.3 2011/09/01 22:28:19 jpmorgen Exp $
 ;
 ; $Log: pfo_inherit.pro,v $
+; Revision 1.3  2011/09/01 22:28:19  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/01/20 22:58:53  jpmorgen
 ; Fixed bug in indexing
 ;
@@ -64,7 +68,7 @@ pro pfo_inherit, source, dest, source_idx=source_idx, dest_idx=dest_idx
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        message, !error_state.msg, /CONTINUE
+        message, /NONAME, !error_state.msg, /CONTINUE
         message, 'USAGE: pfo_inherit, source, dest, source_idx=source_idx, dest_idx=dest_idx'
      endif
   endif ;; not debugging
@@ -77,13 +81,8 @@ pro pfo_inherit, source, dest, source_idx=source_idx, dest_idx=dest_idx
   CATCH, /CANCEL
   ;; End of input checking
 
-  if N_elements(source_idx) eq 0 then $
-    source_idx = indgen(N_elements(source), $
-                        type=size(/type, N_elements(source)))
-
-  if N_elements(dest_idx) eq 0 then $
-    dest_idx = indgen(N_elements(dest), $
-                        type=size(/type, N_elements(dest)))
+  pfo_idx, source, source_idx
+  pfo_idx, dest,   dest_idx
 
   for is=0, N_elements(source_idx)-1 do begin
      ftype = source[source_idx[is]].pfo.ftype

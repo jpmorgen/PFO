@@ -5,7 +5,7 @@
 ;
 ; CATEGORY: arrays
 ;
-; CALLING SEQUENCE: pfo_idx, array[, idx=idx][, type=type]
+; CALLING SEQUENCE: pfo_idx, array[, idx][, type=type]
 
 ; DESCRIPTION: 
 
@@ -62,17 +62,21 @@
 ;
 
 ;   Make sure an array is indexed
-;	 pfo_idx, parinfo, idx=idx
+;	 pfo_idx, parinfo, idx
 
 ;   Create an X-axis, called Xin for Yin. 
-;        pfo_idx, Yin, idx=Xin, type=size(/type, Yin)
+;        pfo_idx, Yin, Xin, type=size(/type, Yin)
 
 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_idx.pro,v 1.2 2011/08/02 18:21:04 jpmorgen Exp $
+; $Id: pfo_idx.pro,v 1.3 2011/09/01 22:28:25 jpmorgen Exp $
 ;
 ; $Log: pfo_idx.pro,v $
+; Revision 1.3  2011/09/01 22:28:25  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/02 18:21:04  jpmorgen
 ; Release to Tom
 ; Error now returns to caller rather than being caught
@@ -81,7 +85,7 @@
 ; Initial revision
 ;
 ;-
-pro pfo_idx, array, idx=idx, type=type, created=created, N_array=N_array
+pro pfo_idx, array, idx, type=type, created=created, N_array=N_array
 
   init = {pfo_sysvar}
   init = {tok_sysvar}

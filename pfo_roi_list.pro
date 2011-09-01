@@ -71,9 +71,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_list.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_roi_list.pro,v 1.2 2011/09/01 22:27:20 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_list.pro,v $
+; Revision 1.2  2011/09/01 22:27:20  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -114,7 +118,7 @@ function pfo_ROI_list, $
      return, 0
 
   ;; Make sure idx exists
-  pfo_idx, parinfo, idx=idx
+  pfo_idx, parinfo, idx
 
   ;; Work from local variables
   if N_elements(ispec_in) ne 0 then $

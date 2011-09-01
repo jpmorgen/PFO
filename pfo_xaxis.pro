@@ -44,9 +44,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_xaxis.pro,v 1.2 2011/08/02 18:20:22 jpmorgen Exp $
+; $Id: pfo_xaxis.pro,v 1.3 2011/09/01 22:25:55 jpmorgen Exp $
 ;
 ; $Log: pfo_xaxis.pro,v $
+; Revision 1.3  2011/09/01 22:25:55  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/02 18:20:22  jpmorgen
 ; Release to Tom
 ; Improve handling of no parinfo
@@ -69,7 +73,7 @@ function pfo_Xaxis, parinfo, Xin=Xin, idx=idx, _REF_EXTRA=extra
      return, Xaxis
 
   ;; Make sure idx exists
-  pfo_idx, parinfo, idx=idx
+  pfo_idx, parinfo, idx
 
   ;; Indices of any Xin to Xaxis transformations in idx
   Xaxis_idx = where(parinfo[idx].pfo.inaxis eq !pfo.Xin and $

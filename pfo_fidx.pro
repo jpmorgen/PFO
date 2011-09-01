@@ -74,9 +74,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fidx.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_fidx.pro,v 1.2 2011/09/01 22:28:59 jpmorgen Exp $
 ;
 ; $Log: pfo_fidx.pro,v $
+; Revision 1.2  2011/09/01 22:28:59  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -126,7 +130,7 @@ function pfo_fidx, parinfo, fname_or_fnum, idx=idx, $
     return, idx
 
   ;; idx might not have been specified
-  pfo_idx, parinfo, idx=idx
+  pfo_idx, parinfo, idx
 
   ;; Here is the meat of our code.  We are going to return f_idx, the
   ;; indices into parinfo of the function(s) we are checking.  If the

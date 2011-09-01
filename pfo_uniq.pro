@@ -57,9 +57,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_uniq.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_uniq.pro,v 1.2 2011/09/01 22:26:01 jpmorgen Exp $
 ;
 ; $Log: pfo_uniq.pro,v $
+; Revision 1.2  2011/09/01 22:26:01  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -78,7 +82,7 @@ function pfo_uniq, array, sidx, reverse_indices=reverse_indices, N_uniq=N_uniq
   ;; If we made it here, we want to do the reverse_indices
 
   ;; Make sure we have indices into array
-  pfo_idx, array, idx=sidx, N_array=N_array
+  pfo_idx, array, sidx, N_array=N_array
   ;; sidx provides the indices into array that we need.  Now we just
   ;; need to come up with the indices into sidx that indicate where
   ;; each chunk of duplicates begin and end.  

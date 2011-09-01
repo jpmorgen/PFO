@@ -1,9 +1,10 @@
 ;+
 ; NAME: pfo_struct_call_procedure
-;
-; PURPOSE: Sequentially call each <tag>_struct__"method" in a
-; parinfo structure, where "method" is the second positional argument
-;
+
+; PURPOSE: Sequentially call (as a procedure) each
+; <tag>_struct__"method" in a parinfo structure, where "method" is the
+; second positional argument
+
 ; CATEGORY: PFO
 ;
 ; CALLING SEQUENCE: pfo_struct_call_procedure, parinfo, method,
@@ -18,7 +19,7 @@
 ; things like the update and print methods
 
 ; INPUTS: parinfo: any array of type structure
-;	  method: "method" to call (e.g. <tag>_struct__method
+;	  method: "method" to call (e.g. <tag>_struct__method)
 ;
 ; OPTIONAL INPUTS:
 ;
@@ -35,7 +36,9 @@
 ;
 ; SIDE EFFECTS:
 ;
-; RESTRICTIONS:
+; RESTRICTIONS: The order of parameters is important.  Parinfo must be
+; listed first so that this routine can be used by
+; pfo_parinfo_obj::parinfo_call_procedure
 ;
 ; PROCEDURE:
 ;
@@ -43,14 +46,18 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct_call_procedure.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_struct_call_procedure.pro,v 1.2 2011/09/01 22:24:34 jpmorgen Exp $
 ;
 ; $Log: pfo_struct_call_procedure.pro,v $
+; Revision 1.2  2011/09/01 22:24:34  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
 ;-
-pro pfo_struct_call_procedure, method, parinfo, _REF_EXTRA=extra
+pro pfo_struct_call_procedure, parinfo, method, _REF_EXTRA=extra
 
   init = {pfo_sysvar}
   init = {tok_sysvar}
@@ -90,6 +97,8 @@ pro pfo_struct_call_procedure, method, parinfo, _REF_EXTRA=extra
      to_call = tns[it]+'_struct__' + method
      ;; routine_info throws an error if the routine doesn't exist
      junk = routine_info(to_call, /source)
+     ;; Cancel the catch in case we are in debugging mode
+     CATCH, /CANCEL
 
      ;; If we made it here, we should have a good call procedure to
      ;; call.  Handle the error messages in a configurable way.
@@ -98,14 +107,54 @@ pro pfo_struct_call_procedure, method, parinfo, _REF_EXTRA=extra
         if err ne 0 then begin
            CATCH, /CANCEL
            message, /NONAME, !error_state.msg, /CONTINUE
-           message, /INFORMATIONAL, 'WARNING: ' + strtrim(to_call, 2) + ' produced the above error.  Use pfo_debug to help fix error, pfo_quiet, to suppress reporting.' 
+           message, /CONTINUE, 'WARNING: ' + to_call + ' produced the above error.  Use pfo_debug to help fix error.'
            CONTINUE
         endif ;; quietly ignore problems in subsequent __set_tag routine
      endif ;; not debugging
-     if keyword_set(extra) then $
-       call_procedure, to_call, parinfo, _EXTRA=extra $
-     else $
-       call_procedure, to_call, parinfo
+
+
+     case N_params()-1 of
+        0: message, 'ERROR: Procedure name not supplied'
+        1: begin
+           if N_elements(extra) eq 0 then $
+              call_procedure, to_call, parinfo $
+           else $
+              call_procedure, to_call, parinfo, _EXTRA=extra
+        end
+        2: begin
+           if N_elements(extra) eq 0 then $
+              call_procedure, to_call, parinfo, p1 $
+           else $
+              call_procedure, to_call, parinfo, p1, _EXTRA=extra
+        end
+        3: begin
+           if N_elements(extra) eq 0 then $
+              call_procedure, to_call, parinfo, p1, p2 $
+           else $
+              call_procedure, to_call, parinfo, p1, p2, _EXTRA=extra
+        end
+        4: begin
+           if N_elements(extra) eq 0 then $
+              call_procedure, to_call, parinfo, p1, p2, p3 $
+           else $
+              call_procedure, to_call, parinfo, p1, p2, p3, _EXTRA=extra
+        end
+        5: begin
+           if N_elements(extra) eq 0 then $
+              call_procedure, to_call, parinfo, p1, p2, p3, p4 $
+           else $
+              call_procedure, to_call, parinfo, p1, p2, p3, p4, _EXTRA=extra
+        end
+        6: begin
+           if N_elements(extra) eq 0 then $
+              call_procedure, to_call, parinfo, p1, p2, p3, p4, p5 $
+           else $
+              call_procedure, to_call, parinfo, p1, p2, p3, p4, p5, _EXTRA=extra
+        end
+     endcase
+
   endfor ;; each top-level tag in parinfo
 
 end
+
+

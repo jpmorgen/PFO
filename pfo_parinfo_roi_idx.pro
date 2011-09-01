@@ -51,9 +51,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_roi_idx.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_parinfo_roi_idx.pro,v 1.2 2011/09/01 22:27:42 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_roi_idx.pro,v $
+; Revision 1.2  2011/09/01 22:27:42  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -73,7 +77,7 @@ function pfo_parinfo_ROI_idx, parinfo, count=count, idx=idx, ispec=ispec, $
   endif
 
   ;; Make sure idx exists
-  pfo_idx, parinfo, idx=idx
+  pfo_idx, parinfo, idx
 
   ;; Create our default array of ispec, which is all ispec in our parinfo[idx]
   if N_elements(ispec) eq 0 then begin

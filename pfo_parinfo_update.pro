@@ -14,7 +14,7 @@
 ; Uses pfo_struct_append and the pfo_struct_new system to make sure
 ; that the list of required_tags exists in parinfo.  Updates the
 ; appropriate parinfo_template.  Also calls
-; "pfo_struct_call_procedure, 'update', parinfo" to resolve any
+; "pfo_struct_call_procedure, parinfo, 'update'" to resolve any
 ; interdependencies between top-level tags (e.g. pfo_link and .tied)
 
 ;
@@ -45,9 +45,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_update.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_parinfo_update.pro,v 1.2 2011/09/01 22:25:41 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_update.pro,v $
+; Revision 1.2  2011/09/01 22:25:41  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -82,6 +86,6 @@ pro pfo_parinfo_update, parinfo, required_tags=required_tags, name=name, _REF_EX
 
   ;; Cycle through all the tags and call the tag_struct__update
   ;; "method" for each one so that any interdependencies are resolved.
-  pfo_struct_call_procedure, 'update', parinfo, _EXTRA=extra
+  pfo_struct_call_procedure, parinfo, 'update', _EXTRA=extra
   
 end

@@ -61,9 +61,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_xin_idx.pro,v 1.2 2011/08/02 18:20:07 jpmorgen Exp $
+; $Id: pfo_roi_xin_idx.pro,v 1.3 2011/09/01 22:26:26 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_xin_idx.pro,v $
+; Revision 1.3  2011/09/01 22:26:26  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/02 18:20:07  jpmorgen
 ; Release to Tom
 ; Improve handling of no parinfo
@@ -89,14 +93,14 @@ function pfo_ROI_Xin_idx, $
   init = {tok_sysvar}
 
   ;; Default output is entire idx of Xin
-  pfo_idx, Xin, idx=Xin_idx
+  pfo_idx, Xin, Xin_idx
 
   ;; If we have no parinfo, our job is done
   if N_elements(parinfo) eq 0 then $
      return, Xin_idx
 
   ;; Make sure idx into parinfo exists
-  pfo_idx, parinfo, idx=idx
+  pfo_idx, parinfo, idx
 
   ;; Look for pfo_ROI functions
   ROI_idx = pfo_fidx(parinfo, 'pfo_ROI', idx=idx, nfunct=nfunct, pfo_obj=pfo_obj)

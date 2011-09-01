@@ -33,9 +33,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_data_obj__define.pro,v 1.2 2011/08/02 18:22:14 jpmorgen Exp $
+; $Id: pfo_data_obj__define.pro,v 1.3 2011/09/01 22:29:16 jpmorgen Exp $
 ;
 ; $Log: pfo_data_obj__define.pro,v $
+; Revision 1.3  2011/09/01 22:29:16  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/02 18:22:14  jpmorgen
 ; Release to Tom
 ; Fix init method, add printing
@@ -121,8 +125,6 @@ pro pfo_data_obj::set_property, $
    weights=weights, $ ;; weight(s) used to calculate deviates (used in preference to yerr)
    no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
-  init = {tok_sysvar}
-
   ;; Xin
   if N_elements(Xin) gt 0 then begin
      if size(/type, Xin) ne !tok.double then $
@@ -192,7 +194,7 @@ pro pfo_data_obj::new_data, $
      1: begin
         ;; Assume y-axis was specified in the p0 slot.  Make Xin read
         ;; in channels starting from 0, of the same type as Yin
-        pfo_idx, p0, idx=Xin, type=size(/type, p0)
+        pfo_idx, p0, Xin, type=size(/type, p0)
         ;; Assume Yerr is Poisson.
         self->set_property, $
            Xin=Xin, $
@@ -277,8 +279,6 @@ function pfo_data_obj::init, $
    weights=weights, $ ;; weight(s) used to calculate deviates (used in preference to yerr)
    no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
-  init = {pfo_sysvar}
-
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
      CATCH, err
@@ -331,6 +331,11 @@ function pfo_data_obj::init, $
 end
 
 pro pfo_data_obj__define
+
+  ;; Make sure our system variables are defined for all of the
+  ;; routines in this object
+  init = {tok_sysvar}
+  init = {pfo_sysvar}
 
   ;; Store arrays in the form of heap variables so that they can
   ;; change over the lifetime of this object.  This als makes sure

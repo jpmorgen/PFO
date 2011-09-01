@@ -62,9 +62,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_idx.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_roi_idx.pro,v 1.2 2011/09/01 22:27:28 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_idx.pro,v $
+; Revision 1.2  2011/09/01 22:27:28  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -82,7 +86,7 @@ function pfo_ROI_idx, $
   init = {pfo_sysvar}
 
   ;; Make sure idx exists
-  pfo_idx, parinfo, idx=idx
+  pfo_idx, parinfo, idx
 
   ;; Our default is to return all indices unless the user specifies
   ;; ispec and/or iROI

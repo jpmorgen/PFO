@@ -33,9 +33,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__print.pro,v 1.2 2011/08/02 18:23:10 jpmorgen Exp $
+; $Id: pfo_null__print.pro,v 1.3 2011/09/01 22:23:31 jpmorgen Exp $
 ;
 ; $Log: pfo_null__print.pro,v $
+; Revision 1.3  2011/09/01 22:23:31  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/02 18:23:10  jpmorgen
 ; Release to Tom
 ; Change to getting Yaxis_init from pfo_obj or !pfo.Yaxis_init
@@ -45,10 +49,9 @@
 ;
 ;-
 function pfo_null__print, $
-   Xin, $ 	  ;; Input X axis in natural units 
-   params, $ 	  ;; parameters (entire array).
-   parinfo=parinfo, $ ;; parinfo array (whole array).  This ends up getting ignored in pfo_null__calc
-   idx=idx, $     ;; idx into parinfo over which to search for function.  This ends up getting ignored in pfo_null__calc
+   parinfo, $	  ;; parinfo array (whole array).  This ends up getting ignored in pfo_null__calc
+   params=params, $ 	  ;; parameters (entire array).
+   idx=idx, $     ;; idx into parinfo of our function
    fname=fname, $ ;; original fname of function in pfo_parinfo_parse
    first_funct=first_funct, $ ;; allows us to display some introductory material (e.g. column headings)
    param_names_only=param_names_only, $ ;; print parameter names only
@@ -56,7 +59,7 @@ function pfo_null__print, $
    full=full, $ ;; print function name and algebraic info on a line by itself and then one line per parameter
    include_mpstep=include_mpstep, $, ;; also include MPFIT autoderivative step stuff (usually defaults are fine, so these are just zero)
    pfo_obj=pfo_obj, $ ;; This ends up getting ignored in pfo_null__print
-   _REF_EXTRA=extra ;; Soak up any other keyword arguments and ignore them
+   _REF_EXTRA=extra ;; Extra keywords to pass on to *struct__print methods
 
 
   ;; Generic pfo system initialization
@@ -76,33 +79,19 @@ function pfo_null__print, $
      endif
   endif ;; not debugging
 
-  ;; Make sure parinfo and params are defined.
-  pfo_parinfo2params, parinfo, params
-
-  ;; Make sure idx is defined
-  pfo_idx, parinfo, idx=idx
-  
-  ;; Make sure fname is defined.  It should be, if we were called from
-  ;; pfo_parinfo_parse.
-  if NOT keyword_set(fname) then $
-     message, 'ERROR: fname is not defined.  This routine is designed to be called from pfo_parinfo_parse, which appropriately selects the idx and fname to be consistent.' 
-
-  ;; Use pfo_fidx to simultaneously make sure idx is defined and check
-  ;; to make sure we are only dealing with one function
-  junk = pfo_fidx(parinfo, fname, idx=idx, nfunct=nfunct, pfo_obj=pfo_obj, _EXTRA=extra)
-  if nfunct ne 1 then $
-     message, 'ERROR: ' + strtrim(nfunct, 2) + ' functions found in specified idx range of parinfo.  Expecting 1.'
+  ;; Do basic function consistency checking
+  pfo_fcheck, parinfo, fname, params=params, idx=idx, pfo_obj=pfo_obj
 
   ;; Work out our default layout.
   if keyword_set(param_names_only) + keyword_set(brief) + keyword_set(full) eq 0 then $
-     brief = 1
+     full = 1
   if keyword_set(param_names_only) + keyword_set(brief) + keyword_set(full) ne 1 then $
      message, 'ERROR: specify only one keyword: param_names_only, brief, or full.  Default is brief.'
 
   ;; Get our default Yaxis value from pfo_obj, if specified
-  Yaxis_init = !pfo.Yaxis_init
-  if obj_valid(pro_obj) then $
-     pfo_obj->get_property, Yaxis_init=Yaxis_init
+  init_Yaxis = !pfo.init_Yaxis
+  if obj_valid(pfo_obj) then $
+     pfo_obj->get_property, init_Yaxis=init_Yaxis
 
   ;; Start with our standard parinfo function preamble.  We only print
   ;; this once.  This works out to: "X = Xin; Y = NaN" unless tokens have
@@ -110,7 +99,7 @@ function pfo_null__print, $
   preamble = ''
   if keyword_set(first_funct) then $
      preamble = !pfo.axis_string[!pfo.Xaxis] + ' = ' + !pfo.axis_string[!pfo.Xin] + $
-               '; ' + !pfo.axis_string[!pfo.Yaxis] + ' = ' + strtrim(Yaxis_init, 2)
+               '; ' + !pfo.axis_string[!pfo.Yaxis] + ' = ' + strtrim(init_Yaxis, 2)
 
   ;; Check to see if we have anything to print (this is generally not used)
   junk = where(parinfo[idx].mpprint ne 0, count)
@@ -162,7 +151,7 @@ function pfo_null__print, $
   
   ;; Construct our output function with the fname and its pfo ID.  The
   ;; ID should always be shared between the parameters function
-  outfunct = fname + strtrim(parinfo[idx[0]].pfo.ID, 2)
+  outfunct = fname + strtrim(parinfo[idx[0]].pfo.pfoID, 2)
 
   ;; Note open parenthesis, which we will need to close later
   if keyword_set(parinfo[idx[0]].pfo.outfunct) then $
@@ -231,7 +220,7 @@ function pfo_null__print, $
            
         ;; Call the col_head sections of any other print routines in
         ;; the parinfo structure
-        pfo_struct_call_procedure, 'print', parinfo, col_head=col_head, idx=idx, _EXTRA=extra
+        pfo_struct_call_procedure, parinfo, 'print', col_head=col_head, idx=idx, _EXTRA=extra
         preamble = 'Expression; (L: . = free, | = fixed, < = limited, <* = pegged)' + !tok.newline + col_head + !tok.newline + preamble
      endif
      
@@ -241,7 +230,7 @@ function pfo_null__print, $
 
      ;; Check to see if any of the parinfo structure tags want to
      ;; print anything on the equation line (e.g. pfo_ROI_struct)
-     pfo_struct_call_procedure, 'print', parinfo, equation_string=equation_string, idx=idx, _EXTRA=extra
+     pfo_struct_call_procedure, parinfo, 'print', equation_string=equation_string, idx=idx, _EXTRA=extra
 
      toprint += equation_string + !tok.newline
      for ip=0, N_elements(idx)-1 do begin
@@ -264,7 +253,7 @@ function pfo_null__print, $
         ;; indicate its use with the delimiters
         param_print += string(parinfo[idx[ip]].limits[!pfo.left], format=pformat)
         
-        param_print += pfo_delimiter(!pfo.left, params, parinfo, $
+        param_print += pfo_delimiter(parinfo, !pfo.left, params, $
                                      idx[ip], _EXTRA=extra)
 
         ;; param
@@ -276,7 +265,7 @@ function pfo_null__print, $
            eformat = '(' + parinfo[idx[ip]].pfo.eformat + ')'
         param_print += string(parinfo[idx[ip]].error, format=eformat)
 
-        param_print += pfo_delimiter(!pfo.right, params, parinfo, $
+        param_print += pfo_delimiter(parinfo, !pfo.right, params, $
                                      idx[ip], _EXTRA=extra)
         
         param_print += string(parinfo[idx[ip]].limits[!pfo.right], format=pformat)

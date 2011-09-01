@@ -44,9 +44,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_min.pro,v 1.1 2011/01/20 23:00:57 jpmorgen Exp $
+; $Id: pfo_min.pro,v 1.2 2011/09/01 22:28:11 jpmorgen Exp $
 ;
 ; $Log: pfo_min.pro,v $
+; Revision 1.2  2011/09/01 22:28:11  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/01/20 23:00:57  jpmorgen
 ; Initial revision
 ;
@@ -73,14 +77,7 @@ function pfo_min, parinfo, startval, idx=idx, _REF_EXTRA=extra
   if N_elements(startval) gt 1 then $
     message, 'ERROR: specify one and only one starting Xin value'
 
-  ;; Check idx
-  nidx = N_elements(idx)
-  if nidx eq 0 then $
-    idx = indgen(nparinfo, type=size(/type, nparinfo))
-  nidx = N_elements(idx)
-  if nidx gt nparinfo then $
-    message, 'ERROR: too many idx values for this parinfo'
-
+  pfo_idx, parinfo, idx
 
   ;; Get all of our links on board.
   pfo_link_check, parinfo
@@ -95,7 +92,7 @@ function pfo_min, parinfo, startval, idx=idx, _REF_EXTRA=extra
   ;; calculated properly.  TNMIN passes whatever Xin it is working with
   ;; (which it calls p).  We _don't_ pass parinfo to tnmin,
   ;; since it thinks we only have 1 parameter, Xin
-  return, tnmin('pfo_min_funct', startval, functargs=functargs, $
+  return, tnmin('pfo_min_funct', double(startval), functargs=functargs, $
                 /autoderivative, _EXTRA=extra)
 
 end

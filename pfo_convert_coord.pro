@@ -62,8 +62,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_convert_coord.pro,v 1.5 2011/01/20 22:58:24 jpmorgen Exp $
+; $Id: pfo_convert_coord.pro,v 1.6 2011/09/01 22:29:24 jpmorgen Exp $
 ; $Log: pfo_convert_coord.pro,v $
+; Revision 1.6  2011/09/01 22:29:24  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.5  2011/01/20 22:58:24  jpmorgen
 ; Trying NEWTON instead of FX_ROOT.
 ;
@@ -93,8 +97,8 @@ function pfo_convert_coord_funct, Xin
   on_error, 0
   case from_axis of 
      !pfo.Xin : return, value - Xin
-     !pfo.Xaxis : return, value - pfo_Xaxis(Xin, parinfo=*pparinfo, idx=idx)
-     !pfo.Yaxis : return, value - pfo_funct(Xin, parinfo=*pparinfo, idx=idx)
+     !pfo.Xaxis : return, value - pfo_Xaxis(*pparinfo, Xin=Xin, idx=idx)
+     !pfo.Yaxis : return, value - pfo_funct(*pparinfo, Xin=Xin, idx=idx)
   endcase
 end
 
@@ -120,7 +124,7 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
         ;; Put our parinfo back
         parinfo_in = temporary(*pparinfo)
         ptr_free, pparinfo
-        message, !error_state.msg, /CONTINUE
+        message, /NONAME, !error_state.msg, /CONTINUE
         message, 'USAGE: result=pfo_convert_coord(values, parinfo, [idx=idx,] [initial_guess=initial_guess,] /from_Xin or /from_Xaxis or /from_Yaxis, /to_Xin, /to_Xaxis, /to_Yaxis, Xaxis=Xaxis, _EXTRA=extra)'
      endif
   endif ;; not debugging
@@ -136,10 +140,11 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
     message, 'ERROR: supply two positional parameters: the value and the parinfo'
   ;; Beware the persistence of COMMON block variables.  Fortunately
   ;; not in type.
+  from_axis = 0
+  idx = !tok.nowhere
   if keyword_set(idx_in) then $
-    idx = idx_in $
-  else $
-    idx = indgen(N_elements(*pparinfo), type=size(N_elements(*pparinfo), /type))
+    idx = idx_in
+  pfo_idx, *pparinfo, idx
   if keyword_set(from_Xin) then $
     from_axis = !pfo.Xin 
   if keyword_set(from_Xaxis) then $
@@ -219,7 +224,7 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
               parinfo_in = temporary(*pparinfo)
               ptr_free, pparinfo
 
-              message, !error_state.msg, /CONTINUE
+              message, /NONAME, !error_state.msg, /CONTINUE
               message, 'ERROR: more than ' + strtrim(max_initial_guess_search, 2) + ' attempted and fx_root still seems to be unable to find a solution.  Please supply an initial guess.'
            endif ;; error in fx_root
 
@@ -277,7 +282,7 @@ function pfo_convert_coord, value_in, parinfo_in, idx=idx_in, $
            ;; Put our command line parameter back and throw the error
            parinfo_in = temporary(*pparinfo)
            ptr_free, pparinfo
-           message, !error_state.msg
+           message, /NONAME, !error_state.msg
         endif ;; error, presumably in fx_root
      endif ;; not searching for an initial guess
 

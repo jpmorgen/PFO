@@ -85,9 +85,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mode.pro,v 1.2 2011/08/01 18:31:17 jpmorgen Exp $
+; $Id: pfo_mode.pro,v 1.3 2011/09/01 22:28:02 jpmorgen Exp $
 ;
 ; $Log: pfo_mode.pro,v $
+; Revision 1.3  2011/09/01 22:28:02  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/01 18:31:17  jpmorgen
 ; First reasonably functional version of pfo_obj
 ;
@@ -117,7 +121,7 @@ pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
   npar = N_elements(parinfo)
   if npar eq 0 then $
     return
-  pfo_idx, parinfo, idx=idx
+  pfo_idx, parinfo, idx
   ;; Narrow with pfo_ROI_idx
   idx = pfo_ROI_idx(parinfo, idx=idx, _EXTRA=extra)
 
