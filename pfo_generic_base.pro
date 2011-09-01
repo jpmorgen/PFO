@@ -50,9 +50,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_generic_base.pro,v 1.1 2011/08/29 18:31:33 jpmorgen Exp $
+; $Id: pfo_generic_base.pro,v 1.2 2011/09/01 22:15:43 jpmorgen Exp $
 ;
 ; $Log: pfo_generic_base.pro,v $
+; Revision 1.2  2011/09/01 22:15:43  jpmorgen
+; *** empty log message ***
+;
 ; Revision 1.1  2011/08/29 18:31:33  jpmorgen
 ; Initial revision
 ;
@@ -63,7 +66,13 @@
 function pfo_generic_base_cw_obj::resize, event
 
   widget_control, event.top, update=0
+  ;; scr_xsize seemed to produce undesirable behavior in IDL 8.1 on
+  ;; Windows but almost correct behavior in twm (see above)
   widget_control, event.ID, scr_xsize=event.x, scr_ysize=event.y
+  ;; xsize makes the resize larger in twm
+  ;;widget_control, event.ID, xsize=event.x, ysize=event.y
+  ;; draw_xsize does about the same thing as no call to widget_control
+  ;;widget_control, event.ID, draw_xsize=event.x, draw_ysize=event.y
   widget_control, event.top, update=1
 
   return, !tok.nowhere
@@ -83,6 +92,8 @@ function pfo_generic_base_cw_obj::init, $
    title=title, $	;; title string
    x_scroll_size=x_scroll_size, $ ;; size of scrolling area (widget sizes appropriately)
    y_scroll_size=y_scroll_size, $ ;; size of scrolling area (widget sizes appropriately)
+   $;;scr_xsize=scr_xsize, $
+   $;;scr_ysize=scr_ysize, $
    pfo_obj=pfo_obj, $
    $ ;; For nicer display, set realize=0 and issue the command widget_control, /realize, ID in the 
    $ ;; calling code after the widget is filled
@@ -107,6 +118,8 @@ function pfo_generic_base_cw_obj::init, $
   ;; Default scroll sizes
   if N_elements(x_scroll_size) eq 0 then x_scroll_size = 640
   if N_elements(y_scroll_size) eq 0 then y_scroll_size = 512
+  ;; if N_elements(scr_xsize) eq 0 then scr_xsize = 640
+  ;; if N_elements(scr_ysize) eq 0 then scr_ysize = 512
 
   ;; Make sure scroll sizes aren't bigger than the screen.
   ;; Note: this creates and kills 2 widgets
@@ -114,12 +127,23 @@ function pfo_generic_base_cw_obj::init, $
   x_scroll_size = screen[0] < x_scroll_size
   y_scroll_size = screen[1] < y_scroll_size
 
+  ;;scr_xsize = screen[0] < scr_xsize
+  ;;scr_ysize = screen[1] < scr_ysize
+
   ;; Call our inherited init routines.  This creates a top-level base
   ;; with a menu bar and puts pfo_obj into self, etc.
   ok = self->pfo_cw_obj::init( $
        title=title, $
        pfo_obj=pfo_obj, $
        /mbar, $
+       $;;/scroll, $
+       $;; Made a tiny base widget with scroll bars
+       $;; xsize=scr_xsize, $
+       $;; ysize=scr_ysize, $
+       $;; made the widget small -- scroll bars appeared
+       $;; scr_xsize=scr_xsize, $
+       $;; scr_ysize=scr_ysize, $
+       $;; made widget a bit big -- boarder around plot window
        x_scroll_size=x_scroll_size, $ 
        y_scroll_size=y_scroll_size, $ 
        uvalue={method: 'resize', obj:self}, $ ;; catch resize events
