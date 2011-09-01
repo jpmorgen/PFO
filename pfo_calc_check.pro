@@ -57,9 +57,15 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_calc_check.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_calc_check.pro,v 1.2 2011/09/01 22:22:16 jpmorgen Exp $
 ;
 ; $Log: pfo_calc_check.pro,v $
+; Revision 1.2  2011/09/01 22:22:16  jpmorgen
+; Streamline
+;
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -78,37 +84,8 @@ pro pfo_calc_check, Xin, params, dparams, fname=fname, parinfo=parinfo, idx=idx,
   if N_params() gt 2 then $
     message, 'ERROR: more than two positional inputs implies the use of analytic derivatives, which are not implemented anywhere in the PFO system yet'
 
-  ;; Make sure parinfo and params are defined.
-  pfo_parinfo2params, parinfo, params
-
-  ;; Make sure idx is defined
-  pfo_idx, parinfo, idx=idx
-
-  ;; Do a quick check to make sure we have just one instance of our
-  ;; function
-  if N_elements(fname) ne 1 then $
-     message, 'ERROR: required keyword parameter fname incorrectly specified: specify one and only one fname'
-
-  fnum = pfo_fnum(fname, fnpars=fnpars, pfo_obj=pfo_obj)
-
-  fnums = floor(parinfo[idx].pfo.ftype)
-  u_fnums = uniq(fnums, sort(fnums))
-  if N_elements(u_fnums) ne 1 then $
-     message, 'ERROR: found ' + strtrim(N_elements(u_fnums), 2) + ' different functions in parinfo, expecting one and only one instance of ' +  pfo_fname(fname, pfo_obj=pfo_obj)
-
-  ;; If we don't know how many parameters we have, this is all
-  ;; the checking we can do
-  if fnpars eq 0 then $
-     return
-
-  ;; Check functions with definite numbers of parameters (e.g. Voigt)
-  npar = N_elements(idx) 
-  if npar mod fnpars ne 0 then $
-    message, 'ERROR: incorrect number of parameters for function type ' + pfo_fname(fnum) + ': ' + strtrim(npar, 2)
-  
-
-  if npar / fnpars ne 1 then $
-     message, 'ERROR: ' + strtrim(npar / fnpars, 2) + ' instances of function type ' + pfo_fname(fnum) + ' found.  Expecting one and only one.'
+  ;; Use pfo_fcheck to do the rest of the work
+  pfo_fcheck, parinfo, pfo_fname(callstack=1), params=params, idx=idx, pfo_obj=pfo_obj
 
   
 end
