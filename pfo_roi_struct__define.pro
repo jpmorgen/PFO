@@ -46,9 +46,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.2 2011/08/17 02:41:42 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.3 2011/09/01 22:15:21 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.3  2011/09/01 22:15:21  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/17 02:41:42  jpmorgen
 ; About to delete some code I found handy to fix a problem I may have
 ; fixed a better way
@@ -95,8 +99,8 @@ function pfo_ROI_struct_cw_obj::event, event
   ;; Check to see if user has erased value in field.  In this case
   ;; fsc_field returns NAN
   if NOT finite(w_ispec) or NOT finite(w_iROI) then begin
-     ;; Put existing values back
-     self.pfo_obj->refresh, idx=(*self.pidx)[0]
+     ;; Put existing values back.  This just effects our widget.
+     self->refresh
      return, retval
   endif
 
@@ -104,25 +108,7 @@ function pfo_ROI_struct_cw_obj::event, event
   if ispec eq w_ispec and iROI eq w_iROI then $
      return, retval
 
-  ;; If we made it here, we have a valid change in ispec or iROI.
-
-  ;; Having troubles with combination of /cr_only and /focus_events in
-  ;; fsc_field.  I think what is going on is that when a cr event is
-  ;; processed, the repopulate (specifically the clear container)
-  ;; causes a loss of keyboard focus.  That second event cannot be
-  ;; processed by the cw_obj that is in the process of dying.
-  ;; Solution: turn off event processing
-;;  self.ispec_obj->SetProperty, event_func=''
-;;  self.iROI_obj->SetProperty, event_func=''
-
-;;   ;; Solution (for now): kill fsc_field widgets from the bottom up.
-;;   ;; NOTES: tried to turn of event processing in fsc_field by doing a
-;;   ;; widget_control, event_func='' and that had no effect.  Destroying
-;;   ;; the widget before changing the ispec and iROI values in parinfo
-;;   ;; seems to work better
-;;   widget_control, self.parentID, update=0
-;;   widget_control, self.ispecID, /destroy
-;;   widget_control, self.iROIID, /destroy
+  ;; If we made it here, we have a valid change
 
   ;; Get ready to change our value(s) in the parinfo
   self->repopfresh_check, undo
@@ -144,17 +130,8 @@ pro pfo_ROI_struct_cw_obj::refresh
 
   ;; Refresh our display
   self->get_iROI_ispec, ispec=ispec, iROI=iROI
-  ;; Check to see if we killed ourselves for event processing problems
-  if NOT widget_info(self.ispecID, /valid_ID) then begin
-     ;; Widgets are gone, so redraw them
-     widget_control, self.parentID, update=0
-     self->populate
-     widget_control, self.parentID, update=1
-  endif else begin
-     ;; Widgets still there, just write in the updated values
-     widget_control, self.ispecID, set_value=ispec
-     widget_control, self.iROIID, set_value=iROI
-  endelse
+  widget_control, self.ispecID, set_value=ispec
+  widget_control, self.iROIID, set_value=iROI
 
 end
 
@@ -165,16 +142,12 @@ pro pfo_ROI_struct_cw_obj::populate, $
 
   ;; Use fsc_field to handle numeric/text entry.  FSC_field requries
   ;; event_func be set or else keyword focus events aren't reported.
-  ;; To get the widgets to display where I want them, I have to work
-  ;; with the pfo_cw_obj base, not the container.  That is OK, since I
-  ;; set event_func manually and the container isn't needed for
-  ;; repopulation.
   self.ispecID = fsc_field(self.containerID, title='ispec:', $
                            /highlight, $
                            value=ispec, digits=3, xsize=3, $
                            uvalue={method:'event', obj:self}, $
                            event_func='pfo_cw_event_func', $
-                           /cr_only, /focus_events, /nonsensitive, $
+                           /cr_only, /focus_events, $
                            object=object)
   self.ispec_obj = object
   self.iROIID = fsc_field(self.containerID, title='iROI:', $
@@ -326,7 +299,7 @@ end
 pro pfo_ROI_struct__get_tag, $
    parinfo, idx=idx, $
    taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   taglist_strict= taglist_strict, $ ;; See pfo_setget_tag
+   strict= strict, $ ;; See pfo_setget_tag
    _REF_EXTRA   = extra, $
    ispec    	= ispec, $
    iROI    	= iROI, $
@@ -362,7 +335,7 @@ pro pfo_ROI_struct__get_tag, $
   ;; listed in taglist_series.  
   pfo_struct_setget_tag, parinfo, idx=idx, /next, /get, $
                          taglist_series=taglist_series, $
-                         taglist_strict=taglist_strict, $
+                         strict=strict, $
                          _EXTRA=extra
 
 end 
@@ -374,7 +347,7 @@ end
 pro pfo_ROI_struct__set_tag, $
    parinfo, idx=idx, $
    taglist_series= taglist_series, $ ;; See pfo_set_tag
-   taglist_strict= taglist_strict, $ ;; See pfo_set_tag
+   strict= strict, $ ;; See pfo_set_tag
    _REF_EXTRA   	= extra, $
    ispec    	= ispec, $
    iROI    	= iROI, $
@@ -410,7 +383,7 @@ pro pfo_ROI_struct__set_tag, $
   ;; listed in taglist_series.  
   pfo_struct_setget_tag, parinfo, idx=idx, /next, /set, $
                       taglist_series=taglist_series, $
-                      taglist_strict=taglist_strict, $
+                      strict=strict, $
                       _EXTRA=extra
 
 end 

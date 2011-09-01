@@ -35,9 +35,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mpfit_obj__define.pro,v 1.4 2011/08/02 18:21:23 jpmorgen Exp $
+; $Id: pfo_mpfit_obj__define.pro,v 1.5 2011/09/01 22:13:26 jpmorgen Exp $
 ;
 ; $Log: pfo_mpfit_obj__define.pro,v $
+; Revision 1.5  2011/09/01 22:13:26  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.4  2011/08/02 18:21:23  jpmorgen
 ; Release to Tom
 ; Fix property name
@@ -63,9 +67,6 @@ function pfo_mpfit_obj_kernel, $
    ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
    iROI=iROI, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
    _REF_EXTRA=extra ;; keyword arguments passed to pfo_obj->deviates()
-
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -120,7 +121,7 @@ pro pfo_mpfit_obj_iterproc, $
      if keyword_set(plot) then $
         pfo_obj->plot, params=params, _EXTRA=iterargs
      if keyword_set(widget) then $
-        pfo_obj->widget_refresh, params=params, _EXTRA=iterargs
+        pfo_obj->refresh, params=params, _EXTRA=iterargs
   endif ;; working from pfo_obj
 
   ;; Print the definitions of the functions used before the first iteration.
@@ -240,9 +241,6 @@ function pfo_mpfit_obj::fit, $
    ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
    iROI=iROI, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
    _REF_EXTRA=extra
-
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -405,7 +403,6 @@ function pfo_mpfit_obj::fit, $
 
   ;; First save off our old parinfo, if desired
   if arg_present(undo) or N_elements(undo) ne 0 then begin
-     ;;undo = test(*self.pparinfo)
      undo = *self.pparinfo
   endif
   ;; Put our new params and errors into the parinfo.  Try this two
@@ -415,7 +412,11 @@ function pfo_mpfit_obj::fit, $
   ;;self->parinfo_call_procedure, 'pfo_struct_setget_tag', /set, value=new_params, error=perror, pfo_obj=self
   (*self.pparinfo).value = new_params
   (*self.pparinfo).error = perror
-  self->invalidate_cache
+  ;; We need to refresh the values and error and possibly other things
+  ;; --> repopulate would be the safest.  Could do a
+  ;; pfo_parinfo_parse_check, when I am done with that routine
+  ;;self->refresh, idx=lindgen(N_elements(*self.pparinfo))
+  self->repopulate
 
   *self.pmpfit_covar = covar
   self.mpfit_bestnorm = bestnorm
@@ -540,8 +541,6 @@ end
 ;; Each inherited class should have a descr method.
 function pfo_mpfit_obj::descr
 
-  init = {pfo_sysvar}
-
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
      CATCH, err
@@ -581,9 +580,6 @@ function pfo_mpfit_obj::init, $
    p2, $	;; Yerr
    _REF_EXTRA=extra
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
-  
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
      CATCH, err
@@ -650,6 +646,12 @@ function pfo_mpfit_obj::init, $
 end
 
 pro pfo_mpfit_obj__define
+
+  ;; Make sure our system variables are defined for all of the
+  ;; routines in this object
+  init = {tok_sysvar}
+  init = {pfo_sysvar}
+
   objectClass = $
      {pfo_mpfit_obj, $
       ppfo_mpfit_obj_descr: ptr_new(), $  ;; Pointer to description structure

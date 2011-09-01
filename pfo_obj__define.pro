@@ -5,8 +5,7 @@
 ;
 ; CATEGORY: PFO
 ;
-; CALLING SEQUENCE: pfo_obj = obj_new('pfo_obj', [[Xin,] Yin [Yerr]],
-; keywords)
+; CALLING SEQUENCE: pfo_obj = pfo_obj_new([[Xin,] Yin [Yerr]], keywords)
 ;
 ; DESCRIPTION:
 ;
@@ -34,9 +33,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj__define.pro,v 1.2 2011/08/02 18:28:25 jpmorgen Exp $
+; $Id: pfo_obj__define.pro,v 1.3 2011/09/01 22:14:18 jpmorgen Exp $
 ;
 ; $Log: pfo_obj__define.pro,v $
+; Revision 1.3  2011/09/01 22:14:18  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.2  2011/08/02 18:28:25  jpmorgen
 ; Release to Tom
 ; Improve descr
@@ -58,6 +61,23 @@
 ;;   _REF_EXTRA=extra
 ;;  ;; Pass everything onto inherited routines
 ;;  self->pfo_mpfit_obj::set_property, _EXTRA=extra
+;;end
+
+;;function pfo_obj::fit, $
+;;   _REF_EXTRA=extra
+;;
+;;  ;; Do our fit.  Save a local copy of the old parinfo as 'undo'
+;;  ok = self->pfo_mpfit_obj::fit(undo=undo, _EXTRA=extra)
+;;  ;; Use repopfresh_check to handle errors induced by our fit, any changes
+;;  ;; in parsing order
+;;  self->repopfresh_check, undo
+;;
+;;  ;; If our fit we bad, we have nothing more to do
+;;  if NOT ok then $
+;;     return, ok
+;;
+;;  ;; If we made it here, we have a new set of values
+;;  
 ;;end
 
 ;; Each inherited class should have a descr method.
@@ -90,7 +110,6 @@ end
 pro pfo_obj::cleanup
   ptr_free, self.ppfo_obj_descr
   self->pfo_mpfit_obj::cleanup
-  self->pfo_plot_obj::cleanup
 end
 
 function pfo_obj::init, $
@@ -132,9 +151,15 @@ end
 
 
 pro pfo_obj__define
+
+  ;; Make sure our system variables are defined for all of the
+  ;; routines in this object
+  init = {tok_sysvar}
+  init = {pfo_sysvar}
+
   objectClass = $
      {pfo_obj, $
-      ppfo_obj_descr: ptr_new(), $  ;; Pointer to description structure
+      ppfo_obj_descr: 	ptr_new(), $	;; Pointer to description structure
       inherits pfo_mpfit_obj  $
       }
 end

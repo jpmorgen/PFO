@@ -51,9 +51,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct__define.pro,v 1.5 2011/08/01 18:36:03 jpmorgen Exp $
+; $Id: pfo_struct__define.pro,v 1.6 2011/09/01 22:13:08 jpmorgen Exp $
 ;
 ; $Log: pfo_struct__define.pro,v $
+; Revision 1.6  2011/09/01 22:13:08  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.5  2011/08/01 18:36:03  jpmorgen
 ; First reasonably functional version of pfo_obj
 ;
@@ -91,7 +95,7 @@
 ;; 		its own well-documented structure onto the pfo_parinfo
 ;; 		structure that provides multiple handles for grabbing 
 ;; 		groups of parameters.  If the task is simple, however,
-;; 		pfo.ID can be used.  In pfo_funct, this is the LAST
+;; 		pfo.pfoID can be used.  In pfo_funct, this is the LAST
 ;; 		identifier used to differentiate between parameter
 ;; 		sets that are otherwise equivalent.
 ;; fseq	 0-n	indicates order in which groups of parameters should
@@ -155,12 +159,12 @@ pro pfo_struct__get_tag, $
    parinfo, $
    idx=idx, $
    taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   taglist_strict= taglist_strict, $ ;; See pfo_setget_tag
+   strict= strict, $ ;; See pfo_setget_tag
    _REF_EXTRA   	= extra, $
    status    	= status, $
    ofixed    	= ofixed, $
    fixed_mode	= fixed_mode, $
-   ID        	= ID, $
+   pfoID       	= pfoID, $
    fseq      	= fseq, $
    inaxis    	= inaxis, $ 
    infunct   	= infunct, $
@@ -171,31 +175,29 @@ pro pfo_struct__get_tag, $
    format    	= format, $
    eformat   	= eformat  
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
   if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_struct__get_tag, parinfo, idx=idx, [tag=tag, ...], [taglist_series=taglist_series, [/taglist_strict]]'
+        message, 'ERROR: caught the above error.  Returning with what I have done so far ', /CONTINUE
+        return
      endif
   endif ;; not debugging
 
+  ;; Make sure idx exists
+  pfo_idx, parinfo, idx
+
   ;; Put our struct into a tag, if necessary
-  pfo_struct_tagify, parinfo, 'PFO', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; If we made it here, we are good to copy our tags into the
   ;; keywords
-  if N_elements(idx) eq 0 then $
-    idx = lindgen(N_elements(parinfo))
 
   if arg_present(status    ) or N_elements(status    ) ne 0 then status     = parinfo[idx].pfo.status 	  
   if arg_present(ofixed    ) or N_elements(ofixed    ) ne 0 then ofixed     = parinfo[idx].pfo.ofixed 	  
   if arg_present(fixed_mode) or N_elements(fixed_mode) ne 0 then fixed_mode = parinfo[idx].pfo.fixed_mode
-  if arg_present(ID        ) or N_elements(ID        ) ne 0 then ID         = parinfo[idx].pfo.ID 	  
+  if arg_present(pfoID     ) or N_elements(pfoID     ) ne 0 then pfoID      = parinfo[idx].pfo.pfoID 	  
   if arg_present(fseq      ) or N_elements(fseq      ) ne 0 then fseq       = parinfo[idx].pfo.fseq 	  
   if arg_present(inaxis    ) or N_elements(inaxis    ) ne 0 then inaxis     = parinfo[idx].pfo.inaxis 	  
   if arg_present(infunct   ) or N_elements(infunct   ) ne 0 then infunct    = parinfo[idx].pfo.infunct   
@@ -207,13 +209,13 @@ pro pfo_struct__get_tag, $
   if arg_present(eformat   ) or N_elements(eformat   ) ne 0 then eformat    = parinfo[idx].pfo.eformat   
 
   ;; Put our tag back on the top-level, if necessary
-  pfo_struct_tagify, parinfo, 'PFO', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; Pass on keywords processed in series to the next top-level tag
   ;; listed in taglist_series.  
   pfo_struct_setget_tag, parinfo, idx=idx, /next, /get, $
                       taglist_series=taglist_series, $
-                      taglist_strict=taglist_strict, $
+                      strict=strict, $
                       _EXTRA=extra
 
 end 
@@ -226,12 +228,12 @@ pro pfo_struct__set_tag, $
    parinfo, $
    idx=idx, $
    taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   taglist_strict= taglist_strict, $ ;; See pfo_setget_tag
+   strict= strict, $ ;; See pfo_setget_tag
    _REF_EXTRA   	= extra, $
    status    	= status, $
    ofixed    	= ofixed, $
    fixed_mode	= fixed_mode, $
-   ID        	= ID, $
+   pfoID       	= pfoID, $
    fseq      	= fseq, $
    inaxis    	= inaxis, $ 
    infunct   	= infunct, $
@@ -242,31 +244,29 @@ pro pfo_struct__set_tag, $
    format    	= format, $
    eformat   	= eformat  
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
   if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_struct__set_tag, parinfo, idx=idx, [tag=tag, ...], [taglist_series=taglist_series, [/taglist_strict]]'
+        message, 'ERROR: caught the above error.  Returning with what I have done so far ', /CONTINUE
+        return
      endif
   endif ;; not debugging
 
+  ;; Make sure idx exists
+  pfo_idx, parinfo, idx
+
   ;; Put our struct into a tag, if necessary
-  pfo_struct_tagify, parinfo, 'PFO', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; If we made it here, we are good to copy our keywords into the
   ;; tags
-  if N_elements(idx) eq 0 then $
-    idx = lindgen(N_elements(parinfo))
 
   if N_elements(status    ) ne 0 then parinfo[idx].pfo.status 	  = status
   if N_elements(ofixed    ) ne 0 then parinfo[idx].pfo.ofixed 	  = ofixed
   if N_elements(fixed_mode) ne 0 then parinfo[idx].pfo.fixed_mode = fixed_mode
-  if N_elements(ID        ) ne 0 then parinfo[idx].pfo.ID 	  = ID
+  if N_elements(pfoID     ) ne 0 then parinfo[idx].pfo.pfoID 	  = pfoID
   if N_elements(fseq      ) ne 0 then parinfo[idx].pfo.fseq 	  = fseq
   if N_elements(inaxis    ) ne 0 then parinfo[idx].pfo.inaxis 	  = inaxis
   if N_elements(infunct   ) ne 0 then parinfo[idx].pfo.infunct 	  = infunct
@@ -278,13 +278,13 @@ pro pfo_struct__set_tag, $
   if N_elements(eformat   ) ne 0 then parinfo[idx].pfo.eformat 	  = eformat
 
   ;; Put our tag back on the top-level, if necessary
-  pfo_struct_tagify, parinfo, 'PFO', tagified=tagified
+  pfo_struct_tagify, parinfo, tagified=tagified
 
   ;; Pass on keywords processed in series to the next top-level tag
   ;; listed in taglist_series.  
   pfo_struct_setget_tag, parinfo, idx=idx, /next, /set, $
                       taglist_series=taglist_series, $
-                      taglist_strict=taglist_strict, $
+                      strict=strict, $
                       _EXTRA=extra
 
 end 
@@ -292,9 +292,6 @@ end
 function pfo_struct__init, $
   descr=descr, $ ;; descr is a return keyword that contains the structure documentation
   _REF_EXTRA=extra ;; keyword parameters to pass by reference (to save memory) to our __set_tag routine
-
-  ;; Read in our pfo tokens
-  init = {pfo_sysvar}
 
   ;; Create our struct initialized with generic IDL null values.  We
   ;; could also have called:
@@ -312,6 +309,9 @@ function pfo_struct__init, $
   pfo_struct.outaxis = !pfo.yaxis
   ;; Default function operation add to existing Y-axis
   pfo_struct.fop = !pfo.add
+  ;; Default formats
+  pfo_struct.format='(g12.6)'
+  pfo_struct.eformat='(g12.6)'
 
   ;; Create our description
   descr = $
@@ -351,12 +351,18 @@ end
 
 ;; Standard IDL named structure definition 
 pro pfo_struct__define
+
+  ;; Read in system variables for all routines in this file.
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
+
+  ;; Define our named structure
   pfo_struct = $
     {pfo_struct, $
      status  : 0B, $
      ofixed  : 0B, $
      fixed_mode:0B, $
-     ID      : 0, $
+     pfoID   : 0, $
      fseq    : 0, $
      inaxis  : 0B, $
      infunct : '',$

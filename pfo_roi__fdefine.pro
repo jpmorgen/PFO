@@ -41,9 +41,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi__fdefine.pro,v 1.1 2011/08/01 18:27:12 jpmorgen Exp $
+; $Id: pfo_roi__fdefine.pro,v 1.2 2011/09/01 22:10:11 jpmorgen Exp $
 ;
 ; $Log: pfo_roi__fdefine.pro,v $
+; Revision 1.2  2011/09/01 22:10:11  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 18:27:12  jpmorgen
 ; Initial revision
 ;
@@ -54,17 +58,16 @@
 ;; the function at a time.  The pfo_funct /INDICES "method" can be
 ;; used to process multiple function instances.
 function pfo_ROI__indices, $
-   parinfo=parinfo, $    ;; parinfo containing function
+   parinfo, $    ;; parinfo containing function
    idx=idx, $	;; idx into parinfo over which to search for function
    ROI_left, $   ;; verbose parameter names for disambiguation
    ROI_right, $
    left=left, $  ;; general parameter names, useful for grouping functions
    right=right, $
    ROI=ROI, $    ;; Region of interest [left, right]
-   terminate_idx=terminate_idx, $ ;; insert !tok.nowhere after 
-   pfo_obj=pfo_obj ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
-
-  init = {tok_sysvar}
+   terminate_idx=terminate_idx, $ ;; append !tok.nowhere to each index variable after we are done
+   pfo_obj=pfo_obj, $ ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
+   _REF_EXTRA=extra ;; soak up any extra parameters
 
   ;; Do basic idx error checking and collect our function indices
   idx = pfo_fidx(parinfo, 'pfo_ROI', idx=idx, pfo_obj=pfo_obj, $
@@ -130,7 +133,7 @@ function pfo_ROI__calc, $
    Xin, $ 	;; Input X axis in natural units 
    params, $ 	;; parameters (entire array)
    parinfo=parinfo, $ ;; parinfo array (whole array)
-   idx=idx, $    ;; idx into parinfo over which to search for function
+  idx=idx, $    ;; idx into parinfo of parinfo segment defining this function
    Xaxis=Xaxis, $ ;; transformed from Xin by pfo_funct, in case ROI boundary is cast in terms of "real" units.  Passing it this way saves recalculation in this routine
    count=count, $ ;; number of xaxis points found in ROI
    pfo_obj=pfo_obj, $ ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
@@ -140,7 +143,7 @@ function pfo_ROI__calc, $
   ;; messages are pretty verbose.
 
   ;; Common error checking and initialization code
-  pfo_calc_check, Xin, params, fname='pfo_ROI', parinfo=parinfo, idx=idx, pfo_obj=pfo_obj
+  pfo_calc_check, Xin, params, parinfo=parinfo, idx=idx, pfo_obj=pfo_obj
 
   ;; If we made it here, our inputs should be in reasonably good shape
   ;; --> Assume that we have been called from pfo_parinfo_parse so
@@ -228,48 +231,50 @@ end
 
 ;; Create the parinfo strand for this function and initialize it
 function pfo_ROI__init, $
-   ROI=ROI, $	;; ROI will be the usual way the ROI boundaries are specified
-   ROI_left, $   ;; verbose parameter names for disambiguation
-   ROI_right, $
-   left=left, $  ;; general parameter names, useful for grouping functions
-   right=right, $
-   value=value, $;; catch value to make sure no conflict with other keywords
-   ftype=ftype, $;; catch ftype to make sure no conflict in pfo_struct_setget_tag
+   value=value, $	;; catch value to make sure no conflict with other keywords
+   ftype=ftype, $	;; catch ftype to make sure no conflict in pfo_struct_setget_tag
    pfo_obj=pfo_obj, $	;; pfo_obj for parinfo_template
-   _REF_EXTRA=extra	;; _REF_EXTRA passed to pfo_struct_setget_tag
+   _REF_EXTRA=extra, $	;; _REF_EXTRA passed to pfo_struct_setget_tag
+   ROI=ROI, $		;; ROI will be the usual way the ROI boundaries are specified
+   ROI_left, $   	;; verbose parameter names for disambiguation
+   ROI_right, $
+   left=left, $  	;; general parameter names, useful for grouping functions
+   right=right
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
+
+   ;; Initialize parinfo in case early error.
+  parinfo = !tok.nowhere
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_ROI__init [, pfo_obj=pfo_obj] [, ROI=ROI | left=left, right=right] [, keywords to convert to tag assignments]'
+        message, 'ERROR: caught the above error.  Returning what I have so far.', /CONTINUE
+        return, parinfo
      endif
   endif ;; not debugging
 
   ;; Catch improper use of value and ftype keywords
   if N_elements(value) + N_elements(ftype) ne 0 then $
-     message, 'ERROR: value and ftype are set internaly: they are therefore invalid keywords'
+     message, 'ERROR: value and ftype are set internally: they are therefore invalid keywords'
 
   ;; Get critical information about this function from pfo_finfo
-  pfo_finfo, fname='pfo_ROI', fnum=fnum, fnpars=fnpars, pfo_obj=pfo_obj
+  pfo_finfo, fname=pfo_fname(), fnum=fnum, fnpars=fnpars, pfo_obj=pfo_obj
 
   ;; Create our parinfo strand for this function, making sure to
   ;; include any substructure we need with required tags.  Start with
   ;; one parinfo element.
   parinfo = pfo_parinfo_template(pfo_obj=pfo_obj, $
-                                 required_tags=['pfo', 'pfo_ROI'])
+                                 required_tags=['pfo', pfo_fname()])
   ;; ... replicate it by fnpars
   parinfo = replicate(temporary(parinfo), fnpars)
 
   ;; Set attributes/defaults that are unique to this function.  Note
   ;; that some attributes are already defined in pfo_struct__init
   ;; (found in pfo_struct__define.pro)
-  
+
   ;; PARNAME
   ;; Don't put function name in parname, since it can be
   ;; reconstructed from pfo.ftype.  Packages built on top of pfo
@@ -310,13 +315,17 @@ function pfo_ROI__init, $
   if N_elements(right) gt 0 then $
      parinfo[1].value = right
 
-  ;; INAXIS -- ROIs are generally defined in terms of raw detector
-  ;;           coordinates
+  ;; INAXIS: ROIs are generally defined in terms of raw detector
+  ;; coordinates, but they can be a function of Xaxis
   parinfo.pfo.inaxis = !pfo.Xin
 
-  ;; FOP -- ROI does not operate (in this sense) on any axis.  The
-  ;;        default is Xin operating
+  ;; FOP: ROI does not operate (in this sense) on any axis.  It
+  ;; filters the indices of Xin before other functions operate.
   parinfo.pfo.fop = !pfo.none
+
+  ;; OAXIS: Just like fop, there is no real out axis, in the operation
+  ;; sense.  A ROI is just a special beast
+  parinfo.pfo.outaxis = !pfo.none
 
   ;; FIXED
   ;; In general, we want our ROI boundaries to be fixed, otherwise
@@ -345,7 +354,11 @@ end
 ;; the PFO system
 pro pfo_ROI__fdefine, pfo_obj=pfo_obj
 
-  pfo_fdefine, pfo_obj=pfo_obj, fname='pfo_ROI', fnpars=2, $
+  ;; Read in system variables for all routines in this file.
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
+
+  pfo_fdefine, pfo_obj=pfo_obj, fname=pfo_fname(), fnpars=2, $
                fdescr='Region of interest (ROI) function.  This 2-parameter function defines a ROI between two points in the data.  The ROI endpoints can be individually specified in units of Xin or Xaxis, depending on value of parinfo.pfo,inaxis of each parameter (Xin is the default).  The function returns the indices into Xin over which the ROI is valid (inclusive of the endpoints).'
   
 end

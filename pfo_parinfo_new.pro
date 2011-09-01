@@ -7,14 +7,14 @@
 ; CATEGORY: PFO
 
 ; CALLING SEQUENCE: newparinfo = pfo_parinfo_new(fname,
-; [keyword=keyword...], [taglist_parallel=taglist_parallel | 
-; taglist_series=taglist_series, [taglist_strict=taglist_strict]])
+; [keyword=keyword...], [parallel_taglist=parallel_taglist | 
+; taglist_series=taglist_series, [strict=strict]])
 
 ; DESCRIPTION: Invokes the pfo_<fname>__fdefine and pfo_<fname>__finit
 ; system to create a new string of parinfo.  The tag values of the
 ; parinfo array can be optionally initialized to the user's
-; specification in the sequence of keywords.  taglist_parallel,
-; taglist_series, and taglist_strict control how these keywords are
+; specification in the sequence of keywords.  parallel_taglist,
+; taglist_series, and strict control how these keywords are
 ; presented to the top-level tag _set_tag routines (if present).  See
 ; README.names for a detailed description of this system.
 
@@ -34,23 +34,27 @@
 ;       pfo_<fname>__finit using the _REF_EXTRA mechanism.
 ;       pfo_<fname>__finit can pass these parameters on to
 ;       <tagname>_struct__set_tag routines in the same way so that
-;       tags in the sub-structures that make up the parinfo can be set
-;       conveniently.  The keywords PARALLEL and SERIES determine how
-;       these _REF_EXTRA keywords are distributed among the
-;       <tagname>_struct__set_tag routines.
+;       tags in the substructures that make up the parinfo can be set
+;       conveniently.  The keywords taglist_series (abreviated tag)
+;       and parallel_taglist determine how these _REF_EXTRA keywords
+;       are distributed among the <tagname>_struct__set_tag routines.
 
-;       taglist_parallel: If parallel = 1 (/parallel), pass all
+;       parallel_taglist: If parallel = 1 (/parallel), pass all
 ;       keywords to all participating top-level
 ;       <tagname>_struct__set_tag procedures.  If parallel = [vector
 ;       of] type string, only pass keywords to the named tags.
 
-;       taglist_series: like taglist_parallel, but order is important.
+;       taglist_series: like parallel_taglist, but order is important.
 ;       As each <tagname>_struct__set_tag procedure is processed, the
 ;       tag names are "soaked up" and, if there are duplicate sub-tag
 ;       names (e.g. status is a popular one), they are not set in
 ;       subsequent tags.  This is the default.
 
-;	taglist_strict: 
+;       strict: in conjunction with taglist_series, uses IDL's
+;       _STRICT_EXTRA mechanism on the last call to the
+;       <tagname>_struct__set_tag to make sure that there is strict
+;       matching between supplied keywords and tags in the
+;       substructures
 
 ;
 ; OUTPUTS:
@@ -74,9 +78,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_new.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_parinfo_new.pro,v 1.2 2011/09/01 22:15:32 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_new.pro,v $
+; Revision 1.2  2011/09/01 22:15:32  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;

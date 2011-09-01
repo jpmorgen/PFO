@@ -41,9 +41,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_scint__fdefine.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_scint__fdefine.pro,v 1.2 2011/09/01 22:10:03 jpmorgen Exp $
 ;
 ; $Log: pfo_scint__fdefine.pro,v $
+; Revision 1.2  2011/09/01 22:10:03  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -54,7 +58,7 @@
 ;; the function at a time.  The pfo_funct /INDICES "method" can be
 ;; used to process multiple function instances.
 function pfo_scint__indices, $
-   parinfo=parinfo, $    ;; parinfo containing scint function(s)
+   parinfo, $    ;; parinfo containing scint function(s)
    idx=idx, $	;; idx into parinfo over which to search for scint function(s)
    E0=E0, $		;; peak energy
    area=area, $		;; area
@@ -65,11 +69,9 @@ function pfo_scint__indices, $
    ftype=ftype, $ ;; catch ftype to make sure no conflict in pfo_struct_setget_tag
    peak=peak, $		;; generic for E0
    width=width, $	;; generic for all width-determining parameters
-   terminate_idx=terminate_idx, $ ;; insert !tok.nowhere after 
+   terminate_idx=terminate_idx, $ ;; append !tok.nowhere to each index variable after we are done
    pfo_obj=pfo_obj, $ ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
-   _REF_EXTRA=extra	;; _REF_EXTRA passed to pfo_struct_setget_tag
-
-  init = {tok_sysvar}
+   _REF_EXTRA=extra	;; soak up any extra parameters
 
   ;; Do basic idx error checking and collect our function indices
   idx = pfo_fidx(parinfo, 'pfo_scint', idx=idx, pfo_obj=pfo_obj, $
@@ -158,17 +160,15 @@ function pfo_scint__calc, $
   Xin, $ 	;; Input X axis in natural units 
   params, $ 	;; parameters (entire array)
   parinfo=parinfo, $ ;; parinfo array (whole array)
-  idx=idx, $    ;; idx into parinfo over which to search for function
-  Xaxis=Xaxis, $;; transformed from Xin by pfo_funct, in case ROI boundary is cast in terms of "real" units.  Passing it this way saves recalculation in this routine
-  count=count, $ ;; number of xaxis points found in ROI
+  idx=idx, $    ;; idx into parinfo of parinfo segment defining this function
   pfo_obj=pfo_obj, $ ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
-  _REF_EXTRA=extra ;; passed to pfo_Xaxis
+  _REF_EXTRA=extra ;; passed to underlying routines
 
   ;; Use shared routines to do basic error checking.  These error
   ;; messages are pretty verbose.
 
   ;; Common error checking and initialization code
-  pfo_calc_check, Xin, params, fname='pfo_scint', parinfo=parinfo, idx=idx, pfo_obj=pfo_obj
+  pfo_calc_check, Xin, params, parinfo=parinfo, idx=idx, pfo_obj=pfo_obj
 
   ;; If we made it here, our inputs should be in reasonably good shape
   ;; --> We xassume that we have been called from pfo_parinfo_parse so

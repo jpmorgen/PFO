@@ -1,6 +1,10 @@
-$Id: README.names,v 1.2 2011/08/02 18:59:28 jpmorgen Exp $
+$Id: README.names,v 1.3 2011/09/01 22:17:24 jpmorgen Exp $
 
 $Log: README.names,v $
+Revision 1.3  2011/09/01 22:17:24  jpmorgen
+Significant improvements to parinfo editing widget, created plotwin
+widget, added pfo_poly function.
+
 Revision 1.2  2011/08/02 18:59:28  jpmorgen
 Release to Tom
 Fix up for current state of affairs
@@ -111,4 +115,27 @@ pfo_<name>_cw_obj: an object, typically defined in the file
 	the widget, a la David Fanning's fsc_field.  Most of the time,
 	these objects will encapsulate the pfo_obj
 
+pfo_cw_obj: This object is inherited by all pfo_<name>_cw_objs and has
+	property, such as the pfo_obj to which the cw is connected,
+	and methods, such as the object-oriented event handler, that
+	useful for general compound widgets in the PFO system
+
+pfo_obj_cw_obj: This object is inherited by the pfo_obj and handles
+	the receiving end of the pfo_cw_obj system in the pfo_obj.
+	This includes maintaining the list of cw_obj linked with this
+	particular pfo_obj for refresh and lifecycle purposes.
+
+pfo_<name>_plotwin: a compound widget that displays PFO plot material.
+
+pfo_obj_plotwin_obj__define: This object is inherited by the pfo_obj
+	and handles the receiving end of the pfo_plotwin system in the
+	pfo_obj.  This includes maintaining the list of plotwins linked
+	with the pfo_obj.  These plotwin will have their plot methods
+	called when the pfo_obj->replot method is called.
+
+pfo_plotwin__define: the object class that is inherited by all
+	pfo_<name>_plotwin widgets.  Includes common property and
+	methods for linking to the pfo_obj_plotwin_obj in the pfo_obj,
+	so the pfo_obj->replot method works, a default plot method
+	which uses the pfo_plot_obj in the pfo_obj encapsulated in the 
 

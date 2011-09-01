@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.7 2011/08/02 15:42:30 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.8 2011/09/01 22:12:22 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -39,9 +39,10 @@ pro pfo_sysvar__define
     = {pfo_sysvar, $
        popt	:	'MPFIT', $ ; default parameter optimizer
        debug	:	0, $    ; debug level 0 =catch, 1=don't catch, 2=xmanager, catch=0
+       quiet	:	0, $	; keeps track of pfo_quiet level
        null	:	0, $	; IMPORTANT THAT NULL BE 0
        $ ;; Initial value of Yaxis in pfo_parinfo_parse, /calc.  If NaN, the deviates and plotting system works better, but you need to make sure that the first function to operate in each ROI has parinfo.pfo.fp = !pfo.replace.  If 0d, you can just have all functions combine additively
-       Yaxis_init:	!values.d_nan, $
+       init_Yaxis:	!values.d_nan, $
        not_used	:	0, $	; status tokens
        not_pfo	:	0, $
        active	:	1, $
@@ -61,6 +62,7 @@ pro pfo_sysvar__define
        Yaxis	:	3, $
        $ ;; String representation of the fop tokens
        axis_string:	['', 'Xin', 'X', 'Y'], $
+       widget_axis_string:['none', 'Xin', 'X', 'Y'], $
        $ ;; fop tokens -- in the order they operate
        noop	:	0, $    ; Useful for pfo_deriv
        repl	:	1, $	; Replace contents of target
@@ -69,6 +71,11 @@ pro pfo_sysvar__define
        convolve	:	4, $	; See NOTE in pfo_parinfo_parse
        $ ;; String representation of the fop tokens
        fop_string:	['', '', '*', '+', 'convol'], $
+       widget_fop_string:['noop', 'repl', '*', '+', 'convol'], $
+       $ ;; String representations of delimiters (free, limited, fixed)
+       delimiters: ['.', '<', '|'], $
+       $ ;; Indicator when we are pegged against a limit
+       pegged: '*', $
        $;; obselete
        $;;poly	:	1,  $	; ftype tokens
        $;;deltafn	:	2,  $
@@ -106,7 +113,7 @@ pro pfo_sysvar__define
        iterproc	:	'pfo_iterproc', $
        iterstop	:	-2, $   ;; stop fit, keep values
        iterquit	:	-3, $   ;; stop fit, discard values
-       plotwin	:	 0, $   ;; default PFO plot window (upper right)
+       window_index:	 28, $  ;; default PFO plot window.  Should not be 0 (see pfo_plot_obj__define)
        $ ;; tokens for actions in pfo_funct to keep code clean
        $;;print	:	1, $ ;; duplicate above
        calc	:	2, $

@@ -40,9 +40,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: mpfit_parinfo_struct__define.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: mpfit_parinfo_struct__define.pro,v 1.2 2011/09/01 22:13:18 jpmorgen Exp $
 ;
 ; $Log: mpfit_parinfo_struct__define.pro,v $
+; Revision 1.2  2011/09/01 22:13:18  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -52,8 +56,8 @@
 pro mpfit_parinfo_struct__get_tag, $
    parinfo, $
    idx=idx, $
-   taglist_series= taglist_series, $
-   taglist_strict= taglist_strict, $
+   taglist_series=taglist_series, $
+   strict=strict, $
    _REF_EXTRA  	= extra, $
    value	= value	   , $
    error	= error	   , $
@@ -68,18 +72,18 @@ pro mpfit_parinfo_struct__get_tag, $
    tied		= tied	   , $
    mpprint	= mpprint
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
   if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: mpfit_parinfo_struct__get_tag, parinfo, idx=idx, [tag=tag, ...]'
+        message, 'ERROR: caught the above error.  Returning with what I have done so far ', /CONTINUE
+        return
      endif
   endif ;; not debugging
+
+  ;; Make sure idx exists
+  pfo_idx, parinfo, idx
 
   ;; This code is a little different for a top-level struct
   ;; Get the top-level tag and structure names
@@ -95,8 +99,6 @@ pro mpfit_parinfo_struct__get_tag, $
 
   ;; If we made it here, we are good to copy our keywords into the
   ;; tags
-  if N_elements(idx) eq 0 then $
-    idx = lindgen(N_elements(parinfo))
 
   if arg_present(value	 )  or N_elements(value   ) ne 0 then value	= parinfo[idx].value
   if arg_present(error	 )  or N_elements(error	  ) ne 0 then error	= parinfo[idx].error 
@@ -110,11 +112,12 @@ pro mpfit_parinfo_struct__get_tag, $
   if arg_present(mpmaxstep) or N_elements(mpmaxstep) ne 0 then mpmaxstep= parinfo[idx].mpmaxstep
   if arg_present(tied	 )  or N_elements(tied	  ) ne 0 then tied	= parinfo[idx].tied
   if arg_present(mpprint )  or N_elements(mpprint ) ne 0 then mpprint   = parinfo[idx].mpprint
+
   ;; Pass on keywords processed in series to the next top-level tag
   ;; listed in taglist_series.  
   pfo_struct_setget_tag, parinfo, idx=idx, /next, /get, $
                       taglist_series=taglist_series, $
-                      taglist_strict=taglist_strict, $
+                      strict=strict, $
                       _EXTRA=extra
 
 end
@@ -136,7 +139,7 @@ pro mpfit_parinfo_struct__set_tag, $
    parinfo, $
    idx=idx, $
    taglist_series= taglist_series, $
-   taglist_strict= taglist_strict, $
+   strict= strict, $
    _REF_EXTRA  	= extra, $
    value	= value	   , $
    error	= error	   , $
@@ -151,18 +154,18 @@ pro mpfit_parinfo_struct__set_tag, $
    tied		= tied	   , $
    mpprint	= mpprint
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
   if !pfo.debug le 0 then begin
-     ;; Return to the calling routine with our error
-     ON_ERROR, !tok.return
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: mpfit_parinfo_struct__set_tag, parinfo, idx=idx, [tag=tag, ...]'
+        message, 'ERROR: caught the above error.  Returning with what I have done so far ', /CONTINUE
+        return
      endif
   endif ;; not debugging
+
+  ;; Make sure idx exists
+  pfo_idx, parinfo, idx
 
   ;; This code is a little different for a top-level struct
   ;; Get the top-level tag and structure names
@@ -178,8 +181,6 @@ pro mpfit_parinfo_struct__set_tag, $
 
   ;; If we made it here, we are good to copy our keywords into the
   ;; tags
-  if N_elements(idx) eq 0 then $
-    idx = lindgen(N_elements(parinfo))
 
   if N_elements(value	 ) ne 0 then parinfo[idx].value		= value	 
   if N_elements(error	 ) ne 0 then parinfo[idx].error	        = error	 
@@ -193,16 +194,18 @@ pro mpfit_parinfo_struct__set_tag, $
   if N_elements(mpmaxstep) ne 0 then parinfo[idx].mpmaxstep     = mpmaxstep
   if N_elements(tied	 ) ne 0 then parinfo[idx].tied	        = tied	 
   if N_elements(mpprint	 ) ne 0 then parinfo[idx].mpprint	= mpprint	 
+
   ;; Pass on keywords processed in series to the next top-level tag
   ;; listed in taglist_series.  
   pfo_struct_setget_tag, parinfo, idx=idx, /next, /set, $
                       taglist_series=taglist_series, $
-                      taglist_strict=taglist_strict, $
+                      strict=strict, $
                       _EXTRA=extra
 
 end
 
 function mpfit_parinfo_struct__init, descr=descr, _REF_EXTRA=extra
+
   ;; Get our mpfit parinfo, initialized somewhat inconveniently by IDL
   ;; with null values
   parinfo = {mpfit_parinfo_struct}
@@ -265,6 +268,12 @@ end
 ;; be aware that there is some "slight of hand" going on here.
 
 pro mpfit_parinfo_struct__define
+
+  ;; Read in system variables for all routines in this file.
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
+
+  ;; Define our named structure
   parinfo = {mpfit_parinfo_struct, $   ; Any modifications to parinfo turn it into an anonymous structure...
              top_level_struct: '', $ ; ... so preseve the full name of this structure in this key (see __init "method")
              value	: 0D, $ ; PFO and MPFIT use this: see NOTE, above

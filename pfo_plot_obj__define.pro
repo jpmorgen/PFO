@@ -1,14 +1,24 @@
 ;+
 ; NAME: pfo_plot_obj__define
 ;
-; PURPOSE: Define the PFO plot object
+; PURPOSE: Creates an object that encapsulates all information
+; necessary to plot the data and function encapsulated in a pfo_obj.
 ;
 ; CATEGORY: PFO
 ;
 ; CALLING SEQUENCE:
-;
-; DESCRIPTION:
-;
+
+; DESCRIPTION: This object is intended to be inherited whenever
+; pfo_obj information needs to be plotted (e.,g. in pfo_obj and any
+; widgets that independently open plot windows).  It keeps track of
+; things like the axis ranges, xaxis type (Xin vs Xaxis), log axes,
+; etc.  The specific pfo_obj that is is plotted can be passed as a
+; command line argument to the plot method.  In this way, this object
+; provides the "viewport" for whatever pfo_obj should be displayed.
+; This object is usually inherited into the pfo_obj, so that
+; pfo_obj->plot and adjustments to the plot_* property does the right
+; thing.
+
 ; INPUTS:
 ;
 ; OPTIONAL INPUTS:
@@ -33,9 +43,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_obj__define.pro,v 1.3 2011/08/02 18:19:41 jpmorgen Exp $
+; $Id: pfo_plot_obj__define.pro,v 1.4 2011/09/01 22:13:01 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_obj__define.pro,v $
+; Revision 1.4  2011/09/01 22:13:01  jpmorgen
+; Significant improvements to parinfo editing widget, created plotwin
+; widget, added pfo_poly function.
+;
 ; Revision 1.3  2011/08/02 18:19:41  jpmorgen
 ; Release to Tom
 ; Check for undefined Xin and Yin for graceful exit
@@ -51,12 +65,13 @@
 ;-
 
 pro pfo_plot_obj::plot, $
+   pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating information to be plotted.  If not specified, pfo_obj=self (assume this object has been inherited in the pfo_obj
    parinfo=parinfo_in, $ ;; parinfo to use in place of encapsulated parinfo (unusual)
    params=params, $ ;; params to use in preference to encapsulated parinfo.value
    idx=idx, $ ;; indices into parinfo  (unusual)
    ispec=ispec_in, $ ;; ispec(s) to plot 
    iROI=iROI_in, $ ;; iROI(s) to plot
-   plot_window=plot_window, $ ;; IDL direct graphics window number into which to display plot
+   window_index=window_index, $ ;; IDL direct graphics window number into which to display plot
    xsize=xsize, $ ;; X-dimension of plot window (pixels)
    ysize=ysize, $ ;; Y-dimension of plot window (pixels)
    retain=retain, $ ;; retain keyword for IDL window command -- affects backing store
@@ -79,8 +94,17 @@ pro pfo_plot_obj::plot, $
    calc_args=calc_args, $ ;; arguments to self->[XY]axis(), etc. which eventually get passed down to __calc "methods" of pfo functions
    _REF_EXTRA=extra ;; EXTRA args passed to oplot routines
 
-  init = {pfo_sysvar}
-  init = {tok_sysvar}
+  ;; Save off system variables that we will be messing with 
+  background = !p.background
+  color = !p.color
+  font = !p.font
+  charsize = !p.charsize
+  device_name = !d.name
+
+  ;; Check to see if we are handling the case when this object is
+  ;; encapsulated within the pfo_obj
+  if N_elements(pfo_obj) eq 0 then $
+     pfo_obj = self
 
   ;; Handle pfo_debug level.  CATCH invocation errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -92,47 +116,45 @@ pro pfo_plot_obj::plot, $
         ;; Check to see if we mucked with our encapsulated parinfo.
         ;; If so, put it back
         if N_elements(Eparinfo) ne 0 then begin
-           parinfo_in = temporary(*self.pparinfo)
-           *self.pparinfo = temporary(Eparinfo)
+           parinfo_in = pfo_obj->parinfo(/no_copy)
+           pfo_obj->set_property, parinfo_array=Eparinfo, /no_copy, /no_repopulate
            ;; Make sure to invalidate any caches that were made with
            ;; that parinfo
            self->invalidate_cache
         endif
+        ;; Put our plot device back to it original state
+        set_plot, device_name
+        ;; Set system variables back to their original states
+        !p.background = background
+        !p.color = color
+        !p.font = font
+        !p.charsize = charsize
         ;; Close down our postscript file, if open
         if keyword_set(PS_fname) then begin
            device, /close
-           ;; Set things back to the previous state
-           set_plot, device_name
-           !p.background = background
-           !p.color = color
-           !p.font = font
-           !p.charsize = charsize
-           ;; Reset our PS fname
            self.plot_PS_fname = ''
         endif ;; PS processing
         return
      endif ;; catch
   endif ;; not debugging
-
+  
   ;; Sometimes it is handy to quickly plot a parinfo stored outside
   ;; the object for comparison purposes.  To enable that, we just save
   ;; off our encapsulated parinfo, put the command line version in and
   ;; put it all back when we are done
   if N_elements(parinfo_in) ne 0 then begin
-     Eparinfo = temporary(*self.pparinfo)
-     *self.pparinfo = temporary(parinfo_in)
-     self->invalidate_cache
+     Eparinfo = pfo_obj->parinfo(/no_copy)
+     pfo_obj->set_property, parinfo_array=parinfo_in, /no_copy, /no_repopulate
+     pfo_obj->invalidate_cache
   endif
 
-  ;; Check to see if we have anything to plot
-  if N_elements(*self.pXin) eq 0 then begin
+  ;; We need an Xin axis to do any plotting
+  if N_elements(pfo_obj->Xin()) eq 0 then begin
      message, /INFORMATIONAL, 'NOTE: Xin not defined.  Cannot plot data.'
      return
   endif
-  if N_elements(*self.pYin) eq 0 then begin
-     message, /INFORMATIONAL, 'NOTE: Yin not defined.  Cannot plot data.'
-     return
-  endif
+  ;; Save Xin to a local variable for convenience
+  Xin = pfo_obj->Xin()
 
   ;; Grab defaults from our property, if not specified on command line
 
@@ -149,7 +171,7 @@ pro pfo_plot_obj::plot, $
      if N_elements(*self.pplot_iROI) ne 0 then $
         iROI = *self.pplot_iROI
 
-  if N_elements(plot_window) eq 0 then plot_window = self.plot_window 
+  if N_elements(window_index) eq 0 then window_index = self.plot_window_index 
   if N_elements(xsize) eq 0 then xsize = self.plot_xsize 
   if N_elements(ysize) eq 0 then ysize = self.plot_ysize 
   if N_elements(retain) eq 0 then retain = self.plot_retain
@@ -162,43 +184,52 @@ pro pfo_plot_obj::plot, $
 
   ;; Check for undefined heap variables and calculate ranges if necessary
   if N_elements(Xin_range) eq 0 then begin
-     if N_elements(*self.pXin_range) eq 0 then begin
-        Xin_range = minmax(*self.pXin, /NAN)
-     endif else begin
+     if N_elements(*self.pXin_range) ne 0 then begin
         Xin_range = *self.pXin_range 
+     endif else begin
+        Xin_range = minmax(pfo_obj->Xin(), /NAN)
      endelse 
   endif
   if N_elements(Xaxis_range) eq 0 then begin
-     if N_elements(*self.pXaxis_range) eq 0 then begin
+     if N_elements(*self.pXaxis_range) ne 0 then begin
+        Xaxis_range = *self.pXaxis_range 
+     endif else begin
         ;; Start a local cache of Xaxis
         if N_elements(Xaxis) eq 0 then $
-           Xaxis = self->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
+           Xaxis = pfo_obj->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
         Xaxis_range = minmax(Xaxis, /NAN)
-     endif else begin
-        Xaxis_range = *self.pXaxis_range 
      endelse 
   endif
   if N_elements(Yaxis_range) eq 0 then begin
-     if N_elements(*self.pYaxis_range) eq 0 then begin
+     if N_elements(*self.pYaxis_range) ne 0 then begin
+        Yaxis_range = *self.pYaxis_range 
+     endif else begin
         ;; This ends up being our autoscaling code
         count = 0
         if Xunits eq !pfo.Xin then begin
-           good_Xin_idx = where(Xin_range[0] le *self.pXin and $
-                                *self.pXin le Xin_range[1], count)
+           good_Xin_idx = where(Xin_range[0] le Xin and $
+                                Xin le Xin_range[1], count)
         endif 
         if Xunits eq !pfo.Xaxis then begin
            if N_elements(Xaxis) eq 0 then $
-              Xaxis = self->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
+              Xaxis = pfo_obj->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
            good_Xin_idx = where(Xaxis_range[0] le Xaxis and $
                                 Xaxis le Xaxis_range[1], count)
         endif 
-        if count eq 0 then $
-           message, 'ERROR: no valid points to plot in Xin_range = [' + strtrim(Xin_range[0], 2) + ', ' + strtrim(Xin_range[1]) + ']'
-        Yaxis_range = minmax((*self.pYin)[good_Xin_idx], /NAN)
-     endif else begin
-        Yaxis_range = *self.pYaxis_range 
-     endelse 
-  endif
+        if count eq 0 then begin
+           message, /INFORMATIONAL, 'NOTE: no valid points to plot in Xin_range = [' + strtrim(Xin_range[0], 2) + ', ' + strtrim(Xin_range[1]) + ']'
+        endif else begin
+           ;; Check to see if we have any Yin
+           if N_elements(pfo_obj->Yin()) ne 0 then begin
+              ;; Prefer data for Yaxis_range...
+              Yaxis_range = minmax((pfo_obj->Yin())[good_Xin_idx], /NAN)
+           endif else begin
+              ;; ... but if we have no data, use the function values
+              Yaxis_range = minmax((pfo_obj->Yaxis())[good_Xin_idx], /NAN)
+           endelse ;; Yin or no Yin
+        endelse ;; Valid points in Xin_range
+     endelse ;; No Yaxis_range property
+  endif ;; No Yaxis_range on command line
 
   if N_elements(Xin_title) eq 0 then Xin_title = self.plot_Xin_title
   if N_elements(Xaxis_title) eq 0 then Xaxis_title = self.plot_Xaxis_title
@@ -207,10 +238,25 @@ pro pfo_plot_obj::plot, $
   if N_elements(xlog) eq 0 then xlog = self.plot_xlog
   if N_elements(ylog) eq 0 then ylog = self.plot_ylog
   if N_elements(oplot_call_list) eq 0 then oplot_call_list = *self.poplot_call_list
+  
+  ;; !P. SYSTEM VARIABLES.  Set background to black and color to white
+  ;; for normal plotting 
+  !p.background = 0
+  !p.color = !d.n_colors-1
+
+  ;; DEVICE/DISPLAY PROPERTIES 
+  ;; Just in case this is the first use of the X windowing system in
+  ;; IDL and the user hasn't set things up in the .Xresources file, we
+  ;; want to explicitly set the device to use TrueColor.  MS Windows
+  ;; is already in TrueColor mode.  The device change to true color
+  ;; has to be the first thing that touches the display, otherwise in
+  ;; X windows, DirectColor is used
+  if !d.name eq 'X' then $
+     device, true_color=24
 
   ;; COLOR TABLE
   ;; Be polite with the color table, saving off previous value, to
-  ;; restore below
+  ;; restore below.  Color tables are independent of device
   tvlct, user_r, user_g, user_b, /get
   ;; Set color translation table to rainbow18 (38), which maps the has 18 very
   ;; distinguishable colors
@@ -218,14 +264,6 @@ pro pfo_plot_obj::plot, $
 
   ;; Determine whether plot is going to PS device or a window
   if keyword_set(PS_fname) then begin
-     device_name = !d.name
-     background = !p.background
-     color = !p.color
-     ;; set_plot, 'ps' messes with the above (and possibly other)
-     ;; system variables
-     ;; Tom has preferences for these, so save them off too
-     font = !p.font
-     charsize = !p.charsize
      device, get_current_font=fontname
 
      ;; Tom likes the following for plots
@@ -235,12 +273,11 @@ pro pfo_plot_obj::plot, $
      device, /portrait, filename=PS_fname, set_font=TT_font_name, $
              /encap, /color, bits=8
   endif else begin
-     ;; Regular Xwindow or MS windows display
+     ;; Regular X or MS Windows case.  Make sure decomposed=0,
+     ;; so that we pretend we are in pseudocolor, which is more
+     ;; backward compatible
      device, get_decomposed=user_decomposed
-     ;; Make sure our display can use pseudo colors, since we like
-     ;; them better
-     if (!d.n_colors gt 256) then $
-        device, decomposed=0
+     device, decomposed=0
 
      ;; Get our double buffer window ready.  This creates a pixmap,
      ;; not a real window on the display
@@ -252,13 +289,13 @@ pro pfo_plot_obj::plot, $
   case Xunits of 
      !pfo.Xin: begin
         xtitle = Xin_title
-        xaxis  = self->Xin()
+        xaxis  = pfo_obj->Xin()
         xrange = Xin_range 
         ytitle = Yin_Xin_title
      end
      !pfo.Xaxis: begin
         xtitle = Xaxis_title
-        xaxis  = self->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
+        xaxis  = pfo_obj->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
         xrange = Xaxis_range 
         case Yunits of
            !pfo.Xin: ytitle = Yin_Xin_title
@@ -284,8 +321,8 @@ pro pfo_plot_obj::plot, $
 
      ;; Grab our deviates, which may already be cached and find the
      ;; yrange value for the active ROIs
-     deviates = self->deviates(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
-     yrange = minmax(deviates[self->ROI_Xin_idx(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)], /nan)
+     deviates = pfo_obj->deviates(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
+     yrange = minmax(deviates[pfo_obj->ROI_Xin_idx(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)], /nan)
 
      resid_position = [0.1,0.08, 0.98, 0.25]
      plot, [0], $
@@ -331,7 +368,7 @@ pro pfo_plot_obj::plot, $
      endif ;; not debugging
      call_procedure, $
         oplot_call_list[ip], $ ;; oplot procedure name
-        Xin=*self.pXin, $ ;; Xin from pfo_obj passed by reference to save memory
+        Xin=Xin, $ 	;; Xin from pfo_obj
         xaxis=xaxis, $ ;; X-axis from pfo_obj->plot, so xaxes lines up
         Xunits=Xunits, $ ;; determines if Xaxis reads in Xin or Xaxis
         Yunits=Yunits, $ ;; When X-axis reads in Xaxis, determines if Yaxis reads in Yin or Yin/(dXaxis/dXin)
@@ -339,8 +376,8 @@ pro pfo_plot_obj::plot, $
         idx=idx, $ ;; idx into parinfo for which plot is desired (unusual)
         ispec=ispec, $ ;; ispec(s) to plot
         iROI=iROI, $ ;; iROI(s) to plot
-        pfo_obj=self, $ ;; pfo_obj encapsulating data, parinfo, etc.
-        calc_args=calc_args, $ ;; arguments to self->[XY]axis(), etc. which eventually get passed down to __calc "methods" of pfo functions
+        pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating data, parinfo, etc.
+        calc_args=calc_args, $ ;; arguments to pfo_obj->[XY]axis(), etc. which eventually get passed down to __calc "methods" of pfo functions
         _EXTRA=extra ;; EXTRA args passed to oplot routines
   endfor ;; each oplot procedure
 
@@ -348,12 +385,6 @@ pro pfo_plot_obj::plot, $
   if keyword_set(PS_fname) then begin
      ;; Close PS file
      device, /close
-     ;; Set things back to the previous state
-     set_plot, device_name
-     !p.background = background
-     !p.color = color
-     !p.font = font
-     !p.charsize = charsize
      ;; Reset our PS fname
      self.plot_PS_fname = ''
   endif else begin 
@@ -363,16 +394,26 @@ pro pfo_plot_obj::plot, $
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        window, plot_window, retain=retain, xsize=xsize, ysize=ysize
-     endif ;; Catching no plot_window open yet
-     ;; The wset will raise an error if the window is not open
-     ;; (e.g. ->plot not issued from a widget)
-     wset, plot_window
+        window, window_index, retain=retain, xsize=xsize, ysize=ysize
+     endif ;; Catching no window_index open yet
+     ;; The wset will raise an error if the window is not open (unless
+     ;; window_index=0) (e.g. ->plot not issued from a widget)
+     wset, window_index
      device, copy=[0,0,!D.X_size, !D.Y_size, 0, 0, buffer_window]
      wdelete, buffer_window
-     ;; Put our decomposed state back
+     ;; Put our color state back.  The device visual name cannot be
+     ;; changed after first use, so don't bother trying.
      device, decomposed=user_decomposed
   endelse ;; PS vs regular windows
+
+  ;; Put our plot device back to it original state
+  set_plot, device_name
+
+  ;; Set system variables back to their original states
+  !p.background = background
+  !p.color = color
+  !p.font = font
+  !p.charsize = charsize
 
   ;; Return color table to its original value
   tvlct, user_r, user_g, user_b
@@ -380,8 +421,8 @@ pro pfo_plot_obj::plot, $
   ;; Return our encapsulated and command-line parinfos to their
   ;; original state.
   if N_elements(Eparinfo) ne 0 then begin
-     parinfo_in = temporary(*self.pparinfo)
-     *self.pparinfo = temporary(Eparinfo)
+     parinfo_in = pfo_obj->parinfo(/no_copy)
+     pfo_obj->set_property, parinfo_array=Eparinfo, /no_copy, /no_repopulate
      ;; Make sure to invalidate any caches that were made with
      ;; that parinfo
      self->invalidate_cache
@@ -391,7 +432,7 @@ pro pfo_plot_obj::plot, $
 end
 
 pro pfo_plot_obj::get_property, $
-      plot_window	= plot_window      , $
+      window_index	= window_index      , $
       plot_xsize	= plot_xsize       , $
       plot_ysize	= plot_ysize       , $
       plot_retain	= plot_retain      , $
@@ -414,7 +455,7 @@ pro pfo_plot_obj::get_property, $
       plot_iROI	      	= plot_iROI      , $      
       oplot_call_list  	= oplot_call_list
 
-  if arg_present(plot_window      ) or N_elements(plot_window      ) gt 0 then plot_window      = self.plot_window      
+  if arg_present(window_index      ) or N_elements(window_index      ) gt 0 then window_index      = self.plot_window_index      
   if arg_present(plot_xsize       ) or N_elements(plot_xsize       ) gt 0 then plot_xsize       = self.plot_xsize       
   if arg_present(plot_ysize       ) or N_elements(plot_ysize       ) gt 0 then plot_ysize       = self.plot_ysize       
   if arg_present(plot_retain      ) or N_elements(plot_retain      ) gt 0 then plot_retain      = self.plot_retain      
@@ -440,7 +481,7 @@ pro pfo_plot_obj::get_property, $
 end
 
 pro pfo_plot_obj::set_property, $
-      plot_window	= plot_window      , $
+      window_index	= window_index      , $
       plot_xsize	= plot_xsize       , $
       plot_ysize	= plot_ysize       , $
       plot_retain	= plot_retain      , $
@@ -463,7 +504,7 @@ pro pfo_plot_obj::set_property, $
       plot_iROI	      	= plot_iROI      , $      
       oplot_call_list  	= oplot_call_list
 
-  if N_elements(plot_window      ) gt 0 then self.plot_window       = plot_window      
+  if N_elements(window_index      ) gt 0 then self.plot_window_index       = window_index      
   if N_elements(plot_xsize       ) gt 0 then self.plot_xsize        = plot_xsize       
   if N_elements(plot_ysize       ) gt 0 then self.plot_ysize        = plot_ysize       
   if N_elements(plot_retain      ) gt 0 then self.plot_retain       = plot_retain      
@@ -491,8 +532,6 @@ end
 
 ;; Each inherited class should have a descr method.
 function pfo_plot_obj::descr
-
-  init = {pfo_sysvar}
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -534,8 +573,6 @@ end
 function pfo_plot_obj::init, $
    _REF_EXTRA=extra
 
-  init = {pfo_sysvar}
-
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
      CATCH, err
@@ -563,7 +600,7 @@ function pfo_plot_obj::init, $
                         {PROPERTY: property[good_idx]}
 
   ;; Initialize our non-pointer property
-  self.plot_window = !pfo.plotwin
+  self.plot_window_index = !pfo.window_index
   self.plot_xsize = 640
   self.plot_ysize = 512
   self.plot_retain = 2 ;; IDL does the backing store
@@ -597,14 +634,16 @@ function pfo_plot_obj::init, $
 end
 
 pro pfo_plot_obj__define
-  ;; Define our pfo_oplot_obj first.  !pfo.pfo_oplot_obj_file should
-  ;; define pfo_oplot_obj.  Doing it this way lets us modify the
-  ;; default pfo_oplot_obj
-  
+
+  ;; Make sure our system variables are defined for all of the
+  ;; routines in this object
+  init = {tok_sysvar}
+  init = {pfo_sysvar}
+
   objectClass = $
      {pfo_plot_obj, $
       ppfo_plot_obj_descr: ptr_new(), $  ;; Pointer to description structure
-      plot_window	: 0, $ ;; window number into which plot will be 
+      plot_window_index	: 0, $ ;; window number into which plot will be 
       plot_xsize	: 0, $ ;; X-dimension of plot window (pixels)
       plot_ysize	: 0, $ ;; Y-dimension of plot window (pixels
       plot_retain	: 0, $ ;; 
@@ -625,7 +664,8 @@ pro pfo_plot_obj__define
       plot_Yin_Xaxis_title	: '', $ ;; title for X-axis plots when Xunits=!pfo.Xaxis and Yunits=!pfo.Xaxis (e.g. counts/keV)
       pplot_ispec	: ptr_new(), $ ;; pointer to (list of) ispecs to plot
       pplot_iROI	: ptr_new(), $ ;; pointer to (list of) iROIs to plot
-      poplot_call_list	: ptr_new() $ ;; a list of procedures which will overplot information on the main plot window
+      poplot_call_list	: ptr_new(), $ ;; a list of procedures which will overplot information on the main plot window
+      pplotwin_cw_obj_list: ptr_new()  $ ;; list of plotwin_cw_objs that are registered with this pfo_obj
      }
       
 end
