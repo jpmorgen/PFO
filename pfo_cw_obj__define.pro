@@ -50,9 +50,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cw_obj__define.pro,v 1.1 2011/09/01 22:12:51 jpmorgen Exp $
+; $Id: pfo_cw_obj__define.pro,v 1.2 2011/09/03 15:30:03 jpmorgen Exp $
 ;
 ; $Log: pfo_cw_obj__define.pro,v $
+; Revision 1.2  2011/09/03 15:30:03  jpmorgen
+; ABout to experiment with no child, but having everything in parent to
+; see if that speeds things up
+;
 ; Revision 1.1  2011/09/01 22:12:51  jpmorgen
 ; Initial revision
 ;
@@ -359,6 +363,12 @@ function pfo_cw_obj::init, $
         self.mbarID = !tok.nowhere
      endelse ;; mbar
   endif else begin
+     ;; Widgets are immediately realized in a base that is already
+     ;; realized, even if update=0.  This slows things down
+     ;; significantly.  Issuing a widget_control, update=0 here
+     ;; doesn't speed things up, but does keep container window
+     ;; blanked longer in LINUX.  In Windows, it has no effect.
+
      ;; Regular compound widget case
      self.tlbID = widget_base(self.parentID, _EXTRA=extra)
   endelse
