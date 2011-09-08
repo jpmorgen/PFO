@@ -43,9 +43,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_obj__define.pro,v 1.4 2011/09/01 22:13:01 jpmorgen Exp $
+; $Id: pfo_plot_obj__define.pro,v 1.5 2011/09/08 20:02:19 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_obj__define.pro,v $
+; Revision 1.5  2011/09/08 20:02:19  jpmorgen
+; Added property_set flag so that replot can be called at the
+; appropriate time
+;
 ; Revision 1.4  2011/09/01 22:13:01  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -432,28 +436,28 @@ pro pfo_plot_obj::plot, $
 end
 
 pro pfo_plot_obj::get_property, $
-      window_index	= window_index      , $
-      plot_xsize	= plot_xsize       , $
-      plot_ysize	= plot_ysize       , $
-      plot_retain	= plot_retain      , $
-      plot_PS_fname	= plot_PS_fname    , $
-      plot_PS_charsize  = plot_PS_charsize , $
-      plot_TT_font_name	= plot_TT_font_name, $
-      plot_win_charsize	= plot_win_charsize, $
-      plot_Xin_range    = plot_Xin_range      , $
-      plot_Xaxis_range  = plot_Xaxis_range    , $
-      plot_Yaxis_range  = plot_Yaxis_range    , $
-      plot_Xunits     	= plot_Xunits    , $
-      plot_Yunits     	= plot_Yunits    , $
-      plot_xlog	      	= plot_xlog      , $      
-      plot_ylog	      	= plot_ylog      , $      
-      plot_Xin_title	= plot_Xin_title      , $      
-      plot_Xaxis_title  = plot_Xaxis_title    , $
-      plot_Yin_Xin_title= plot_Yin_Xin_title  , $
-      plot_Yin_Xaxis_title= plot_Yin_Xaxis_title, $
-      plot_ispec      	= plot_ispec     , $
-      plot_iROI	      	= plot_iROI      , $      
-      oplot_call_list  	= oplot_call_list
+   window_index	= window_index      , $
+   plot_xsize	= plot_xsize       , $
+   plot_ysize	= plot_ysize       , $
+   plot_retain	= plot_retain      , $
+   plot_PS_fname	= plot_PS_fname    , $
+   plot_PS_charsize  = plot_PS_charsize , $
+   plot_TT_font_name	= plot_TT_font_name, $
+   plot_win_charsize	= plot_win_charsize, $
+   plot_Xin_range    = plot_Xin_range      , $
+   plot_Xaxis_range  = plot_Xaxis_range    , $
+   plot_Yaxis_range  = plot_Yaxis_range    , $
+   plot_Xunits     	= plot_Xunits    , $
+   plot_Yunits     	= plot_Yunits    , $
+   plot_xlog	      	= plot_xlog      , $      
+   plot_ylog	      	= plot_ylog      , $      
+   plot_Xin_title	= plot_Xin_title      , $      
+   plot_Xaxis_title  = plot_Xaxis_title    , $
+   plot_Yin_Xin_title= plot_Yin_Xin_title  , $
+   plot_Yin_Xaxis_title= plot_Yin_Xaxis_title, $
+   plot_ispec      	= plot_ispec     , $
+   plot_iROI	      	= plot_iROI      , $      
+   oplot_call_list  	= oplot_call_list
 
   if arg_present(window_index      ) or N_elements(window_index      ) gt 0 then window_index      = self.plot_window_index      
   if arg_present(plot_xsize       ) or N_elements(plot_xsize       ) gt 0 then plot_xsize       = self.plot_xsize       
@@ -481,51 +485,120 @@ pro pfo_plot_obj::get_property, $
 end
 
 pro pfo_plot_obj::set_property, $
-      window_index	= window_index      , $
-      plot_xsize	= plot_xsize       , $
-      plot_ysize	= plot_ysize       , $
-      plot_retain	= plot_retain      , $
-      plot_PS_fname	= plot_PS_fname    , $
-      plot_PS_charsize  = plot_PS_charsize , $
-      plot_TT_font_name	= plot_TT_font_name, $
-      plot_win_charsize	= plot_win_charsize, $
-      plot_Xin_range    = plot_Xin_range      , $
-      plot_Xaxis_range  = plot_Xaxis_range    , $
-      plot_Yaxis_range  = plot_Yaxis_range    , $
-      plot_Xunits     	= plot_Xunits    , $
-      plot_Yunits     	= plot_Yunits    , $
-      plot_xlog	      	= plot_xlog      , $      
-      plot_ylog	      	= plot_ylog      , $      
-      plot_Xin_title	= plot_Xin_title      , $      
-      plot_Xaxis_title  = plot_Xaxis_title    , $
-      plot_Yin_Xin_title= plot_Yin_Xin_title  , $
-      plot_Yin_Xaxis_title= plot_Yin_Xaxis_title, $
-      plot_ispec      	= plot_ispec     , $
-      plot_iROI	      	= plot_iROI      , $      
-      oplot_call_list  	= oplot_call_list
+   window_index	= window_index      , $
+   plot_xsize	= plot_xsize       , $
+   plot_ysize	= plot_ysize       , $
+   plot_retain	= plot_retain      , $
+   plot_PS_fname	= plot_PS_fname    , $
+   plot_PS_charsize  = plot_PS_charsize , $
+   plot_TT_font_name	= plot_TT_font_name, $
+   plot_win_charsize	= plot_win_charsize, $
+   plot_Xin_range    = plot_Xin_range      , $
+   plot_Xaxis_range  = plot_Xaxis_range    , $
+   plot_Yaxis_range  = plot_Yaxis_range    , $
+   plot_Xunits     	= plot_Xunits    , $
+   plot_Yunits     	= plot_Yunits    , $
+   plot_xlog	      	= plot_xlog      , $      
+   plot_ylog	      	= plot_ylog      , $      
+   plot_Xin_title	= plot_Xin_title      , $      
+   plot_Xaxis_title  = plot_Xaxis_title    , $
+   plot_Yin_Xin_title= plot_Yin_Xin_title  , $
+   plot_Yin_Xaxis_title= plot_Yin_Xaxis_title, $
+   plot_ispec      	= plot_ispec     , $
+   plot_iROI	      	= plot_iROI      , $      
+   oplot_call_list  	= oplot_call_list, $
+   property_set=property_set ;; returns 0 if no property was set, 1 if property was set
 
-  if N_elements(window_index      ) gt 0 then self.plot_window_index       = window_index      
-  if N_elements(plot_xsize       ) gt 0 then self.plot_xsize        = plot_xsize       
-  if N_elements(plot_ysize       ) gt 0 then self.plot_ysize        = plot_ysize       
-  if N_elements(plot_retain      ) gt 0 then self.plot_retain       = plot_retain      
-  if N_elements(plot_PS_fname    ) gt 0 then self.plot_PS_fname     = plot_PS_fname    
-  if N_elements(plot_PS_charsize ) gt 0 then self.plot_PS_charsize  = plot_PS_charsize 
-  if N_elements(plot_TT_font_name) gt 0 then self.plot_TT_font_name = plot_TT_font_name
-  if N_elements(plot_win_charsize) gt 0 then self.plot_win_charsize = plot_win_charsize
-  if N_elements(plot_Xin_range   ) gt 0 then *self.pXin_range       = plot_Xin_range        
-  if N_elements(plot_Xaxis_range ) gt 0 then *self.pXaxis_range     = plot_Xaxis_range      
-  if N_elements(plot_Yaxis_range ) gt 0 then *self.pYaxis_range     = plot_Yaxis_range      
-  if N_elements(plot_Xunits      ) gt 0 then self.plot_Xunits       = plot_Xunits      
-  if N_elements(plot_Yunits      ) gt 0 then self.plot_Yunits       = plot_Yunits      
-  if N_elements(plot_xlog        ) gt 0 then self.plot_xlog	    = plot_xlog	       
-  if N_elements(plot_ylog        ) gt 0 then self.plot_ylog	    = plot_ylog	       
-  if N_elements(plot_Xin_title   ) gt 0 then self.plot_Xin_title	    = plot_Xin_title	       
-  if N_elements(plot_Xaxis_title ) gt 0 then self.plot_Xaxis_title       = plot_Xaxis_title      
-  if N_elements(plot_Yin_Xin_title) gt 0 then self.plot_Yin_Xin_title    = plot_Yin_Xin_title    
-  if N_elements(plot_Yin_Xaxis_title) gt 0 then self.plot_Yin_Xaxis_title= plot_Yin_Xaxis_title  
-  if N_elements(plot_ispec       ) gt 0 then *self.pplot_ispec      = plot_ispec       
-  if N_elements(plot_iROI	 ) gt 0 then *self.pplot_iROI	    = plot_iROI	       
-  if N_elements(oplot_call_list  ) gt 0 then *self.poplot_call_list = oplot_call_list  
+  property_set = 0
+
+  if N_elements(window_index      ) gt 0 then begin
+     self.plot_window_index       = window_index      
+     property_set = 1
+  endif
+  if N_elements(plot_xsize       ) gt 0 then begin
+     self.plot_xsize        = plot_xsize       
+     property_set = 1
+  endif
+  if N_elements(plot_ysize       ) gt 0 then begin
+     self.plot_ysize        = plot_ysize       
+     property_set = 1
+  endif
+  if N_elements(plot_retain      ) gt 0 then begin
+     self.plot_retain       = plot_retain      
+     property_set = 1
+  endif
+  if N_elements(plot_PS_fname    ) gt 0 then begin
+     self.plot_PS_fname     = plot_PS_fname    
+     property_set = 1
+  endif
+  if N_elements(plot_PS_charsize ) gt 0 then begin
+     self.plot_PS_charsize  = plot_PS_charsize 
+     property_set = 1
+  endif
+  if N_elements(plot_TT_font_name) gt 0 then begin
+     self.plot_TT_font_name = plot_TT_font_name
+     property_set = 1
+  endif
+  if N_elements(plot_win_charsize) gt 0 then begin
+     self.plot_win_charsize = plot_win_charsize
+     property_set = 1
+  endif
+  if N_elements(plot_Xin_range   ) gt 0 then begin
+     *self.pXin_range       = plot_Xin_range        
+     property_set = 1
+  endif
+  if N_elements(plot_Xaxis_range ) gt 0 then begin
+     *self.pXaxis_range     = plot_Xaxis_range      
+     property_set = 1
+  endif
+  if N_elements(plot_Yaxis_range ) gt 0 then begin
+     *self.pYaxis_range     = plot_Yaxis_range      
+     property_set = 1
+  endif
+  if N_elements(plot_Xunits      ) gt 0 then begin
+     self.plot_Xunits       = plot_Xunits      
+     property_set = 1
+  endif
+  if N_elements(plot_Yunits      ) gt 0 then begin
+     self.plot_Yunits       = plot_Yunits      
+     property_set = 1
+  endif
+  if N_elements(plot_xlog        ) gt 0 then begin
+     self.plot_xlog	    = plot_xlog	       
+     property_set = 1
+  endif
+  if N_elements(plot_ylog        ) gt 0 then begin
+     self.plot_ylog	    = plot_ylog	       
+     property_set = 1
+  endif
+  if N_elements(plot_Xin_title   ) gt 0 then begin
+     self.plot_Xin_title	    = plot_Xin_title	       
+     property_set = 1
+  endif
+  if N_elements(plot_Xaxis_title ) gt 0 then begin
+     self.plot_Xaxis_title       = plot_Xaxis_title      
+     property_set = 1
+  endif
+  if N_elements(plot_Yin_Xin_title) gt 0 then begin
+     self.plot_Yin_Xin_title    = plot_Yin_Xin_title    
+     property_set = 1
+  endif
+  if N_elements(plot_Yin_Xaxis_title) gt 0 then begin
+     self.plot_Yin_Xaxis_title= plot_Yin_Xaxis_title  
+     property_set = 1
+  endif
+  if N_elements(plot_ispec       ) gt 0 then begin
+     *self.pplot_ispec      = plot_ispec       
+     property_set = 1
+  endif
+  if N_elements(plot_iROI	 ) gt 0 then begin 
+     *self.pplot_iROI	    = plot_iROI	       
+     property_set = 1
+  endif
+  if N_elements(oplot_call_list  ) gt 0 then begin
+     *self.poplot_call_list = oplot_call_list  
+     property_set = 1
+  endif
 
 end
 
@@ -667,5 +740,5 @@ pro pfo_plot_obj__define
       poplot_call_list	: ptr_new(), $ ;; a list of procedures which will overplot information on the main plot window
       pplotwin_cw_obj_list: ptr_new()  $ ;; list of plotwin_cw_objs that are registered with this pfo_obj
      }
-      
+  
 end
