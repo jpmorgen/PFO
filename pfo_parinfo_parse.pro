@@ -164,9 +164,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.4 2011/09/01 22:16:44 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.5 2011/09/08 20:07:41 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.5  2011/09/08 20:07:41  jpmorgen
+; Fix bug with no initial parinfo in widget (work in progress)
+;
 ; Revision 1.4  2011/09/01 22:16:44  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -372,7 +375,13 @@ function pfo_parinfo_parse, $
         if NOT widget_info(containerID, /valid_ID) then $
            message, 'ERROR: invalid containerID.  This should not happen.  Are you using containerID in your calling routine?'
 
-        ;; If we made it here, we have a valid containerID into which to dump our pfo function widgets
+        ;; If we made it here, we have a valid containerID into which to dump our pfo function widgets.  Handle the case
+        ;; where we have no function
+        if N_elements(parinfo) eq 0 then begin
+           rowID = widget_base(containerID, /row, /base_align_center)
+           ID = pfo_finit_cw(rowID, pfo_obj=pfo_obj)
+           return, rowID
+        endif
 
      end ;; widget
 
@@ -443,7 +452,7 @@ function pfo_parinfo_parse, $
                  ;; unwrap
                  no_ROI_idx = use_idx[no_ROI_idx]
                  ;; pfo_Xaxis takes care of filtering out the no_ROI_idx that don't contribute to the Xaxis
-                 ROI_Xaxis = pfo_Xaxis(Xin, params, parinfo=parinfo, idx=no_ROI_idx, $
+                 ROI_Xaxis = pfo_Xaxis(parinfo, Xin=Xin, params=params, idx=no_ROI_idx, $
                                        _EXTRA=extra)
               endif ;; some non-ROI parameters in the parinfo
            endif ;; some ROIs in Xaxis coordinates
