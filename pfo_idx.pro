@@ -5,7 +5,7 @@
 ;
 ; CATEGORY: arrays
 ;
-; CALLING SEQUENCE: pfo_idx, array[, idx][, type=type]
+; CALLING SEQUENCE: pfo_idx, array[, idx][, type=type][,created=created][, N_array=N_array]
 
 ; DESCRIPTION: 
 
@@ -70,9 +70,12 @@
 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_idx.pro,v 1.3 2011/09/01 22:28:25 jpmorgen Exp $
+; $Id: pfo_idx.pro,v 1.4 2011/09/08 20:19:13 jpmorgen Exp $
 ;
 ; $Log: pfo_idx.pro,v $
+; Revision 1.4  2011/09/08 20:19:13  jpmorgen
+; Updated documentation
+;
 ; Revision 1.3  2011/09/01 22:28:25  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
