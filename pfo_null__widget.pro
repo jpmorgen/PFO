@@ -46,9 +46,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__widget.pro,v 1.1 2011/09/01 22:11:11 jpmorgen Exp $
+; $Id: pfo_null__widget.pro,v 1.2 2011/09/08 20:01:17 jpmorgen Exp $
 ;
 ; $Log: pfo_null__widget.pro,v $
+; Revision 1.2  2011/09/08 20:01:17  jpmorgen
+; Played with /align_right and found it not necessary.  It seems to mess
+; with widget_label in pfo_parinfo_error_xw
+;
 ; Revision 1.1  2011/09/01 22:11:11  jpmorgen
 ; Initial revision
 ;
@@ -81,15 +85,16 @@ pro pfo_null_cw_obj::populate, $
 
   
   ;; Do basic function consistency checking
-  self.pfo_obj->parinfo_call_procedure, 'pfo_fcheck', fname, params=params, idx=*self.pidx, pfo_obj=self.pfo_obj
+  self.pfo_obj->parinfo_call_procedure, $
+     /no_update, 'pfo_fcheck', fname, params=params, idx=*self.pidx, pfo_obj=self.pfo_obj
 
   ;; Work out our default layout.
   if keyword_set(param_names_only) + keyword_set(brief) + keyword_set(full) eq 0 then $
      full = 1
   if keyword_set(param_names_only) + keyword_set(brief) + keyword_set(full) ne 1 then $
      message, 'ERROR: specify only one keyword: param_names_only, brief, or full.  Default is brief.'
-
-  ;; Define our column widths
+  
+  ;; Define our column widths.
   units = !tok.inches
   parname_width = 0.75
   val_width = 1.
@@ -109,31 +114,32 @@ pro pfo_null_cw_obj::populate, $
 
      ;; Create a row widget into which to put our column headings
      rowID = widget_base(self.containerID, /row, /base_align_center)
-     ID = widget_label(rowID, value='Param name', xsize=parname_width, units=units, /align_right)
-     ID = widget_label(rowID, value='Left limit', xsize=val_width, units=units, /align_right)
-     ID = widget_label(rowID, value=' L  ', xsize=delim_width, units=units, /align_right)
-     ID = widget_label(rowID, value='Value', xsize=val_width, units=units, /align_right)
-     ID = widget_label(rowID, value='', xsize=delim_width, units=units, /align_right)
-     ID = widget_label(rowID, value='Error', xsize=err_width, units=units, /align_right)
-     ID = widget_label(rowID, value='L   ', xsize=delim_width, units=units, /align_right)
-     ID = widget_label(rowID, value='Right limit', xsize=val_width, units=units, /align_right)
+     ID = widget_label(rowID, value='Param name', xsize=parname_width, units=units)
+     ID = widget_label(rowID, value='Left limit', xsize=val_width, units=units)
+     ID = widget_label(rowID, value=' L  ', xsize=delim_width, units=units)
+     ID = widget_label(rowID, value='Value', xsize=val_width, units=units)
+     ID = widget_label(rowID, value='', xsize=delim_width, units=units)
+     ID = widget_label(rowID, value='Error', xsize=err_width, units=units)
+     ID = widget_label(rowID, value='L   ', xsize=delim_width, units=units)
+     ID = widget_label(rowID, value='Right limit', xsize=val_width, units=units)
      if keyword_set(include_mpstep) then begin
         mpside_width = delim_width*3
-        ID = widget_label(rowID, value='Step', xsize=val_width, units=units, /align_right)
-        ID = widget_label(rowID, value='Rel Step', xsize=val_width, units=units, /align_right)
-        ID = widget_label(rowID, value='MPside', xsize=mpside_width, units=units, /align_right)
-        ID = widget_label(rowID, value='MPmaxstep', xsize=val_width, units=units, /align_right)
+        ID = widget_label(rowID, value='Step', xsize=val_width, units=units)
+        ID = widget_label(rowID, value='Rel Step', xsize=val_width, units=units)
+        ID = widget_label(rowID, value='MPside', xsize=mpside_width, units=units)
+        ID = widget_label(rowID, value='MPmaxstep', xsize=val_width, units=units)
      endif ;; optional MPside stuff
      ;; Call the col_head sections of any other widget routines in
      ;; the parinfo structure.  Make use of the call procedure system
      ;; in the pfo_obj and then again at the struct level.
      junk = self.pfo_obj->parinfo_call_function( $
-            'pfo_struct_call_function', 'widget', rowID, /col_head, idx=*self.pidx, _EXTRA=extra)
+            /no_update, 'pfo_struct_call_function', 'widget', rowID, /col_head, $
+            idx=*self.pidx, _EXTRA=extra)
   endif ;; Preamble stuff
 
   ;; Get current values for things
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='pfo', inaxis=inaxis, outaxis=outaxis, $
      fop=fop, ftype=ftype, infunct=infunct, outfunct=outfunct, $
      pfoID=pfoID, fseq=fseq
@@ -219,42 +225,38 @@ pro pfo_null_cw_obj::populate, $
   ;; (e.g. pfo_ROI_struct).  This actually returns an array of
   ;; structures, where the ID.result is the array of widget IDs
   ID = self.pfo_obj->parinfo_call_function( $
-       'pfo_struct_call_function', 'widget', /equation, rowID, idx=*self.pidx, _EXTRA=extra)
+       /no_update, 'pfo_struct_call_function', 'widget', /equation, rowID, idx=*self.pidx, _EXTRA=extra)
 
   ;; PARAMETERS
   for ip=0, N_elements(*self.pidx)-1 do begin
-     ;; Get the information for this parameter
-     self.pfo_obj->parinfo_call_procedure, $
-        'pfo_struct_setget_tag', /get, idx=(*self.pidx)[ip], $
-        taglist_series=['mpfit_parinfo', 'pfo'], parname=parname, limits=limits, $
-        value=value, error=error, format=format, eformat=eformat
 
      ;; Create a row widget into which to put our parameters
      rowID = widget_base(self.containerID, /row, /base_align_center)
      ;; Parameter name.  widget_label width is in characters only
-     ID = widget_label(rowID, value=parname, xsize=parname_width, units=units, /align_right)
+     ID = widget_label(rowID, value=parname, xsize=parname_width, units=units)
      ;; Left limit
      ID = pfo_parinfo_limit_cw(rowID, side=!pfo.left, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                               xsize=val_width, units=units, /align_right)
+                               xsize=val_width, units=units)
      ;; Left deliminter
      ID = pfo_parinfo_delimiter_cw(rowID, side=!pfo.left, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                                   xsize=delim_width, units=units, /align_right)
+                                   xsize=delim_width, units=units)
      ;; Value
      ID = pfo_parinfo_value_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                               xsize=val_width, units=units, /align_right)
+                               xsize=val_width, units=units)
      ;; +/-
-     ID = widget_label(rowID, value='+/-', xsize=delim_width, units=units, /align_right)
+     ID = widget_label(rowID, value='+/-', xsize=delim_width, units=units)
      ;; Error
-     ID = widget_label(rowID, value=string(format=eformat, error), xsize=err_width, units=units, /align_right)
+     ID = pfo_parinfo_error_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                               xsize=err_width, units=units)
      ;; Right delimiter
      ID = pfo_parinfo_delimiter_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                                   xsize=delim_width, units=units, /align_right)
+                                   xsize=delim_width, units=units)
      ;; Right limit
      ID = pfo_parinfo_limit_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                               xsize=val_width, units=units, /align_right)
+                               xsize=val_width, units=units)
      
   ID = self.pfo_obj->parinfo_call_function( $
-       'pfo_struct_call_function', 'widget', /parameter, rowID, idx=*self.pidx, _EXTRA=extra)
+       /no_update, 'pfo_struct_call_function', 'widget', /parameter, rowID, idx=*self.pidx, _EXTRA=extra)
 
   end ;; each parameter
 
