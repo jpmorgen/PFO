@@ -23,9 +23,17 @@
 ;
 ; OPTIONAL INPUTS:
 ;
-; KEYWORD PARAMETERS: all keywords are passed to and from the
-; underlying routines via the _REF_EXTRA mechanism
-;
+; KEYWORD PARAMETERS: 
+
+;    update_only_tags: scaler or vector string.  Instead of running
+;    <tag>_struct__<method> for all the tags in parinfo, only run for
+;    the indicated tag(s).  This keyword is used, for instance, in
+;    individual <tag>_struct__update routines to resolve any order
+;    dependent interdependencies.
+
+;    all other keywords are passed to and from the
+;    underlying routines via the _REF_EXTRA mechanism
+
 ; OUTPUTS:
 ;
 ; OPTIONAL OUTPUTS:
@@ -46,9 +54,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct_call_procedure.pro,v 1.2 2011/09/01 22:24:34 jpmorgen Exp $
+; $Id: pfo_struct_call_procedure.pro,v 1.3 2011/09/08 20:18:12 jpmorgen Exp $
 ;
 ; $Log: pfo_struct_call_procedure.pro,v $
+; Revision 1.3  2011/09/08 20:18:12  jpmorgen
+; Added update_only_tags
+;
 ; Revision 1.2  2011/09/01 22:24:34  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -57,7 +68,12 @@
 ; Initial revision
 ;
 ;-
-pro pfo_struct_call_procedure, parinfo, method, _REF_EXTRA=extra
+pro pfo_struct_call_procedure, $
+   parinfo, $
+   method, $
+   p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, $
+   update_only_tags=update_only_tags, $
+   _REF_EXTRA=extra
 
   init = {pfo_sysvar}
   init = {tok_sysvar}
@@ -78,8 +94,13 @@ pro pfo_struct_call_procedure, parinfo, method, _REF_EXTRA=extra
   if N_elements(parinfo) + N_elements(method) eq 0 then $
     message, 'ERROR: required input parameter(s) parinfo and/or method are missing'
 
-  ;; Cycle through the top-level tags and call the <tag>_struct__methods
+  ;; Default is to cycle through the top-level tags and call any
+  ;; defined <tag>_struct__methods
   tns = tag_names(parinfo)
+  ;; The default list can be overrides with the update_only_tags keyword
+  if N_elements(update_only_tags) ne 0 then $
+     tns = update_only_tags
+
   for it=0, N_elements(tns)-1 do begin
      ;; For pfo debugging, we need to do this in two steps.  Always
      ;; quietly ignore routines that don't resolve. 
