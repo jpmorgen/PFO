@@ -64,9 +64,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_roi.pro,v 1.2 2011/08/02 15:43:39 jpmorgen Exp $
+; $Id: pfo_oplot_roi.pro,v 1.3 2011/09/08 20:15:21 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_roi.pro,v $
+; Revision 1.3  2011/09/08 20:15:21  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.2  2011/08/02 15:43:39  jpmorgen
 ; Release to Tom
 ; Removed parinfo argument to guarantee encapsulated parinfo is used
@@ -100,7 +103,8 @@ pro pfo_oplot_ROI, $
   ;; (optionally limited to idx.  We will be working with ROI_idx
   ;; until we want to calculate things like Yaxis or Xin_ROI_idx,
   ;; which might required other parameters
-  ROI_idx = pfo_obj->parinfo_call_function('pfo_fidx', 'pfo_ROI', idx=idx, nfunct=nfunct, pfo_obj=pfo_obj, /not_modified)
+  ROI_idx = pfo_obj->parinfo_call_function( $
+            /no_update, 'pfo_fidx', 'pfo_ROI', idx=idx, nfunct=nfunct, pfo_obj=pfo_obj)
   if nfunct eq 0 then $
      return
 
@@ -132,8 +136,8 @@ pro pfo_oplot_ROI, $
   ;; If ispec is defined, tispec is the subset of the the ispec(s) in
   ;; ispec found in parinfo[idx] (if any)
   ok = pfo_obj->parinfo_call_function( $
-       'pfo_ROI_list', idx=ROI_idx, ispec_in=ispec, ispec_out=tispec, $
-       N_ispec_out=N_tispec, /not_modified)
+       /no_update, 'pfo_ROI_list', idx=ROI_idx, ispec_in=ispec, ispec_out=tispec, $
+       N_ispec_out=N_tispec)
 
   ;; Cycle through each ispec.  The entire loop is skipped if our
   ;; input ispec(s) were not found in the parinfo
@@ -141,15 +145,15 @@ pro pfo_oplot_ROI, $
      ;; Use pfo_ROI_list to get all of the iROIs in this tispec[is]
      ;; that match the input iROI criterion (if any).
      ok  = pfo_obj->parinfo_call_function( $
-           'pfo_ROI_list', idx=ROI_idx, ispec_in=tispec[is], iROI_in=iROI, $
-           iROI_out=tiROI, N_iroi_out=N_tiROI, /not_modified)
+           /no_update, 'pfo_ROI_list', idx=ROI_idx, ispec_in=tispec[is], iROI_in=iROI, $
+           iROI_out=tiROI, N_iroi_out=N_tiROI)
      ;; Loop through any tiROI that we might have found.  This is the
      ;; meat of our code.
      for iR=0, N_tiROI-1 do begin
         ;; Get the parinfo idx of this ROI so we can work with colors
         tROI_idx = pfo_obj->parinfo_call_function( $
-                   'pfo_ROI_idx', idx=ROI_idx, ispec_in=tispec[is], iROI=tiROI[iR], $
-                   count=count, /not_modified)
+                   /no_update, 'pfo_ROI_idx', idx=ROI_idx, ispec_in=tispec[is], iROI=tiROI[iR], $
+                   count=count)
         if count eq 0 then $
            message, 'ERROR: valid ispec/iROI found, but now there are no parinfo records.  This should not happen.'
 
@@ -158,7 +162,7 @@ pro pfo_oplot_ROI, $
         thick = oplot_ROI_thick
         ;; Color from pfo_ROI tag.  Just grab the 0th ROI parameter
         pfo_obj->parinfo_call_procedure, $
-           'pfo_struct_setget_tag', /get, idx=tROI_idx[0], $
+           /no_update, 'pfo_struct_setget_tag', /get, idx=tROI_idx[0], $
            taglist_series='pfo_ROI', ROI_color=color
 
         ;; If color is not set in the pfo_ROI tag, pick a color based
@@ -194,9 +198,9 @@ pro pfo_oplot_ROI, $
         ;; the original idx rather than tROI_idx, since we might have
         ;; an Xin to Xaxis transformation to make.
         Xin_idx = pfo_obj->parinfo_call_function( $
-                  'pfo_ROI_Xin_idx', Xin=Xin, params=params, idx=idx, $
+                  /no_update, 'pfo_ROI_Xin_idx', Xin=Xin, params=params, idx=idx, $
                   ispec=tispec[is], iROI=tiROI[iR], $
-                  pfo_obj=pfo_obj, _EXTRA=calc_args, /not_modified)
+                  pfo_obj=pfo_obj, _EXTRA=calc_args)
 
         oplot, xaxis[Xin_idx], yaxis[Xin_idx], color=color, psym=oplot_data_psym, $
                thick=thick, _EXTRA=oplot_ROI_extra

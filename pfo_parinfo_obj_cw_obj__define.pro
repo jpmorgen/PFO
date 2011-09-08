@@ -77,9 +77,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj_cw_obj__define.pro,v 1.1 2011/09/01 22:13:33 jpmorgen Exp $
+; $Id: pfo_parinfo_obj_cw_obj__define.pro,v 1.2 2011/09/08 20:18:48 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj_cw_obj__define.pro,v $
+; Revision 1.2  2011/09/08 20:18:48  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:13:33  jpmorgen
 ; Initial revision
 ;
@@ -87,12 +90,15 @@
 
 ;; Repopulate method
 pro pfo_parinfo_obj_cw_obj::repopulate
+  ;; Repopulation automatically refreshes the parinfo widgets.  Call
+  ;; refresh with no idx or params to refresh all non-parinfo widgets.
+  ;; Do this first, since repopulation can be slow.
+  self->refresh
+
+  ;; Cycle through the cw_objs on our repop list one by one
   for iw=0,N_elements(*self.pparinfo_repop_list)-1 do begin
      (*self.pparinfo_repop_list)[iw]->repopulate
-  endfor
-  ;; Repopulation automatically refreshes the parinfo widgets.  This should
-  ;; catch everything else.
-  self->refresh
+  endfor ;; each repop 
 end
 
 ;; Unregister a cw_obj from our repopulate list

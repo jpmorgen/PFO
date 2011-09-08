@@ -56,9 +56,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_container_cw.pro,v 1.1 2011/09/01 22:19:31 jpmorgen Exp $
+; $Id: pfo_parinfo_container_cw.pro,v 1.2 2011/09/08 20:15:08 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_container_cw.pro,v $
+; Revision 1.2  2011/09/08 20:15:08  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:19:31  jpmorgen
 ; Initial revision
 ;
@@ -85,7 +88,7 @@ pro pfo_parinfo_container_cw_obj::repopulate
   ;; widgets to persist across calls to repopulate.  This might be
   ;; possible, but would take some property to keep track of it.
   junk = self.pfo_obj->parinfo_call_function( $
-         'pfo_parinfo_parse', /widget, pfo_obj=self.pfo_obj, $
+         /no_update, 'pfo_parinfo_parse', /widget, pfo_obj=self.pfo_obj, $
          containerID=self.containerID, $
          _EXTRA=*self.pextra)
 

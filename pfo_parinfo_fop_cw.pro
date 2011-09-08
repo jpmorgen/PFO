@@ -36,9 +36,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_fop_cw.pro,v 1.1 2011/09/01 22:19:48 jpmorgen Exp $
+; $Id: pfo_parinfo_fop_cw.pro,v 1.2 2011/09/08 20:14:59 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_fop_cw.pro,v $
+; Revision 1.2  2011/09/08 20:14:59  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:19:48  jpmorgen
 ; Initial revision
 ;
@@ -61,17 +64,10 @@ function pfo_parinfo_fop_cw_obj::event, event
 
   ;; If we made it here, we have a valid change
 
-  ;; Get ready to change our value(s) in the parinfo
-  self->repopfresh_check, undo
-
   ;; Write it into the parinfo
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     /save_undo, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
      taglist_series='pfo', fop=event.index-1
-
-  ;; Change our value(s) in the parinfo.  This catches any errors and
-  ;; issues a refresh, if possible instead of a repopulate
-  self->repopfresh_check, undo
 
   return, retval
 end
@@ -81,7 +77,7 @@ function pfo_parinfo_fop_cw_obj::get_fop_string
 
   ;; Get output fop and fop current values
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='pfo', fop=fop, ftype=ftype
 
   junk = uniq(fop, sort(fop))
