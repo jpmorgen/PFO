@@ -85,9 +85,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mode.pro,v 1.3 2011/09/01 22:28:02 jpmorgen Exp $
+; $Id: pfo_mode.pro,v 1.4 2011/09/08 20:00:10 jpmorgen Exp $
 ;
 ; $Log: pfo_mode.pro,v $
+; Revision 1.4  2011/09/08 20:00:10  jpmorgen
+; Fixed bug in /permanent /cancel_permanent
+;
 ; Revision 1.3  2011/09/01 22:28:02  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -125,6 +128,16 @@ pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
   ;; Narrow with pfo_ROI_idx
   idx = pfo_ROI_idx(parinfo, idx=idx, _EXTRA=extra)
 
+  ;; Handle the /permanent and /cancel_permanent switches
+  if keyword_set(permanent) + keyword_set(non_permanent) gt 1 then $
+     message, 'ERROR: specify permanent, non_permanent or neither, but not both.'
+  if keyword_set(permanent) then $
+     parinfo[idx].pfo.fixed_mode  = !pfo.permanent
+  if keyword_set(cancel_permanent) then $
+     parinfo[idx].pfo.fixed_mode  = !pfo.non_permanent
+  
+  ;; Get the indices of the parameters that we are going to be allowed
+  ;; to change (note this applies only to fixed and free)
   nonperm_idx = where(parinfo[idx].pfo.fixed_mode ne !pfo.permanent, nonperm_count)
 
   if N_elements(mode) eq 0 then $
@@ -162,27 +175,20 @@ pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
         parinfo[idx].fixed = parinfo[idx].pfo.ofixed
      end
      'fixed' : begin
-        ;; Handle our "permanent" flag
+        ;; If we have no parameters we are allowed to tweak, we are done
         if nonperm_count eq 0 then $
           BREAK
         ;; unwrap
         nonperm_idx = idx[nonperm_idx]
         parinfo[nonperm_idx].fixed  = !pfo.fixed
-        if keyword_set(permanent) then $
-          parinfo[nonperm_idx].pfo.fixed_mode  = !pfo.permanent
-        if keyword_set(cancel_permanent) then $
-          parinfo[nonperm_idx].pfo.fixed_mode  = !pfo.non_permanent
      end
      'free' : begin
+        ;; If we have no parameters we are allowed to tweak, we are done
         if nonperm_count eq 0 then $
           BREAK
         ;; unwrap
         nonperm_idx = idx[nonperm_idx]
         parinfo[nonperm_idx].fixed  = !pfo.free
-        if keyword_set(permanent) then $
-          parinfo[nonperm_idx].pfo.fixed_mode  = !pfo.permanent
-        if keyword_set(cancel_permanent) then $
-          parinfo[nonperm_idx].pfo.fixed_mode  = !pfo.non_permanent
      end
      'query' : 
      else : message, 'ERROR: invalid mode ' + strtrim(mode, 2)
