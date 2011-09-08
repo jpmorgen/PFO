@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_limit_cw.pro,v 1.1 2011/09/01 22:19:13 jpmorgen Exp $
+; $Id: pfo_parinfo_limit_cw.pro,v 1.2 2011/09/08 20:01:47 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_limit_cw.pro,v $
+; Revision 1.2  2011/09/08 20:01:47  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:19:13  jpmorgen
 ; Initial revision
 ;
@@ -47,7 +50,7 @@ function pfo_parinfo_limit_cw_obj::event, event
 
   ;; Check to see if we have changed our values
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='mpfit_parinfo', limits=limits
 
   widget_control, self.ID, get_value=w_limit
@@ -58,20 +61,13 @@ function pfo_parinfo_limit_cw_obj::event, event
 
   ;; If we made it here, we have a valid change
 
-  ;; Get ready to change our value(s) in the parinfo
-  self->repopfresh_check, undo
-
   ;; Prepare to write limits array
   limits[self.side] = w_limit
 
   ;; Write it into the parinfo
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     /save_undo, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
      taglist_series='mpfit_parinfo', limits=limits
-
-  ;; Change our value(s) in the parinfo.  This catches any errors and
-  ;; issues a refresh, if possible instead of a repopulate
-  self->repopfresh_check, undo
 
   return, retval
 end
@@ -83,7 +79,7 @@ pro pfo_parinfo_limit_cw_obj::refresh
 
   ;; Read our value from the parinfo
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='mpfit_parinfo', limits=limits
 
   widget_control, self.ID, set_value=limits[self.side]
@@ -95,7 +91,7 @@ pro pfo_parinfo_limit_cw_obj::populate, $
 
   ;; Read our value from the parinfo
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='mpfit_parinfo', limits=limits, format=format
 
   self.ID = pfo_cw_field(self.containerID, title='', /float, /return_events, $
@@ -140,8 +136,7 @@ function pfo_parinfo_limit_cw_obj::init, $
   ok = self->pfo_parinfo_cw_obj::init(parentID, _EXTRA=extra)
   if NOT ok then return, 0
 
-  ;; Register ourselves in the refresh list.  Since we have a list of
-  ;; idx, just use the first one
+  ;; Register ourselves in the refresh list.
   self->register_refresh
 
   ;; Create our container widget.  We need focus events to come from

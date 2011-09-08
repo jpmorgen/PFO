@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj__define.pro,v 1.3 2011/09/01 22:14:11 jpmorgen Exp $
+; $Id: pfo_parinfo_obj__define.pro,v 1.4 2011/09/08 19:59:41 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj__define.pro,v $
+; Revision 1.4  2011/09/08 19:59:41  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.3  2011/09/01 22:14:11  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -50,16 +53,21 @@
 ;
 ;-
 
-;; Print parinfo in full format
+;; Provide print, widget and indices methods for the parinfo
+;; encapsulated in the pfo_obj.  Also allow the ability to swap a
+;; parinfo in on the fly.  This ia a little dangerous, since we
+;; don't know where the external parinfo comes from, whether or
+;; not it has the same pfo_fstruct_array as encapsulated in the
+;; pfo_obj, etc.
 function pfo_parinfo_obj::print, $
    parinfo=parinfo, $ ;; Capture parinfo so we can get it into the object properly
+   pfo_fstruct_array=pfo_fstruct_array, $ ;; If external parinfo is being used, its pfo_fstruct_array should be passed too
    _REF_EXTRA=extra
 
   ;; Handle parinfo separately by swapping it in to the object
   if N_elements(parinfo) ne 0 then begin
      Eparinfo = temporary(*self.pparinfo)
      *self.pparinfo = temporary(parinfo)
-     self->invalidate_cache
   endif
 
   ;; This is the meat of our code
@@ -71,9 +79,6 @@ function pfo_parinfo_obj::print, $
   if N_elements(Eparinfo) ne 0 then begin
      parinfo = temporary(*self.pparinfo)
      *self.pparinfo = temporary(Eparinfo)
-     ;; Make sure to invalidate any caches that were made with
-     ;; that parinfo
-     self->invalidate_cache
   endif
 
   return, retval
@@ -88,7 +93,6 @@ function pfo_parinfo_obj::widget, $
   if N_elements(parinfo) ne 0 then begin
      Eparinfo = temporary(*self.pparinfo)
      *self.pparinfo = temporary(parinfo)
-     self->invalidate_cache
   endif
 
   ;; This is the meat of our code
@@ -100,9 +104,6 @@ function pfo_parinfo_obj::widget, $
   if N_elements(Eparinfo) ne 0 then begin
      parinfo = temporary(*self.pparinfo)
      *self.pparinfo = temporary(Eparinfo)
-     ;; Make sure to invalidate any caches that were made with
-     ;; that parinfo
-     self->invalidate_cache
   endif
 
   return, retval
@@ -117,7 +118,6 @@ function pfo_parinfo_obj::indices, $
   if N_elements(parinfo) ne 0 then begin
      Eparinfo = temporary(*self.pparinfo)
      *self.pparinfo = temporary(parinfo)
-     self->invalidate_cache
   endif
 
   ;; This is the meat of our code
@@ -129,9 +129,6 @@ function pfo_parinfo_obj::indices, $
   if N_elements(Eparinfo) ne 0 then begin
      parinfo = temporary(*self.pparinfo)
      *self.pparinfo = temporary(Eparinfo)
-     ;; Make sure to invalidate any caches that were made with
-     ;; that parinfo
-     self->invalidate_cache
   endif
 
   return, retval
@@ -147,7 +144,11 @@ end
 ;; but I think this is nicer than requiring only keywords.  If you
 ;; need to do more fiddling with internal self tags other than
 ;; parinfo, write another method (e.g. parinfo_template)
-pro pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, _REF_EXTRA=extra
+pro pfo_parinfo_obj::parinfo_call_procedure, $
+   proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, $
+   no_update=no_update, $ ;; (DANGEROUS!) call does not modify parinfo or caller will call update by hand
+   save_undo=save_undo, $ ;; Save current parinfo (before call, but after sucessful update) in undo list (if active)
+   _REF_EXTRA=extra
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -155,10 +156,13 @@ pro pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'ERROR: caught the above error.  Returning without doing any additional calculation.', /CONTINUE
+        message, 'ERROR: caught the above error.  Returning with what I have done so far.', /CONTINUE
         return
      endif
   endif ;; not debugging
+
+  if NOT keyword_set(no_update) then $
+     self->prepare_update, undo
 
   case N_params() of
      0: message, 'ERROR: Procedure name not supplied'
@@ -215,9 +219,17 @@ pro pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p
      else: message, 'ERROR: too many positional parameters: ' + strtrim(N_params(), 2)
   endcase 
 
+  if NOT keyword_set(no_update) then $
+     self->update, undo, save_undo=save_undo
+
+
 end
 
-function pfo_parinfo_obj::parinfo_call_function, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, _REF_EXTRA=extra
+function pfo_parinfo_obj::parinfo_call_function, $
+   proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, $
+   no_update=no_update, $ ;; (DANGEROUS!) call does not modify parinfo or caller will call update by hand
+   save_undo=save_undo, $ ;; Save current parinfo (before call, but after sucessful update) in undo list (if active)
+   _REF_EXTRA=extra
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -229,6 +241,9 @@ function pfo_parinfo_obj::parinfo_call_function, proc, p1, p2, p3, p4, p5, p6, p
         return, !values.d_NAN
      endif
   endif ;; not debugging
+
+  if NOT keyword_set(no_update) then $
+     self->prepare_update, undo
 
   case N_params() of 
      0: message, 'ERROR: Function name not supplied'
@@ -285,9 +300,14 @@ function pfo_parinfo_obj::parinfo_call_function, proc, p1, p2, p3, p4, p5, p6, p
      else: message, 'ERROR: too many positional parameters: ' + strtrim(N_params(), 2)
   endcase 
 
+  if NOT keyword_set(no_update) then $
+     self->update, undo, save_undo=save_undo
+
 end
 
 pro pfo_parinfo_obj::redo
+
+  ;; A valid object is our flag that we are keeping an undo/redo list
   if NOT obj_valid(self.parinfo_redo_obj) then $
      return
 
@@ -309,6 +329,8 @@ pro pfo_parinfo_obj::redo
 end
 
 pro pfo_parinfo_obj::undo
+
+  ;; A valid object is our flag that we are keeping an undo list
   if NOT obj_valid(self.parinfo_undo_obj) then $
      return
 
@@ -329,29 +351,201 @@ pro pfo_parinfo_obj::undo
 
 end
 
-;; Override the repopfresh_check method from pfo_parinfo_cw_obj so
-;; that we can implement the undo/redo list.  See
-;; that method for more documentation
-pro pfo_parinfo_cw_obj::repopfresh_check, $
-   undo
+pro pfo_parinfo_obj::save_undo, $
+   undo ;; optional -- current parinfo in self is used if not defined
 
-  if N_elements(undo) eq 0 then begin
-     ;; First time through
-     self->pfo_parinfo_cw_obj::repopfresh_check, undo
+  ;; A valid object is our flag that we are keeping an undo list
+  if NOT obj_valid(self.parinfo_undo_obj) then $
      return
-  endif ;; First time through
 
-  ;; If we made it here, this is our second time through
-  self->pfo_parinfo_cw_obj::repopfresh_check, undo
-
-  ;; Save off our undo to the undo list, if we are keeping one
-  if obj_valid(self.parinfo_undo_obj) then begin
+  ;; Add the specified undo parinfo or the current parinfo, if no
+  ;; explicit undo was specified
+  if N_elements(undo) ne 0 then begin
      self.parinfo_undo_obj->add, undo
-     ;; Since we are doing something, any redo of undos become invalid
-     self.parinfo_redo_obj->delete, /all
-  endif ;; handle undo/redo list
-     
+  endif else begin
+     self.parinfo_undo_obj->add, *self.pparinfo
+  endelse
 
+  ;; Doing something and saving it on the undo list implies that we
+  ;; cannot redo previous undos, so delete all the elements in the
+  ;; redo list
+  self.parinfo_undo_obj->delete, /all
+
+
+end
+
+;; Prepare_update should be run before any changes are made to the
+;; parinfo so that a proper undo can be saved.  If widgets are being
+;; displayed, prepare_update also makes sure that the pfo_unique tag
+;; is in the parinfo so that the proper decision can be made in ::
+;; update as to whether the widgets can be refreshed in place or the
+;; container widgets need to be repopulated.
+pro pfo_parinfo_obj::prepare_update, $
+   undo, $ ;; (optional input) previous state of parinfo before calling routine tweaked the encapsulated parinfo
+   _REF_EXTRA=extra
+
+  ;; Handle the case where we haven't been given an undo
+  if N_elements(undo) eq 0 then begin
+
+     ;; If we don't have a parinfo, we can't create an undo with it!
+     if N_elements(*self.pparinfo) eq 0 then $
+        return
+
+     ;; If we made it here, we have a parinfo.  Do a basic check to make
+     ;; sure that it is valid.
+
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        ;; Report on the console.  Note that adding to the message beefs
+        ;; up !error_state.msg for the widget display case
+        message, /NONAME, !error_state.msg + '  Undo will be undefined.', /CONTINUE
+        ;; If we have _any_ displayed widgets associated with this
+        ;; pfo_obj, report with a widget too
+        if N_elements(*self.pcw_obj_list) gt 0 then $
+           junk = dialog_message(!error_state.msg)
+        ;; return, leaving undo undefined
+        return
+     endif ;; error parsing existing parinfo
+
+     ;; Turn debugging on so that we can catch and report our
+     ;; pfo_parinfo_parse error
+     odebug = !pfo.debug
+     !pfo.debug = 1
+
+     junk = pfo_parinfo_parse(/indices, *self.pparinfo, pfo_obj=self, _extra=extra)
+
+     ;; If we made it here, pfo_parinfo_parse worked OK.  Put our debug
+     ;; level back to where it was.
+     !pfo.debug = odebug
+
+     ;; It is probably safe to assign undo to the existing parinfo
+     undo = *self.pparinfo
+
+  endif ;; creating an undo
+
+  ;; If we made it here, we have an undo that parses properly
+  
+  ;; If we have any widgets that display _parinfo_ stuff, make sure we
+  ;; have the pfo_unique tag, so that we can differentiate between the
+  ;; repopulate and refresh cases.  Only run update for pfo_unique
+  if N_elements(*self.pparinfo_repop_list) + $
+     N_elements(*self.pparinfo_refresh_list) gt 0 then begin
+     pfo_parinfo_update, undo, required_tags='pfo_unique', $
+                         update_only_tags='pfo_unique', pfo_obj=self
+  endif ;; have parinfo widgets     
+
+end
+
+;; Run all of the <tag>_struct__update "methods" of the parinfo
+;; top-level tags and repopulate or refresh any displayed widgets
+pro pfo_parinfo_obj::update, $
+   undo, $ ;; (optional input) previous state of parinfo before calling routine tweaked the encapsulated parinfo
+   save_undo=save_undo, $ ;; save our undo if the update was successful
+   no_widget=no_widget, $ ;; don't refresh or repopulate widgets (this routine must be called again to get them to display right!)
+   _REF_EXTRA=extra ;; passed to prepare_update and pfo_parinfo_update
+
+  ;; Catch any errors so we can put undo back
+  CATCH, err
+  if err ne 0 then begin
+     CATCH, /CANCEL
+     ;; Report error to console
+     message, /NONAME, !error_state.msg + '  Retraining with whatever I have done and reverting the encapsulated parinfo to previous state, if possible', /CONTINUE
+     ;; And with a dialog box if we have any displayed widgets
+     if N_elements(*self.pcw_obj_list) gt 0 then $
+        junk = dialog_message(!error_state.msg)
+     ;; Put our debug level back to where it was.
+     !pfo.debug = odebug
+     ;; As promised, set parinfo back to undo, if undo exists
+     if N_elements(undo) gt 0 then $
+        *self.pparinfo = undo
+     ;; Redisplay our widget to clear whatever we just changed
+     ;; Refresh non-parinfo widgets first
+     self->refresh
+     ;; Refresh parinfo widgets
+     pfo_idx, *self.pparinfo, idx
+     self->refresh, idx=idx
+     return
+  endif ;; catching our errors
+
+  ;; Turn debugging on so we can catch errors with our code above in
+  ;; the !pfo.debug=1 or =0 case
+  odebug = !pfo.debug
+  !pfo.debug = 1
+
+  ;; Run our updates in the parinfo.  This quietly returns if parinfo is undefined
+  pfo_parinfo_update, *self.pparinfo, pfo_obj=self, _EXTRA=extra
+  ;; Find the parsed order of our undo parinfo.  This quietly returns -1
+  ;; if undo is undefined
+  orig_indices = pfo_parinfo_parse(/indices, undo, pfo_obj=self, _EXTRA=extra)
+  ;; Find the new order of our indices.  This is the most likely place
+  ;; to get an error, since the user might have created a problem
+  new_indices = pfo_parinfo_parse(/indices, *self.pparinfo, pfo_obj=self, _EXTRA=extra)
+
+  ;; If we made it here, all of our update "methods" ran OK.  Put our debug
+  ;; level back to where it was.
+  !pfo.debug = odebug
+
+  ;; We are OK to save our undo, if asked to and if we were handed one
+  if keyword_set(save_undo) and N_elements(undo) ne 0 then $
+     self->save_undo, undo
+
+  ;; If we don't have widgets, our work is done
+  if N_elements(*self.pcw_obj_list) eq 0 or keyword_set(no_widget) then $
+     return
+
+  ;; If we have widgets that display _parinfo_ stuff, make sure we
+  ;; have the pfo_unique tag, on the parinfo (already should be on the
+  ;; undo) so that we can differentiate between the repopulate and
+  ;; refresh cases.  Only run update for pfo_unique
+  if N_elements(*self.pparinfo_repop_list) + $
+     N_elements(*self.pparinfo_refresh_list) gt 0 then begin
+     pfo_parinfo_update, *self.pparinfo, required_tags='pfo_unique', $
+                         update_only_tags='pfo_unique', pfo_obj=self
+  endif ;; have parinfo widgets     
+
+
+  ;; Get the old and new uniqueID.  These no not raise errors if undo or parinfo are undefined
+  pfo_struct_setget_tag, /get, undo, taglist_series='pfo_unique', uniqueID=orig_uniqueID
+  ;; Get the new uniqueID 
+  pfo_struct_setget_tag, /get, *self.pparinfo, taglist_series='pfo_unique', uniqueID=uniqueID
+
+  ;; Decide whether to refresh or repopulate.  Be careful of the case
+  ;; where we didn't get any sensible indices or uniqueID arrays back
+  ;; (e.g. undo or parinfo are undefined, not properly set up, or just
+  ;; don't parse to having any conent).  In this case, all we can do
+  ;; is call repopulate
+  if N_elements(orig_uniqueID) eq 0 or N_elements(uniqueID) eq 0 $
+     or orig_indices[0] eq -1 or new_indices[0] eq -1 then begin
+     ;; repopulate doesn't do anything if no widgets are displayed.
+     ;; --> Hopefully repopulate methods can deal with the case that
+     ;; all of their displayed parinfo[idx] go away
+     self->repopulate
+     return
+  endif ;; parinfo or undo undefined
+
+  ;; If we made it here, we have an undo (old parinfo) and a parinfo
+  ;; which both parse properly.
+
+  if array_equal(uniqueID[new_indices], orig_uniqueID[orig_indices]) then begin
+     ;; Our parinfo parses in the same order as undo, so a refresh is
+     ;; OK.  We don't know what parinfo[idx] or other pfo_obj property
+     ;; may have been affected by the upstream changes in the parinfo,
+     ;; so just refresh everything
+
+     ;; Refresh non-parinfo widgets first
+     self->refresh
+     pfo_idx, *self.pparinfo, idx
+     ;; Refresh parinfo widgets
+     self->refresh, idx=idx
+
+  endif else begin
+     ;; We have had a major change in the parinfo.  Individual widgets
+     ;; can't be refreshed.  All parinfo display has to be redone from
+     ;; the top down.  Repopulate also calls refresh --> working on
+     ;; trying to speed up repopulate
+     self->repopulate
+  endelse
 
 end
 
@@ -426,31 +620,28 @@ pro pfo_parinfo_obj::set_property, $
    pfo_fstruct_descr=pfo_fstruct_descr, $
    enable_undo=enable_undo, $ ;; use obj_valid(self.parinfo_undo_obj) to test state of undo
    no_copy=no_copy, $ ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
-   no_repopulate=no_repopulate ;; caller (e.g. pfo_parinfo_cw_obj::repopfresh_check) is taking care of repopulate
+   no_update=no_update ;; (DANGEROUS!) caller is taking care of updating parinfo, presumably after several operations
+
+  ;; pfo_fstruct_array.  Do this first for the benefit of the parinfo
+  ;; and pfo_finfo system
+  if N_elements(pfo_fstruct_array) gt 0 then begin
+     if keyword_set(no_copy) then $
+       *self.ppfo_fstruct_array = temporary(pfo_fstruct_array) $
+     else $
+       *self.ppfo_fstruct_array = pfo_fstruct_array
+  endif ;; pfo_fstruct_array
 
   ;; parinfo
   if N_elements(parinfo) gt 0 then begin
-     ;; We can't just copy the parinfo in here without checking
-     ;; to see if the user has been registering its functions with our
-     ;; *self.ppfo_fstruct_array
-     if N_elements(*self.ppfo_fstruct_array) eq 0 then begin
-        ;; Our best guess is that the user has been accumulating
-        ;; things in PFO COMMON block
-        message, /INFORMATIONAL, 'NOTE: reading associations between function numbers and names from PFO COMMON block'
-        oobjects_only = !pfo.objects_only
-        !pfo.objects_only = !tok.no
-        pfo_finfo, fstruct_array=*self.ppfo_fstruct_array
-        !pfo.objects_only = oobjects_only
-     endif ;; setting up fstruct_array
      if keyword_set(no_copy) then $
        *self.pparinfo = temporary(parinfo) $
      else $
        *self.pparinfo = parinfo
 
-     ;; The parinfo has changed, so we need to do a repopulate on any
+     ;; The parinfo has changed, so we need to do an update repopulate on any
      ;; widgets, unless the calling routine is taking care of this
-     if NOT keyword_set(no_repopulate) then $
-        self->repopulate
+     if NOT keyword_set(no_update) then $
+        self->update
 
   endif ;; parinfo
 
@@ -469,14 +660,6 @@ pro pfo_parinfo_obj::set_property, $
      else $
        *self.pparinfo_descr = parinfo_descr
   endif ;; parinfo_descr
-
-  ;; pfo_fstruct_array
-  if N_elements(pfo_fstruct_array) gt 0 then begin
-     if keyword_set(no_copy) then $
-       *self.ppfo_fstruct_array = temporary(pfo_fstruct_array) $
-     else $
-       *self.ppfo_fstruct_array = pfo_fstruct_array
-  endif ;; pfo_fstruct_array
 
   ;; pfo_fstruct_descr
   if N_elements(pfo_fstruct_descr) gt 0 then begin

@@ -54,9 +54,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_calc_obj__define.pro,v 1.3 2011/09/01 22:14:01 jpmorgen Exp $
+; $Id: pfo_calc_obj__define.pro,v 1.4 2011/09/08 19:59:27 jpmorgen Exp $
 ;
 ; $Log: pfo_calc_obj__define.pro,v $
+; Revision 1.4  2011/09/08 19:59:27  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.3  2011/09/01 22:14:01  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -83,15 +86,31 @@ pro pfo_calc_obj::print, $
 
 end
 
-;; Override the refresh from pfo_parinfo_obj_cw_obj.  Refresh is
-;; called by repopulate, so don't worry about that.
+;; Override the update method from pfo_parinfo_obj so that we can make
+;; sure our cache is invalidated properly.  Also add replotting
+pro pfo_calc_obj::update, $
+   undo, $ ;; (optional input) previous state of parinfo before calling routine tweaked the encapsulated parinfo
+   save_undo=save_undo, $ ;; selectively passed to pf_parinfo_obj::update (see code)
+   _REF_EXTRA=extra ;; passed to prepare_update and pfo_parinfo_update
+
+  self->invalidate_cache
+  ;; Update updates the parinfo and (by default) the widgets.  Since
+  ;; widgets can be slow, do the plot first, then the widgets
+  self->pfo_parinfo_obj::update, undo, /no_widget, save_undo=save_undo, _EXTRA=extra
+  self->replot, _EXTRA=extra
+  self->pfo_parinfo_obj::update, undo, _EXTRA=extra
+
+end
+
+;; Override the refresh from pfo_parinfo_obj_cw_obj to add cache clearing.
 pro pfo_calc_obj::refresh, $
-   _REF_EXTRA=extra ;; idx and value are passed here
+   _REF_EXTRA=extra
 
   ;; If refresh is called, we probably have invalidated our cache
   self->invalidate_cache
+  ;; Let pfo_parinfo_obj_cw_obj::refresh sort out whether or not to
+  ;; refresh parinfo or non-parinfo widgets based on idx and value keywords
   self->pfo_parinfo_obj_cw_obj::refresh, _EXTRA=extra
-  self->pfo_obj_plotwin_obj::replot, _EXTRA=extra
 
 end
 
@@ -466,72 +485,6 @@ function pfo_calc_obj::dXaxis_dXin, $
 
 end
 
-;; If someone runs a procedure on parinfo, assume they have changed
-;; it, unless not_modified flag is set
-pro pfo_calc_obj::parinfo_call_procedure, $
-   proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, $
-   not_modified=not_modified, $	;; default is to assume parinfo was modified
-   _REF_EXTRA=extra
-
-  case N_params() of
-     0:  message, 'ERROR: specify name of function (as a string)'
-     1:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, _EXTRA=extra
-     2:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, _EXTRA=extra
-     3:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, _EXTRA=extra
-     4:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, _EXTRA=extra
-     5:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, _EXTRA=extra
-     6:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, _EXTRA=extra
-     7:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, _EXTRA=extra
-     8:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, _EXTRA=extra
-     9:  self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, _EXTRA=extra
-     10: self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, _EXTRA=extra
-     11: self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, _EXTRA=extra
-     12: self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, _EXTRA=extra
-     13: self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, _EXTRA=extra
-     14: self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, _EXTRA=extra
-     15: self->pfo_parinfo_obj::parinfo_call_procedure, proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, _EXTRA=extra
-     else: message, 'ERROR: to many positional parameters'
-  endcase 
-
-  ;; Working out the double negatives, this basically means we
-  ;; invalidate our Yaxis cache unless the user sets /not_modified
-  if NOT keyword_set(not_modified) then $
-     self->invalidate_cache
- 
-end
-
-function pfo_calc_obj::parinfo_call_function, $
-   proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, $
-   not_modified=not_modified, $	;; default is to assume parinfo was modified
-   _REF_EXTRA=extra
-
-  case N_params() of
-     0:  message, 'ERROR: specify name of function (as a string)'
-     1:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, _EXTRA=extra)
-     2:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, _EXTRA=extra)
-     3:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, _EXTRA=extra)
-     4:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, _EXTRA=extra)
-     5:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, _EXTRA=extra)
-     6:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, _EXTRA=extra)
-     7:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, _EXTRA=extra)
-     8:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, _EXTRA=extra)
-     9:  return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, p8, _EXTRA=extra)
-     10: return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, _EXTRA=extra)
-     11: return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, _EXTRA=extra)
-     12: return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, _EXTRA=extra)
-     13: return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, _EXTRA=extra)
-     14: return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, _EXTRA=extra)
-     15: return, self->pfo_parinfo_obj::parinfo_call_function(proc, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, _EXTRA=extra)
-     else: message, 'ERROR: to many positional parameters'
-  endcase 
-
-  ;; Working out the double negatives, this basically means we
-  ;; invalidate our Yaxis cache unless the user sets /not_modified
-  if NOT keyword_set(not_modified) then $
-     self->invalidate_cache
- 
-end
-
 ;; Except for yaxis, which is derived here from the combination of the
 ;; data (Xin) and function (parinfo), just pass get property onto the
 ;; inherited routines
@@ -561,18 +514,23 @@ end
 ;; Override set property of items that affect the cache
 pro pfo_calc_obj::set_property, $
    init_Yaxis=init_Yaxis, $ ;; initial value of Yaxis (0 or NaN)
-   Xin=Xin, $
+   Xin=Xin, $ ;; Property that affects our property (cache) or things we have merged here (update)
    Yin=Yin, $
    Yerr=Yerr, $
    parinfo_array=parinfo_array, $
+   no_update=no_update, $ ;; capture flag which is headed toward pfo_parinfo_obj::set_property
    _REF_EXTRA=extra
 
+  ;; Handle our own property
   if N_elements(init_Yaxis) ne 0 then self.init_Yaxis = init_Yaxis
+  
+  ;; Check to see if we are going to need to run self->update after we
+  ;; set our property
+  need_update = NOT keyword_set(no_update) and $
+                N_elements(Xin) + N_elements(Yin) + N_elements(Yerr) + N_elements(parinfo_array) ne 0 
 
-  ;; Check to see if we are setting anything that would invalidate our
-  ;; caches
-  if N_elements(Xin) + N_elements(Yin) + N_elements(Yerr) + N_elements(parinfo_array) ne 0 then $
-     self->invalidate_cache
+  if need_update then $
+     self->prepare_update, undo
 
   ;; Pass everything onto inherited routines
   self->pfo_data_obj::set_property, $
@@ -580,13 +538,20 @@ pro pfo_calc_obj::set_property, $
      Yin=Yin, $
      Yerr=Yerr, $
      _EXTRA=extra
-  self->pfo_parinfo_obj::set_property, parinfo_array=parinfo_array, _EXTRA=extra
-  self->pfo_plot_obj::set_property, _EXTRA=extra
+  ;; Don't run update just yet 
+  self->pfo_parinfo_obj::set_property, parinfo_array=parinfo_array, /no_update, _EXTRA=extra
+  self->pfo_plot_obj::set_property, property_set=property_set, _EXTRA=extra
 
-  ;; Do a replot just in case data or plot info changed.  NOTE: this
-  ;; means that pfo_obj_plotwin_obj needs to be initilized before the
-  ;; pfo_data_obj
-  self->pfo_obj_plotwin_obj::replot
+  ;; Do our update if major property has changed
+  if need_update then begin
+     self->update, undo
+     return
+  endif ;; updating because of change of property
+
+  ;; If we made it here, nothing major has changed, but the plot
+  ;; window(s) might need to be refreshed.
+  if keyword_set(property_set) then $
+     self->replot
 
 end
 
@@ -653,7 +618,7 @@ function pfo_calc_obj::init, $
      = ptr_new( $
      {README	: 'pfo_calc_obj encapsulates all of the shared information necessary for calculating, plotting, and printing PFO functions.', $
       SUPERCLASSES: ['pfo_data_obj', 'pfo_parinfo_obj', 'pfo_plot_obj'], $
-      METHODS	: ['Xaxis()', 'Yaxis()', 'ROI_Xin_idx()', 'deviates()', 'dXaxis_dXin()', 'parinfo_call_procedure (invalidates cache)', 'parinfo_call_function() (invalidates cache)', 'invalidate_cache', 'print']} $
+      METHODS	: ['Xaxis()', 'Yaxis()', 'ROI_Xin_idx()', 'deviates()', 'dXaxis_dXin()', 'invalidate_cache', 'print']} $
      )
 
   ;; Grab a decent guess at what our property is from the list of
@@ -682,11 +647,11 @@ function pfo_calc_obj::init, $
   if NOT ok then return, 0
   ;; Now call the ones that actually call set_property, which might
   ;; bubble back up to a higher-level routine
-  ok = self->pfo_data_obj::init(p0, p1, p2, _EXTRA=extra)
+  ok = self->pfo_plot_obj::init(_EXTRA=extra)
   if NOT ok then return, 0
   ok = self->pfo_parinfo_obj::init(_EXTRA=extra)
   if NOT ok then return, 0
-  ok = self->pfo_plot_obj::init(_EXTRA=extra)
+  ok = self->pfo_data_obj::init(p0, p1, p2, _EXTRA=extra)
   if NOT ok then return, 0
 
   return, 1

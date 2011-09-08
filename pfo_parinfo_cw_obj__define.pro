@@ -36,9 +36,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_cw_obj__define.pro,v 1.1 2011/09/01 22:14:29 jpmorgen Exp $
+; $Id: pfo_parinfo_cw_obj__define.pro,v 1.2 2011/09/08 19:57:47 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_cw_obj__define.pro,v $
+; Revision 1.2  2011/09/08 19:57:47  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:14:29  jpmorgen
 ; Initial revision
 ;
@@ -49,94 +52,6 @@
 pro pfo_parinfo_cw_obj::repopulate
   help, self, output=s
   message, /CONTINUE, 'WARNING: repopulate method for ' + s + ' not specified'
-end
-
-;; Repopfresh_check is called _TWICE_ in each event method.  It makes
-;; sure that the sets up an undo the first time
-pro pfo_parinfo_cw_obj::repopfresh_check, $
-   undo
-
-  if N_elements(undo) eq 0 then begin
-     ;; First time through
-     ;; Make sure we have our pfo_unique tag.  Don't do this
-     ;; with pfo_parinfo_update, since that might be unnecessarily
-     ;; expensive.  Also, if the calling routines haven't
-     ;; properly kept up with updates, it might change the order of
-     ;; thing in the parinfo.  We don't need to deal with that here....
-     self.pfo_obj->parinfo_call_procedure, $
-        'pfo_struct_append', 'pfo_unique'
-     self.pfo_obj->parinfo_call_procedure, $
-        'pfo_unique_struct__update'
-     ;;  _copy_ off our current parinfo into undo
-     undo = self.pfo_obj->parinfo()
-     return
-  endif ;; First time through
-
-  ;; If we made it here, this is our second time through
-
-  ;; Find the parsed order of our old parinfo.  I do not expect an
-  ;; error here, but check anyway.
-  if !pfo.debug le 0 then begin
-     CATCH, err
-     if err ne 0 then begin
-        CATCH, /CANCEL
-        message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'ERROR: This should not happen!'
-     endif
-  endif ;; not debugging
-  orig_indices = pfo_parinfo_parse(/indices, undo, pfo_obj=self.pfo_obj)
-
-  ;; Check to see if there is an error parsing our new parinfo.  There
-  ;; are many ways this can happen, so be thorough
-  CATCH, err
-  if err ne 0 then begin
-     CATCH, /CANCEL
-     ;; Report on the console.  Note that adding to the message beefs
-     ;; up !error_state.msg
-     message, /NONAME, !error_state.msg + '.  Restoring to previous state.' , /CONTINUE
-     ;; Report the error via a widget
-     ok = dialog_message(!error_state.msg)
-     ;; Put our debug flag back
-     !pfo.debug = odebug
-     ;; Reset the parinfo
-     self.pfo_obj->set_property, /no_copy, parinfo_array=undo, /no_repopulate
-     ;; Redisplay our widget to clear whatever we just changed
-     self.pfo_obj->refresh, idx=(*self.pidx[0])
-     return
-  endif ;; error parsing our new function
-
-  ;; Turn debugging on
-  odebug = !pfo.debug
-  !pfo.debug = 1
-  
-  ;; Find the new order of our indices.  This is where I expect to get
-  ;; an error
-  new_indices = self.pfo_obj->indices()
-
-  ;; If we made it here, pfo_parinfo_parse worked OK.  Put our debug
-  ;; level back to where it was.
-  !pfo.debug = odebug  
-
-  ;; Get the original uniqueID 
-  pfo_struct_setget_tag, /get, undo, taglist_series='pfo_unique', uniqueID=orig_uniqueID
-  
-  ;; Get the new uniqueID 
-  self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, taglist_series='pfo_unique', uniqueID=uniqueID
-    
-  ;; Decide whether to refresh or repopulate
-  if array_equal(uniqueID[new_indices], orig_uniqueID[orig_indices]) then begin
-     ;; Our parinfo doesn't parse in a different order, so a
-     ;; refresh is OK.  Remember to provide our encapsulated idx so
-     ;; only the widgets displaying this idx are refreshed
-     self.pfo_obj->refresh, idx=(*self.pidx[0])
-  endif else begin
-     ;; We have had a major change in the parinfo.  Individual
-     ;; widgets can't be refreshed.  All parinfo display has to
-     ;; be redone from the top down.
-     self.pfo_obj->repopulate
-  endelse
-
 end
 
 ;; Local method for registration on repop list.  Repopulation is only
@@ -160,7 +75,7 @@ pro pfo_parinfo_cw_obj::register_repop, $
      message, 'ERROR: I cannot deal with specifying parinfo on the fly at this point.  You must use the one encapsulated in the pfo_obj.  Consider swapping your parinfo for the one in the object, a la pfo_parinfo_obj::widget'
 
   ;; Get the length of our parinfo in the pfo_obj
-  N_parinfo = self.pfo_obj->parinfo_call_function('N_elements')
+  N_parinfo = self.pfo_obj->parinfo_call_function(/no_update, 'N_elements')
 
   ;; Check keywords that would not allow us to repopulate.  Code
   ;; similar to that in pfo_calc_obj::parinfo_cache_ok
@@ -212,6 +127,7 @@ function pfo_parinfo_cw_obj::init, $
    parentID, $ 		;; Parent widget ID.  If not specified, or !tok.nowhere, a top-level base is created
    parinfo=parinfo, $   ;; parinfo cannot be specified at this level
    idx=idx, $		;; index/indices into parinfo relevant to the widget begin built
+   pfo_obj=pfo_obj, $	;; Encapsulates parinfo that will be displayed (optional: one will be created with pfo_obj_new if not specified)
    _REF_EXTRA=extra 	;; all other args, such as pfo_obj, are passed on to pfo_cw_obj::init
 
 
@@ -228,8 +144,19 @@ function pfo_parinfo_cw_obj::init, $
 
   if N_elements(parinfo) ne 0 then $
      message, 'ERROR: I cannot deal with specifying parinfo on the fly at this point.  You must use the one encapsulated in the pfo_obj.  Consider swapping your parinfo for the one in the object, a la pfo_parinfo_obj::widget'
+  
+  ;; Create pfo_obj on the fly if none provided.  This give the user a
+  ;; fully functioning pfo_obj if they start with the parinfo widget
+  if N_elements(pfo_obj) eq 0 then begin
+     message, /INFORMATIONAL, 'NOTE: creating pfo_obj.  If this is not what you expect, make sure you pass me a pfo_obj.  Use pfo_quiet to suppress message.'
+     ;; Create a fully featured pfo_obj.  The user might want a
+     ;; different one, which they can specify with
+     ;; !pfo.pfo_obj_ClassName or by creating the object themselved
+     pfo_obj = pfo_obj_new()
+     self.created_pfo_obj = 1
+  endif ;; no pfo_obj specified
 
-  ok = self->pfo_cw_obj::init(parentID, _EXTRA=extra)
+  ok = self->pfo_cw_obj::init(parentID, pfo_obj=pfo_obj, _EXTRA=extra)
   if NOT ok then return, 0
 
   ;; Initilize and store our property

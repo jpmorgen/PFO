@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_xfunct_cw.pro,v 1.1 2011/09/01 22:14:38 jpmorgen Exp $
+; $Id: pfo_parinfo_xfunct_cw.pro,v 1.2 2011/09/08 20:01:39 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_xfunct_cw.pro,v $
+; Revision 1.2  2011/09/08 20:01:39  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:14:38  jpmorgen
 ; Initial revision
 ;
@@ -58,9 +61,6 @@ function pfo_parinfo_xfunct_cw_obj::event, event
   if event.index eq 0 then $
      return, retval
 
-  ;; Get ready to change our value(s) in the parinfo
-  self->repopfresh_check, undo
-
   ;; Translate 'no funct' to null string
   xfunct = (*self.pxfuncts)[event.index-1]
   if xfunct eq 'no funct' then $
@@ -69,20 +69,15 @@ function pfo_parinfo_xfunct_cw_obj::event, event
   ;; Write it into the parinfo
   if keyword_set(self.in) then $
      self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     /save_undo, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
      taglist_series='pfo', infunct=xfunct
 
   ;; Change our value(s) in the parinfo.  This catches any errors and
   ;; issues a refresh, if possible instead of a repopulate
   if keyword_set(self.out) then $
      self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     /save_undo, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
      taglist_series='pfo', outfunct=xfunct
-
-
-  ;; Change our value(s) in the parinfo.  This catches any errors and
-  ;; issues a refresh, if possible instead of a repopulate
-  self->repopfresh_check, undo
 
   return, retval
 end
@@ -92,7 +87,7 @@ function pfo_parinfo_xfunct_cw_obj::get_xfunct
 
   ;; Get current axis and ftype values
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='pfo', infunct=infunct, outfunct=outfunct, ftype=ftype
 
   if self.in then begin
@@ -186,10 +181,8 @@ function pfo_parinfo_xfunct_cw_obj::init, $
   self.in = keyword_set(in)
   self.out = keyword_set(out)
 
-  ;; Register ourselves in the refresh list.  Since we have a list of
-  ;; idx, just use the first one
+  ;; Register ourselves in the refresh list.
   self->register_refresh
-
 
   ;; Create our container widget
   self->create_container

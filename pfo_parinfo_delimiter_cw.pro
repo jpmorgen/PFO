@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_delimiter_cw.pro,v 1.1 2011/09/01 22:10:47 jpmorgen Exp $
+; $Id: pfo_parinfo_delimiter_cw.pro,v 1.2 2011/09/08 19:59:48 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_delimiter_cw.pro,v $
+; Revision 1.2  2011/09/08 19:59:48  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:10:47  jpmorgen
 ; Initial revision
 ;
@@ -44,7 +47,8 @@
 ;; Helper procedure to return the current delimiter and pegged strings
 pro pfo_parinfo_delimiter_cw_obj::get_delimiter, params=params, delimiter=delimiter, pegged=pegged
   ;; Use delimeter function for printing to do the work
-  delimiter = self.pfo_obj->parinfo_call_function('pfo_delimiter', self.side, params, *self.pidx)
+  delimiter = self.pfo_obj->parinfo_call_function( $
+              /no_update, 'pfo_delimiter', self.side, params, *self.pidx)
   ;; Pick apart the answer.  Find * (if any) so that it can be removed
   ppos = stregex(delimiter, '\*')
   pegged = ''
@@ -71,13 +75,10 @@ function pfo_parinfo_delimiter_cw_obj::event, event
   if event.index eq 0 then $
      return, retval
 
-  ;; Get ready to change our value(s) in the parinfo
-  self->repopfresh_check, undo
-
-  ;; --> improve this by using pfo_mode.  Query the permanent status
+  ;; --> improve pfo_mode stuff.  Query the permanent status
   ;; first and raise a dialog box if we are going to change away from
-  ;; that.  Don't forget to refresh, since that puts the widget
-  ;; in the order I want it.
+  ;; that.  Want to do a local refresh when user selects same thing as
+  ;; the current value
 
   ;; Use the event index and the order we always put the droplist in
   ;; to know what the user wants.  Make sure that we simultaneously
@@ -85,35 +86,51 @@ function pfo_parinfo_delimiter_cw_obj::event, event
   case event.index of
      1:   begin
         ;; free
+        ;; Write it into the parinfo, remembering to turn limited off.
+        ;; We need to do two things at once here, so do our update by
+        ;; hand
+        self.pfo_obj->prepare_update, undo
         self.pfo_obj->parinfo_call_procedure, $
-           'pfo_struct_setget_tag', /set, idx=*self.pidx, $
-           taglist_series='mpfit_parinfo', fixed=!pfo.free, limited=!tok.no
+           /no_update, 'pfo_mode', 'free', idx=*self.pidx, /cancel_permanent
+        self.pfo_obj->parinfo_call_procedure, $
+           /no_update, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+           taglist_series='mpfit_parinfo', limited=0
+        self.pfo_obj->update, undo, /save_undo
      end
      2:   begin
         ;; Limited requires us to write entire limited array.  Read
         ;; the existing one
         self.pfo_obj->parinfo_call_procedure, $
-           'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+           /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
            taglist_series='mpfit_parinfo', limited=limited
         ;; Modify the side we have changed
         limited[self.side] = !tok.yes
-        ;; Write it into the parinfo, remembering to turn fixed off
+        ;; Write it into the parinfo, remembering to turn fixed off.
+        ;; We need to do two things at once here, so do our update by
+        ;; hand
+        self.pfo_obj->prepare_update, undo
         self.pfo_obj->parinfo_call_procedure, $
-           'pfo_struct_setget_tag', /set, idx=*self.pidx, $
-           taglist_series='mpfit_parinfo', fixed=!tok.no, limited=limited
+           /no_update, 'pfo_mode', 'free', idx=*self.pidx, /cancel_permanent
+        self.pfo_obj->parinfo_call_procedure, $
+           /no_update, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+           taglist_series='mpfit_parinfo', limited=limited
+        self.pfo_obj->update, undo, /save_undo
      end
      3:   begin
         ;; fixed
+        ;; Write it into the parinfo, remembering to turn limited off.
+        ;; We need to do two things at once here, so do our update by
+        ;; hand
+        self.pfo_obj->prepare_update, undo
         self.pfo_obj->parinfo_call_procedure, $
-           'pfo_struct_setget_tag', /set, idx=*self.pidx, $
-           taglist_series='mpfit_parinfo', fixed=!pfo.fixed
+           /no_update, 'pfo_mode', 'fixed', idx=*self.pidx, /cancel_permanent
+        self.pfo_obj->parinfo_call_procedure, $
+           /no_update, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+           taglist_series='mpfit_parinfo', limited=0
+        self.pfo_obj->update, undo, /save_undo
      end
 
   endcase
-
-  ;; Change our value(s) in the parinfo.  This catches any errors and
-  ;; issues a refresh, if possible instead of a repopulate
-  self->repopfresh_check, undo
 
   return, retval
 end
@@ -182,8 +199,7 @@ function pfo_parinfo_delimiter_cw_obj::init, $
   ok = self->pfo_parinfo_cw_obj::init(parentID, _EXTRA=extra)
   if NOT ok then return, 0
 
-  ;; Register ourselves in the refresh list.  Since we have a list of
-  ;; idx, just use the first one
+  ;; Register ourselves in the refresh list.
   self->register_refresh
 
   ;; Create our container widget.  We need focus events to come from

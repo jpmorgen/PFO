@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mpfit_obj__define.pro,v 1.5 2011/09/01 22:13:26 jpmorgen Exp $
+; $Id: pfo_mpfit_obj__define.pro,v 1.6 2011/09/08 19:59:36 jpmorgen Exp $
 ;
 ; $Log: pfo_mpfit_obj__define.pro,v $
+; Revision 1.6  2011/09/08 19:59:36  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.5  2011/09/01 22:13:26  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -212,6 +215,8 @@ end
 ;; the "undo" keyword
 function pfo_mpfit_obj::fit, $
    undo=undo, $ ;; (output) parinfo before the fit is returned in this variable
+   quiet=quiet, $ ;; suppress all printed output from this routine (finer control available with mpfit_quiet)
+   mpfit_QUIET=mpfit_quiet, $ ;; MPFIT's quiet keyword.  Unless /quiet is used, this routine still ouputs the mpfit status message
    mpfit_max_status=mpfit_max_status, $ ;; maximum value of MPFIT output status code
    mpfit_kernel=mpfit_kernel, $ ;; name of kernel function (MYFUNCT) used by MPFIT to call residual method
    mpfit_msg=mpfit_msg, $ ;; (output) mpfit status code translated into text (used when status is positive.  mpfit_errmsg contains error message for negative status values
@@ -223,7 +228,6 @@ function pfo_mpfit_obj::fit, $
    MAXITER=maxiter, $ ;; maximum number of fit iterations
    mpfit_errmsg=mpfit_errmsg, $ ;; (output) string containing MPFIT output error message
    NPRINT=nprint, $ ;; Iterproc is called every nprint iterations
-   mpfit_QUIET=mpfit_quiet, $ ;; MPFIT's quiet keyword
    FTOL=ftol, $ ;; stop criterion for reduction in sum of squares
    XTOL=xtol, $ ;; stop criterion for relative error between two consecutive iterations
    GTOL=gtol, $ ;; stop criterion for cos of angle between fvec and any column of the jacobian 
@@ -308,6 +312,10 @@ function pfo_mpfit_obj::fit, $
   
   ;; MPFIT_QUIET.  MPFIT's quiet keyword
   if N_elements(mpfit_quiet) eq 0 then mpfit_quiet = self.mpfit_quiet
+
+  ;; QUIET (only for this routine)
+  if keyword_set(quiet) then $
+     mpfit_quiet = 1
   
   ;; FTOL.  Stop criterion for reduction in sum of squares
   if N_elements(ftol) eq 0 then ftol = self.mpfit_ftol
@@ -395,28 +403,27 @@ function pfo_mpfit_obj::fit, $
   ;; Put our mpfit_msg into our property
   self.mpfit_msg = mpfit_msg
 
+  ;; Display the mpfit_msg, unless the user has asked not to
+  if NOT keyword_set(quiet) then $
+     message, /CONTINUE, mpfit_msg
+
   ;; Check to see if our fit had some problem
   if mpfit_status le 0 or mpfit_status gt mpfit_max_status then $
      return, 0
 
   ;; If we made it here, we have a good fit
+  
+  ;; Prepare our undo, which is necessary for deciding if we are going
+  ;; to repopulate or refresh
+  self->prepare_update, undo
 
-  ;; First save off our old parinfo, if desired
-  if arg_present(undo) or N_elements(undo) ne 0 then begin
-     undo = *self.pparinfo
-  endif
-  ;; Put our new params and errors into the parinfo.  Try this two
-  ;; ways so that we can (1) test it and (2) use
-  ;; its code to invalidate our cache.  The commented out line is
-  ;; slower but more concise
-  ;;self->parinfo_call_procedure, 'pfo_struct_setget_tag', /set, value=new_params, error=perror, pfo_obj=self
+  ;; Put our new params and errors into the parinfo.
   (*self.pparinfo).value = new_params
   (*self.pparinfo).error = perror
-  ;; We need to refresh the values and error and possibly other things
-  ;; --> repopulate would be the safest.  Could do a
-  ;; pfo_parinfo_parse_check, when I am done with that routine
-  ;;self->refresh, idx=lindgen(N_elements(*self.pparinfo))
-  self->repopulate
+  
+  ;; Run the update method, which checks the new parinfo and refreshes
+  ;; or repopulates the display
+  self->update, undo, /save_undo
 
   *self.pmpfit_covar = covar
   self.mpfit_bestnorm = bestnorm
