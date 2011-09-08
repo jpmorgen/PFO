@@ -41,44 +41,16 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_poly__fdefine.pro,v 1.1 2011/09/01 22:05:38 jpmorgen Exp $
+; $Id: pfo_poly__fdefine.pro,v 1.2 2011/09/08 20:14:44 jpmorgen Exp $
 ;
 ; $Log: pfo_poly__fdefine.pro,v $
+; Revision 1.2  2011/09/08 20:14:44  jpmorgen
+; Added fname to pfo structure and fixed printing bug
+;
 ; Revision 1.1  2011/09/01 22:05:38  jpmorgen
 ; Initial revision
 ;
 ;-
-
-function pfo_poly__widget, $
-   parentID, $ ;; Parent widget ID (positional parameter)
-   idx=idx, $ ;; input indices of pfo_poly (not necessarily in proper order)
-   pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating parinfo
-   _REF_EXTRA=extra ;; All other input parameters
-
-  ;; Get the order of parameters from __indices
-  ordered_idx = pfo_obj->parinfo_call_function( $
-                'pfo_poly__indices', idx=idx, pfo_obj=pfo_obj, _EXTRA=extra)
-
-  return, pfo_null__widget(parentID, idx=ordered_idx, $
-                           pfo_obj=pfo_obj, _EXTRA=extra)
-  
-end
-
-function pfo_poly__print, $
-   parentID, $ ;; Parent widget ID (positional parameter)
-   idx=idx, $ ;; input indices of pfo_poly (not necessarily in proper order)
-   pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating parinfo
-   _REF_EXTRA=extra ;; All other input parameters
-
-  ;; Get the order of parameters from __indices
-  ordered_idx = pfo_obj->parinfo_call_function( $
-                'pfo_poly__indices', idx=idx, pfo_obj=pfo_obj, _EXTRA=extra)
-
-  return, pfo_null__print(parentID, idx=ordered_idx, $
-                           pfo_obj=pfo_obj, _EXTRA=extra)
-  
-end
-
 
 ;; The __calc "method" returns the calculated value of the function.
 ;; In the case of pfo_poly, we can specify the /indices flag and get
@@ -257,16 +229,41 @@ function pfo_poly__calc, $
         pfo_array_append, poly_ref  , !tok.nowhere
         pfo_array_append, poly_value, !tok.nowhere
      endif
-     ;; pfo_parinfo_parse takes care of termination of indices
+     ;; pfo_parinfo_parse takes care of termination of the function indices
      return, ret_idx
   endif
-  if keyword_set(print) or keyword_set(widget) then $
-     return, pfo_null([0], params, parinfo=parinfo, $                  
-                      idx=print_idx, print=print, widget=widget,$
-                      _EXTRA=extra)
 
+  ;; Normal calculation return value is yaxis
   return, yaxis
 
+end
+
+
+function pfo_poly__widget, $
+   parentID, $ ;; Parent widget ID (positional parameter)
+   idx=idx, $ ;; input indices of pfo_poly (not necessarily in proper order)
+   pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating parinfo
+   _REF_EXTRA=extra ;; All other input parameters
+
+  ;; Get the order of parameters from __indices
+  ordered_idx = pfo_obj->parinfo_call_function( $
+                /no_update, 'pfo_poly__indices', idx=idx, pfo_obj=pfo_obj, _EXTRA=extra)
+
+  return, pfo_null__widget(parentID, idx=ordered_idx, $
+                           pfo_obj=pfo_obj, _EXTRA=extra)
+  
+end
+
+function pfo_poly__print, $
+   parinfo, $	  ;; parinfo array (whole array).  This ends up getting ignored in pfo_null__calc
+   idx=idx, $     ;; idx into parinfo of our function
+   _REF_EXTRA=extra ;; Extra keywords to pass on to *struct__print methods
+
+  ;; Get the order of parameters from __indices
+  ordered_idx = pfo_poly__indices(parinfo, idx=idx, _EXTRA=extra)
+
+  return, pfo_null__print(parinfo, idx=idx, _EXTRA=extra)
+  
 end
 
 ;; The __indices "method" maps keyword names to the indices of those
@@ -386,6 +383,13 @@ function pfo_poly__init, $
   ;; Set attributes/defaults that are unique to this function.  Note
   ;; that some attributes are already defined in pfo_struct__init
   ;; (found in pfo_struct__define.pro)
+
+  ;; FNAME 
+  ;; It is inefficient to use 'where' on strings, so FTYPE is used
+  ;; instead (see below).  fname should only be used by
+  ;; pfo_struct__update to synchronize ftypes between parinfos created
+  ;; at different times.
+  parinfo.pfo.fname = pfo_fname()
 
   ;; By default, parinfo.value = NAN, but we want the coefs to start
   ;; out at 0, unless specified.
