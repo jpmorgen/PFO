@@ -44,9 +44,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_xaxis.pro,v 1.3 2011/09/01 22:25:55 jpmorgen Exp $
+; $Id: pfo_xaxis.pro,v 1.4 2011/09/08 20:08:01 jpmorgen Exp $
 ;
 ; $Log: pfo_xaxis.pro,v $
+; Revision 1.4  2011/09/08 20:08:01  jpmorgen
+; Fix bug
+;
 ; Revision 1.3  2011/09/01 22:25:55  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -82,7 +85,7 @@ function pfo_Xaxis, parinfo, Xin=Xin, idx=idx, _REF_EXTRA=extra
     return, Xaxis
 
   ;; unwrap
-  Xaxis_idx = use_idx[Xaxis_idx]
+  Xaxis_idx = idx[Xaxis_idx]
 
   ;; If we made it here, we have a parinfo that defines an Xaxis
 
