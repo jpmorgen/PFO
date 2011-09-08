@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj__define.pro,v 1.3 2011/09/01 22:14:18 jpmorgen Exp $
+; $Id: pfo_obj__define.pro,v 1.4 2011/09/08 20:07:08 jpmorgen Exp $
 ;
 ; $Log: pfo_obj__define.pro,v $
+; Revision 1.4  2011/09/08 20:07:08  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.3  2011/09/01 22:14:18  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -48,37 +51,6 @@
 ; Initial revision
 ;
 ;-
-
-;; Inherited routines implicitly picked up if we don't need to
-;; do anything special here.
-;;pro pfo_obj::get_property, $
-;;   _REF_EXTRA=extra
-;;  ;; Pass everything onto inherited routines
-;;  self->pfo_mpfit_obj::get_property, _EXTRA=extra
-;;end
-;;
-;;pro pfo_obj::set_property, $
-;;   _REF_EXTRA=extra
-;;  ;; Pass everything onto inherited routines
-;;  self->pfo_mpfit_obj::set_property, _EXTRA=extra
-;;end
-
-;;function pfo_obj::fit, $
-;;   _REF_EXTRA=extra
-;;
-;;  ;; Do our fit.  Save a local copy of the old parinfo as 'undo'
-;;  ok = self->pfo_mpfit_obj::fit(undo=undo, _EXTRA=extra)
-;;  ;; Use repopfresh_check to handle errors induced by our fit, any changes
-;;  ;; in parsing order
-;;  self->repopfresh_check, undo
-;;
-;;  ;; If our fit we bad, we have nothing more to do
-;;  if NOT ok then $
-;;     return, ok
-;;
-;;  ;; If we made it here, we have a new set of values
-;;  
-;;end
 
 ;; Each inherited class should have a descr method.
 function pfo_obj::descr

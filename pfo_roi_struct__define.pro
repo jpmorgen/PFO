@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.3 2011/09/01 22:15:21 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.4 2011/09/08 20:08:20 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.4  2011/09/08 20:08:20  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.3  2011/09/01 22:15:21  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -67,7 +70,7 @@ pro pfo_ROI_struct_cw_obj::get_iROI_ispec, ispec=ispec, iROI=iROI
 
   ;; Get output ROI_struct and ROI_struct current values
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series=['pfo', 'pfo_ROI'], ispec=ispec, iROI=iROI, ftype=ftype
 
   junk = uniq(iROI, sort(iROI))
@@ -110,17 +113,10 @@ function pfo_ROI_struct_cw_obj::event, event
 
   ;; If we made it here, we have a valid change
 
-  ;; Get ready to change our value(s) in the parinfo
-  self->repopfresh_check, undo
-
   ;; Write it into the parinfo
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     /save_undo, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
      taglist_series='pfo_ROI', ispec=w_ispec, iROI=w_iROI
-
-  ;; Change our value(s) in the parinfo.  This catches any errors and
-  ;; issues a refresh, if possible instead of a repopulate
-  self->repopfresh_check, undo
 
   return, retval
 end

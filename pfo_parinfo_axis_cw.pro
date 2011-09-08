@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_axis_cw.pro,v 1.1 2011/09/01 22:11:28 jpmorgen Exp $
+; $Id: pfo_parinfo_axis_cw.pro,v 1.2 2011/09/08 20:08:14 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_axis_cw.pro,v $
+; Revision 1.2  2011/09/08 20:08:14  jpmorgen
+; Cleaned up/created update of widgets at pfo_parinfo_obj level
+;
 ; Revision 1.1  2011/09/01 22:11:28  jpmorgen
 ; Initial revision
 ;
@@ -57,25 +60,17 @@ function pfo_parinfo_axis_cw_obj::event, event
   if event.index eq 0 then $
      return, retval
 
-  ;; Get ready to change our value(s) in the parinfo
-  self->repopfresh_check, undo
-
-  ;; Write it into the parinfo
+  ;; Write it into the parinfo, save undo, if desired, and refresh the
+  ;; widgets
   if keyword_set(self.in) then $
      self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     /save_undo, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
      taglist_series='pfo', inaxis=(*self.paxes)[event.index-1]
 
-  ;; Change our value(s) in the parinfo.  This catches any errors and
-  ;; issues a refresh, if possible instead of a repopulate
   if keyword_set(self.out) then $
      self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /set, idx=*self.pidx, $
+     /save_undo, 'pfo_struct_setget_tag', /set, idx=*self.pidx, $
      taglist_series='pfo', outaxis=(*self.paxes)[event.index-1]
-
-  ;; Change our value(s) in the parinfo.  This catches any errors and
-  ;; issues a refresh, if possible instead of a repopulate
-  self->repopfresh_check, undo
 
   return, retval
 end
@@ -85,7 +80,7 @@ function pfo_parinfo_axis_cw_obj::get_axis_string
 
   ;; Get current axis and ftype values
   self.pfo_obj->parinfo_call_procedure, $
-     'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='pfo', inaxis=inaxis, outaxis=outaxis, ftype=ftype
 
   if self.in then begin
