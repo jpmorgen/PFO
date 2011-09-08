@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi__fdefine.pro,v 1.2 2011/09/01 22:10:11 jpmorgen Exp $
+; $Id: pfo_roi__fdefine.pro,v 1.3 2011/09/08 20:17:17 jpmorgen Exp $
 ;
 ; $Log: pfo_roi__fdefine.pro,v $
+; Revision 1.3  2011/09/08 20:17:17  jpmorgen
+; Added fname to pfo structure
+;
 ; Revision 1.2  2011/09/01 22:10:11  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -274,6 +277,13 @@ function pfo_ROI__init, $
   ;; Set attributes/defaults that are unique to this function.  Note
   ;; that some attributes are already defined in pfo_struct__init
   ;; (found in pfo_struct__define.pro)
+
+  ;; FNAME 
+  ;; It is inefficient to use 'where' on strings, so FTYPE is used
+  ;; instead (see below).  fname should only be used by
+  ;; pfo_struct__update to synchronize ftypes between parinfos created
+  ;; at different times.
+  parinfo.pfo.fname = pfo_fname()
 
   ;; PARNAME
   ;; Don't put function name in parname, since it can be

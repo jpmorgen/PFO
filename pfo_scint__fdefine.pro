@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_scint__fdefine.pro,v 1.2 2011/09/01 22:10:03 jpmorgen Exp $
+; $Id: pfo_scint__fdefine.pro,v 1.3 2011/09/08 20:17:12 jpmorgen Exp $
 ;
 ; $Log: pfo_scint__fdefine.pro,v $
+; Revision 1.3  2011/09/08 20:17:12  jpmorgen
+; Added fname to pfo structure
+;
 ; Revision 1.2  2011/09/01 22:10:03  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -230,6 +233,13 @@ function pfo_scint__init, $
   ;; that some attributes are already defined in pfo_struct__init
   ;; (found in pfo_struct__define.pro)
   
+  ;; FNAME 
+  ;; It is inefficient to use 'where' on strings, so FTYPE is used
+  ;; instead (see below).  fname should only be used by
+  ;; pfo_struct__update to synchronize ftypes between parinfos created
+  ;; at different times.
+  parinfo.pfo.fname = pfo_fname()
+
   ;; PARNAME
   ;; Don't put function name in parname, since it can be
   ;; reconstructed from pfo.ftype.  Packages built on top of pfo
@@ -274,7 +284,7 @@ function pfo_scint__init, $
      message, 'ERROR: specify either W1 or width'
   ;; Convert width to W0 & W1
   if N_elements(width) gt 0 then begin
-     W0 = 0 & W1 = 1
+     W0 = 0 & W1 = 0.1
      if N_elements(width) eq 1 then $
         W1 = width
      if N_elements(width) eq 2 then begin
@@ -287,7 +297,7 @@ function pfo_scint__init, $
   if N_elements(W0) eq 0 then $
      W0 = 0
   if N_elements(W1) eq 0 then $
-     W1 = 1
+     W1 = 0.1
   if N_elements(f_step) eq 0 then $
      f_step = 0
 

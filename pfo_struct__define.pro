@@ -51,9 +51,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct__define.pro,v 1.6 2011/09/01 22:13:08 jpmorgen Exp $
+; $Id: pfo_struct__define.pro,v 1.7 2011/09/08 20:15:30 jpmorgen Exp $
 ;
 ; $Log: pfo_struct__define.pro,v $
+; Revision 1.7  2011/09/08 20:15:30  jpmorgen
+; Added fname to pfo structure
+;
 ; Revision 1.6  2011/09/01 22:13:08  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -140,9 +143,91 @@
 ;; format and eformat: strings used to format the parameter and error
 ;; 	  during printing
 
-;; An __update routine is necessary for tags that interact with other
-;; tags in the parinfo or with the parinfo as a whole.
-;; pfo_struct doesn't need an __update routine, but pfo_link does.
+
+;; pfo_struct__update makes sure that all of the functions mentioned
+;; in the parinfo have at least a <fname>__fdefine.pro file on disk.
+;; It initializes any functions not already defined in this instance
+;; of the pfo_finfo system (see pfo_finfo.pro).  It also synchronizes
+;; the integer part of parinfo.pfo.ftype with the fnums stored in the
+;; finfo system.  pfo_strct_good_idx returns all indices into parinfo
+;; for which these operations were successful
+pro pfo_struct__update, $
+   parinfo, $
+   pfo_obj=pfo_obj, $ ;; We use the pfo_finfo system, which, if we are in object-oriented mode, uses information in the pfo_obj
+   completed_updates=completed_updates, $	;; (input/output) list of completed updates
+   pfo_struct_good_idx=good_idx, $ ;; (output) list of indices into parinfo for which valid pfo functions have been found
+   _REF_EXTRA=extra
+
+  ;; Don't run more than once.  NOTE: this doesn't double check pfo_struct_good_idx
+  if pfo_struct_updated(completed_updates) then $
+     return
+
+  ;; We don't depend on any other tag updates, so just do our work
+
+  ;; Initialize our output
+  good_idx = !tok.nowhere
+
+  ;; Go through things parameter by parameter
+  for ip=long(0), N_elements(parinfo)-1 do begin
+     ;; Get our fname from the parinfo
+     fname = parinfo[ip].pfo.fname
+
+     if !pfo.debug le 0 then begin
+        ;; Get ready to catch any errors
+        CATCH, err
+        if err ne 0 then begin
+           CATCH, /CANCEL
+           message, /NONAME, !error_state.msg, /CONTINUE
+           message, /CONTINUE, 'WARNING: caught the above error.  Parameter ' + strtrim(ip, 2) + ' will cause an error unless you delete it from the parinfo or find the function that helps to define it!  The delete can be acccomplished with the pfo_struct_good_idx keyword like this: parinfo = parinfo[pfo_struct_good_idx] '
+           CONTINUE
+        endif ;; catching missing __fdefine
+     endif ;; debugging
+
+     ;; Make sure that the code need to run (or at least define) this
+     ;; function exists in this instance of PFO
+     resolve_routine, fname + '__fdefine', /no_recompile
+
+     ;; Check to see what finfo thinks the fnum is for this
+     ;; parameter's fname.  finfo should have gentle return values
+     ;; (e.g. !tok.nowhere if fname not found) and not raise any
+     ;; errors
+     finfo_fnum = pfo_fnum(fname, pfo_obj=pfo_obj)
+     ;; Check to see what the parinfo thinks its fnum is
+     parinfo_fnum = floor(parinfo[ip].pfo.ftype)
+
+     ;; If they are the same, we are done.  But double check for a
+     ;; pathological case of parinfo_fnum < 0, which might trigger
+     ;; equality at funfo_fnum eq !tok/nowhere
+     if finfo_fnum eq parinfo_fnum and parinfo_fnum ge 0 then begin
+        ;; Remember to append our ip to the list of good_idx
+        pfo_array_append, good_idx, ip
+        CONTINUE
+     endif ;; finfo_fnum and parinfo_fnum match
+
+     ;; If we made it here, we need to syncronize the integer part of
+     ;; ftype and finfo_fnum.
+
+     ;; Make sure fname is in the finfo system
+     if finfo_fnum eq !tok.nowhere then begin
+        call_procedure, fname + '__fdefine', pfo_obj=pfo_obj
+        ;; Get the new finfo_fnum
+        finfo_fnum = pfo_fnum(fname, pfo_obj=pfo_obj)
+     endif ;; initializing
+
+     ;; This is the meat of our code.  We need to make sure the
+     ;; integer part of ftype is syncronized with the finfo system.
+     ;; Prefer the finfo value, since it is already defined and harder
+     ;; to change.
+     parinfo[ip].pfo.ftype = pfo_frac(parinfo[ip].pfo.ftype) + finfo_fnum
+     ;; Remember to append our ip to the list of good_idx
+     pfo_array_append, good_idx, ip
+        
+  endfor ;; each parameter
+
+  ;; Mark our update as complete regardless of how many errors we generated.
+  pfo_struct_update_complete, completed_updates
+
+end
 
 
 ;; A __get_tag routine is optional but recommended.  It lets you map
@@ -172,6 +257,7 @@ pro pfo_struct__get_tag, $
    outfunct  	= outfunct, $
    fop       	= fop, $
    ftype     	= ftype, $  
+   fname	= fname, $  
    format    	= format, $
    eformat   	= eformat  
 
@@ -205,6 +291,7 @@ pro pfo_struct__get_tag, $
   if arg_present(outfunct  ) or N_elements(outfunct  ) ne 0 then outfunct   = parinfo[idx].pfo.outfunct  
   if arg_present(fop       ) or N_elements(fop       ) ne 0 then fop        = parinfo[idx].pfo.fop 	  
   if arg_present(ftype     ) or N_elements(ftype     ) ne 0 then ftype      = parinfo[idx].pfo.ftype 	  
+  if arg_present(fname     ) or N_elements(fname     ) ne 0 then fname      = parinfo[idx].pfo.fname 	  
   if arg_present(format    ) or N_elements(format    ) ne 0 then format     = parinfo[idx].pfo.format 	  
   if arg_present(eformat   ) or N_elements(eformat   ) ne 0 then eformat    = parinfo[idx].pfo.eformat   
 
@@ -241,6 +328,7 @@ pro pfo_struct__set_tag, $
    outfunct  	= outfunct, $
    fop       	= fop, $
    ftype     	= ftype, $  
+   fname	= fname, $  
    format    	= format, $
    eformat   	= eformat  
 
@@ -274,6 +362,7 @@ pro pfo_struct__set_tag, $
   if N_elements(outfunct  ) ne 0 then parinfo[idx].pfo.outfunct   = outfunct
   if N_elements(fop       ) ne 0 then parinfo[idx].pfo.fop 	  = fop
   if N_elements(ftype     ) ne 0 then parinfo[idx].pfo.ftype 	  = ftype
+  if N_elements(fname     ) ne 0 then parinfo[idx].pfo.fnae 	  = fname
   if N_elements(format    ) ne 0 then parinfo[idx].pfo.format 	  = format
   if N_elements(eformat   ) ne 0 then parinfo[idx].pfo.eformat 	  = eformat
 
@@ -327,6 +416,7 @@ function pfo_struct__init, $
      outfunct: 'This, like infunct, is a string that is the name of a function called by pfo_funct on the output axis after_ the functon has been calculated so that calculations can be done in, e.g. Y log space (HINT: use the inverse function and make sure to debug thoroughly)',$
      fop	: '0: Does not output to an axis, 1: Additive function (e.g. Voigt line profile), 2: Multiplicative function (e.g. instrument sensitivity polynomial)', $
      ftype 	: 'real number indicating what function (integer part) and parameter number (decimal part) this parameter corresponds to.  For simple functions (e.g. Voigt), this works well.  For complex ones (e.g. SSO), you will want to add tags to the parinfo structure to help your function figure out which parameters are which',$
+     fname	: 'function name (e.g. pfo_voigt).  This is intended only to help syncronize the integer part of ftype when combining parinfos from different sources.', $
      format	: 'format string for printing value',$
      eformat	: 'format string for printing error'}
 
@@ -370,6 +460,7 @@ pro pfo_struct__define
      outfunct: '',$
      fop     : 0B, $
      ftype   : float(0),$
+     fname   : '', $
      format  : '',$
      eformat : '' $
     }
