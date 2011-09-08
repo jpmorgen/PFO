@@ -10,7 +10,7 @@
 ; DESCRIPTION: This structure allows a simple numeric label to be
 ; attached to each parinfo record.  It is useful for seeing if the
 ; order of parameters change when the parinfo is modified (see
-; pfo_parinfo_cw_obj::prepopfresh_check)
+; pfo_parinfo_obj::update and pfo_parinfo_obj::prepare_update)
 
 ; NOTE: the uniqueID is not meant to be persistent
 
@@ -38,16 +38,27 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_unique_struct__define.pro,v 1.1 2011/09/01 22:15:05 jpmorgen Exp $
+; $Id: pfo_unique_struct__define.pro,v 1.2 2011/09/08 19:59:08 jpmorgen Exp $
 ;
 ; $Log: pfo_unique_struct__define.pro,v $
+; Revision 1.2  2011/09/08 19:59:08  jpmorgen
+; Implemented completed_updates tag to help sort out order of interdependencies
+;
 ; Revision 1.1  2011/09/01 22:15:05  jpmorgen
 ; Initial revision
 ;
 ;-
 
 pro pfo_unique_struct__update, $
-   parinfo
+   parinfo, $					;; Required positional parameter
+   completed_updates=completed_updates, $	;; (input/output) list of completed updates
+   _REF_EXTRA=extra
+
+  ;; Don't run more than once
+  if pfo_struct_updated(completed_updates) then $
+     return
+
+  ;; We don't depend on any other tag updates, so just do our work
 
   ;; We should be called by pfo_struct_call_procedure, so we
   ;; wouldn't be here unless everything was defined.
@@ -55,8 +66,10 @@ pro pfo_unique_struct__update, $
 
   u_idx = pfo_uniq(uniqueID, sort(uniqueID), reverse_indices=r_idx, N_uniq=N_uniq)
   ;; If we have one uniqueID for each parinfo, our work is done
-  if N_uniq eq N_elements(parinfo) then $
+  if N_uniq eq N_elements(parinfo) then begin
+     pfo_struct_update_complete, completed_updates
      return
+  endif ;; already unique
 
   ;; If we made it here, we have to figure out what to do with
   ;; non-unique elements in the parinfo.  We don't really know
@@ -79,6 +92,7 @@ pro pfo_unique_struct__update, $
            message, 'WARNING: uniqueID integer wrap detected.  Using the simple memory management techniqe of packing the uniqueID array.  UniqueIDs are likely to change as a result.  This might cause a one-time hiccup in the calling code'
            uniqueID = indgen(N_elements(uniqueID), type=size(/type, uniqueID))
            parinfo.pfo_unique.uniqueID = uniqueID
+           pfo_struct_update_complete, completed_updates
            return
         endif ;; integer wrap
 
@@ -91,6 +105,7 @@ pro pfo_unique_struct__update, $
 
   ;; Put uniqueID back into parinfo
   parinfo.pfo_unique.uniqueID = uniqueID
+  pfo_struct_update_complete, completed_updates
 
 end
 
