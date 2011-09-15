@@ -164,9 +164,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.5 2011/09/08 20:07:41 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.6 2011/09/15 20:53:32 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.6  2011/09/15 20:53:32  jpmorgen
+; Changed widget system to use pfo_parinfo_edit
+;
 ; Revision 1.5  2011/09/08 20:07:41  jpmorgen
 ; Fix bug with no initial parinfo in widget (work in progress)
 ;
@@ -245,7 +248,7 @@ function pfo_parinfo_parse, $
    calc=calc, Xin=Xin, xaxis=xaxis, ROI_Xin_idx=ROI_Xin_idx, convol_center=convol_center, $
    print=print, $
    indices=indices, expand_idx=expand_idx, terminate_idx=terminate_idx, $
-   widget=widget, parentID=parentID_in, group_leader, containerID=containerID, $
+   widget=widget, parentID=parentID_in, group_leader=group_leader, containerID=containerID, $
    _REF_EXTRA=extra
 
   init = {tok_sysvar}
@@ -337,11 +340,15 @@ function pfo_parinfo_parse, $
            ;; undefined parentID in the calling routine
            if N_elements(parentID_in) ne 0 then $
               parentID = parentID_in
-           ;; --> this will get improved to pfo_parinfo_widget
-           if N_elements(parentID) eq 0 then $
+           if N_elements(parentID) eq 0 then begin
+              ;; We are basically just being a wrapper for pfo_parinfo_edit
               parentID = $
-              pfo_generic_base(title='PFO PARINFO EDITOR', group_leader=group_leader, realize=0, $
-                               x_scroll_size=1000, /tlb_size_events, pfo_obj=pfo_obj)
+                 pfo_parinfo_edit(parinfo=parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
+                                  status_mask=status_mask, group_leader=group_leader, _EXTRA=extra)
+              ;;pfo_parinfo_edit_base(group_leader=group_leader, realize=0, /tlb_size_events, pfo_obj=pfo_obj, _EXTRA=extra)
+              return, parentID
+           endif ;;
+
            ;; To avoid excessive redraws of widgets, turn off update in parent widget until we are done (this turns off
            ;; update for all the widgets in the tlb)
            widget_control, parentID, update=0
