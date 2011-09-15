@@ -36,9 +36,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_cw_obj__define.pro,v 1.2 2011/09/08 19:57:47 jpmorgen Exp $
+; $Id: pfo_parinfo_cw_obj__define.pro,v 1.3 2011/09/15 20:52:57 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_cw_obj__define.pro,v $
+; Revision 1.3  2011/09/15 20:52:57  jpmorgen
+; Broke off repopulate_ok from register_repop so pfo_parinfo_edit could
+; use it
+;
 ; Revision 1.2  2011/09/08 19:57:47  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -54,16 +58,17 @@ pro pfo_parinfo_cw_obj::repopulate
   message, /CONTINUE, 'WARNING: repopulate method for ' + s + ' not specified'
 end
 
-;; Local method for registration on repop list.  Repopulation is only
-;; possible if we have an independent way of knowing how to generate
-;; the keywords listed here.  If any of the following arguments have
-;; been passed to the calling routine, presumably the calling routine
-;; doesn't know how to generate them, so it can't do a repopulate.  It
-;; is essential that all of the invoking arguments of the inheriting
-;; widget be passed to this routine so that it can check for the
-;; validity of repopulation.  In other words, call with
-;; self->register_repop, <captured parameters on this list>, _EXTRA=extra
-pro pfo_parinfo_cw_obj::register_repop, $
+;; Repopulation.  This helps the local method for registration on the
+;; repop list.  Repopulation is only possible if we have an
+;; independent way of knowing how to generate the keywords listed
+;; here.  If any of the following arguments have been passed to the
+;; calling routine, presumably the calling routine doesn't know how to
+;; generate them, so it can't do a repopulate.  It is essential that
+;; all of the invoking arguments of the inheriting widget be passed to
+;; this routine so that it can check for the validity of repopulation.
+;; In other words, call with self->register_repop, <captured
+;; parameters on this list>, _EXTRA=extra
+function pfo_parinfo_cw_obj::repopulate_ok, $
    parinfo=parinfo, $ ;; Keywords invalidating ability to repopulate
    params=params, $     
    idx=idx, $
@@ -79,18 +84,22 @@ pro pfo_parinfo_cw_obj::register_repop, $
 
   ;; Check keywords that would not allow us to repopulate.  Code
   ;; similar to that in pfo_calc_obj::parinfo_cache_ok
-  if NOT (N_elements(parinfo) + $
-          N_elements(params) + $
-          N_elements(ispec) + $
-          N_elements(iROI) + $
-          N_elements(status_mask) $
-          eq 0 $ ;; Be a little more sophisticated with idx since we might have
-          and (N_elements(idx) eq 0 or (N_elements(idx) eq N_parinfo)) $
-          and (N_elements(*self.pidx) eq 0 or (N_elements(*self.pidx) eq N_parinfo))) then $
-             return
+  return, (N_elements(parinfo) + $
+           N_elements(params) + $
+           N_elements(ispec) + $
+           N_elements(iROI) + $
+           N_elements(status_mask) $
+           eq 0 $ ;; Be a little more sophisticated with idx since we might have
+           and (N_elements(idx) eq 0 or (N_elements(idx) eq N_parinfo)) $
+           and (N_elements(*self.pidx) eq 0 or (N_elements(*self.pidx) eq N_parinfo)))
 
-  ;; If we made it here, we are safe for repopulation.
-  self.pfo_obj->register_repop, self
+end
+
+pro pfo_parinfo_cw_obj::register_repop, $
+   _REF_EXTRA=extra
+
+  if self->repopulate_ok(_EXTRA=extra) then $
+     self.pfo_obj->register_repop, self
 
 end
 
