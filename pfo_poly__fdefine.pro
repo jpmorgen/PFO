@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_poly__fdefine.pro,v 1.2 2011/09/08 20:14:44 jpmorgen Exp $
+; $Id: pfo_poly__fdefine.pro,v 1.3 2011/09/15 20:45:53 jpmorgen Exp $
 ;
 ; $Log: pfo_poly__fdefine.pro,v $
+; Revision 1.3  2011/09/15 20:45:53  jpmorgen
+; Fixed bug in order of function definitions
+;
 ; Revision 1.2  2011/09/08 20:14:44  jpmorgen
 ; Added fname to pfo structure and fixed printing bug
 ;
@@ -238,6 +241,18 @@ function pfo_poly__calc, $
 
 end
 
+;; The __indices "method" maps keyword names to the indices of those
+;; parameters.  It is intended to be called ONLY for one instance of
+;; the function at a time.  The pfo_funct /INDICES "method" can be
+;; used to process multiple function instances.
+function pfo_poly__indices, $
+   parinfo, $    ;; parinfo containing function
+   _REF_EXTRA=extra ;; soak up any extra parameters
+
+  ;; Pass everything on to pfo_poly__calc
+  return, pfo_poly__calc(/indices, 0, parinfo.value, parinfo=parinfo, _EXTRA=extra)
+
+end
 
 function pfo_poly__widget, $
    parentID, $ ;; Parent widget ID (positional parameter)
@@ -264,19 +279,6 @@ function pfo_poly__print, $
 
   return, pfo_null__print(parinfo, idx=idx, _EXTRA=extra)
   
-end
-
-;; The __indices "method" maps keyword names to the indices of those
-;; parameters.  It is intended to be called ONLY for one instance of
-;; the function at a time.  The pfo_funct /INDICES "method" can be
-;; used to process multiple function instances.
-function pfo_poly__indices, $
-   parinfo, $    ;; parinfo containing function
-   _REF_EXTRA=extra ;; soak up any extra parameters
-
-  ;; Pass everything on to pfo_poly__calc
-  return, pfo_poly__calc(/indices, 0, parinfo.value, parinfo=parinfo, _EXTRA=extra)
-
 end
 
 ;; Create the parinfo strand for this function and initialize it
