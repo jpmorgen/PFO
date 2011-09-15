@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj__define.pro,v 1.4 2011/09/08 19:59:41 jpmorgen Exp $
+; $Id: pfo_parinfo_obj__define.pro,v 1.5 2011/09/15 20:52:06 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj__define.pro,v $
+; Revision 1.5  2011/09/15 20:52:06  jpmorgen
+; Improved update to handle transition from inactive to delete
+;
 ; Revision 1.4  2011/09/08 19:59:41  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -317,14 +320,21 @@ pro pfo_parinfo_obj::redo
   if self.parinfo_redo_obj->get_count() eq 0 then $
      return
 
-  ;; If we made it here, we have at least one thing on our redo list
+  ;; If we made it here, we have at least one thing on our redo list.
+  ;; Prepare to use it.  Our current parinfo will become the local
+  ;; undo
+  self->prepare_update, undo
 
   ;; Put our current parinfo on the undo list
   self.parinfo_undo_obj->add, *self.pparinfo
-  ;; Replace our parinfo with the one from the redo list
-  self.pparinfo = self.parinfo_redo_obj->get_item()
+  ;; Replace our parinfo with the one from the undo list.  Make sure
+  ;; we copy it so the node can be deleted from the list
+  *self.pparinfo = self.parinfo_redo_obj->get_item(/dereference)
   ;; Delete the last item in the redo list
   self.parinfo_redo_obj->delete
+  ;; Run update with the undo we saved above to see if we need a
+  ;; refresh or repopulate
+  self->update, undo
 
 end
 
@@ -339,15 +349,21 @@ pro pfo_parinfo_obj::undo
   ;; See if we have anything in it.
   if self.parinfo_undo_obj->get_count() eq 0 then $
      return
-
-  ;; If we made it here, we have at least one thing on our undo list
+  
+  ;; If we made it here, we have at least one thing on our undo list.
+  ;; Prepare to use it.  Our current parinfo will become the local undo
+  self->prepare_update, undo
 
   ;; Put our current parinfo on the redo list
   self.parinfo_redo_obj->add, *self.pparinfo
-  ;; Replace our parinfo with the one from the undo list
-  self.pparinfo = self.parinfo_undo_obj->get_item()
+  ;; Replace our parinfo with the one from the undo list.  Make sure
+  ;; we copy it so the node can be deleted from the list
+  *self.pparinfo = self.parinfo_undo_obj->get_item(/dereference)
   ;; Delete the last item in the undo list
   self.parinfo_undo_obj->delete
+  ;; Run update with the undo we saved above to see if we need a
+  ;; refresh or repopulate
+  self->update, undo
 
 end
 
@@ -369,7 +385,7 @@ pro pfo_parinfo_obj::save_undo, $
   ;; Doing something and saving it on the undo list implies that we
   ;; cannot redo previous undos, so delete all the elements in the
   ;; redo list
-  self.parinfo_undo_obj->delete, /all
+  self.parinfo_redo_obj->delete, /all
 
 
 end
@@ -413,7 +429,10 @@ pro pfo_parinfo_obj::prepare_update, $
      odebug = !pfo.debug
      !pfo.debug = 1
 
-     junk = pfo_parinfo_parse(/indices, *self.pparinfo, pfo_obj=self, _extra=extra)
+     ;; Make sure that all of the parinfo can parse, since we will
+     ;; probably be parsing it in the widget stuff
+     junk = pfo_parinfo_parse(/indices, status_mask=!pfo.all_status, $
+                              *self.pparinfo, pfo_obj=self, _extra=extra)
 
      ;; If we made it here, pfo_parinfo_parse worked OK.  Put our debug
      ;; level back to where it was.
@@ -450,7 +469,7 @@ pro pfo_parinfo_obj::update, $
   if err ne 0 then begin
      CATCH, /CANCEL
      ;; Report error to console
-     message, /NONAME, !error_state.msg + '  Retraining with whatever I have done and reverting the encapsulated parinfo to previous state, if possible', /CONTINUE
+     message, /NONAME, !error_state.msg + '  Returning with whatever I have done and reverting the encapsulated parinfo to previous state, if possible', /CONTINUE
      ;; And with a dialog box if we have any displayed widgets
      if N_elements(*self.pcw_obj_list) gt 0 then $
         junk = dialog_message(!error_state.msg)
@@ -475,12 +494,15 @@ pro pfo_parinfo_obj::update, $
 
   ;; Run our updates in the parinfo.  This quietly returns if parinfo is undefined
   pfo_parinfo_update, *self.pparinfo, pfo_obj=self, _EXTRA=extra
-  ;; Find the parsed order of our undo parinfo.  This quietly returns -1
-  ;; if undo is undefined
-  orig_indices = pfo_parinfo_parse(/indices, undo, pfo_obj=self, _EXTRA=extra)
+  ;; Find the parsed order of our undo parinfo.  This quietly returns
+  ;; -1 if undo is undefined.  Make sure that all of the parinfo can
+  ;; parse, since we will be parsing it in the widget stuff
+  orig_indices = pfo_parinfo_parse(/indices, status_mask=!pfo.all_status, $
+                                   undo, pfo_obj=self, _EXTRA=extra)
   ;; Find the new order of our indices.  This is the most likely place
   ;; to get an error, since the user might have created a problem
-  new_indices = pfo_parinfo_parse(/indices, *self.pparinfo, pfo_obj=self, _EXTRA=extra)
+  new_indices = pfo_parinfo_parse(/indices, status_mask=!pfo.all_status, $
+                                  *self.pparinfo, pfo_obj=self, _EXTRA=extra)
 
   ;; If we made it here, all of our update "methods" ran OK.  Put our debug
   ;; level back to where it was.
@@ -770,9 +792,7 @@ function pfo_parinfo_obj::init, $
   self.ppfo_fstruct_array = ptr_new(/allocate_heap)
   self.ppfo_fstruct_descr = ptr_new(/allocate_heap)
 
-  ;; Initilize default values
-  if N_elements(enable_undo) eq 0 then $
-     enable_undo = 1
+  ;; Initilize default values (nothing to do for now)
 
   ;; Call our set_property routine to convert any keywords to property
   self->set_property, $
