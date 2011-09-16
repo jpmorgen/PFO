@@ -56,9 +56,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_container_cw.pro,v 1.2 2011/09/08 20:15:08 jpmorgen Exp $
+; $Id: pfo_parinfo_container_cw.pro,v 1.3 2011/09/16 13:44:47 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_container_cw.pro,v $
+; Revision 1.3  2011/09/16 13:44:47  jpmorgen
+; Playing with things that hopefully make the widget system faster
+;
 ; Revision 1.2  2011/09/08 20:15:08  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -70,15 +73,19 @@
 ;; Repopulate method for pfo_parinfo_container_cw.  We get called if there is a
 ;; repopulate and we are just displaying the entire parinfo
 pro pfo_parinfo_container_cw_obj::repopulate
+
+  ;; --> debugging long time for repopulate
+  t1 = systime(/seconds)
+
   ;; Turn off update in the parent so we don't unnecessarily redraw
-  ;; widgets
+  ;; widgets.  Try to unmap the window to see if it goes faster...nope
   widget_control, self.parentID, update=0
   ;; Kill the container and all its contents.  Each of the children
   ;; should properly issue pfo_obj->unregister_refresh.  This also
   ;; creates a fresh container into which we will draw the new version
   ;; of the widget
   self->clear_container
-  
+print, 'container clear in ', systime(/seconds) - t1
   ;; Call pfo_parinfo_parse to repopulate our container.  In our init
   ;; method, we have intercept the parameters that would have
   ;; invalidated repopulation (e.g. idx, iROI, etc.).  All other
@@ -88,12 +95,16 @@ pro pfo_parinfo_container_cw_obj::repopulate
   ;; widgets to persist across calls to repopulate.  This might be
   ;; possible, but would take some property to keep track of it.
   junk = self.pfo_obj->parinfo_call_function( $
-         /no_update, 'pfo_parinfo_parse', /widget, pfo_obj=self.pfo_obj, $
+         /no_update, 'pfo_parinfo_parse', /widget, status_mask=!pfo.all_status, pfo_obj=self.pfo_obj, $
          containerID=self.containerID, $
          _EXTRA=*self.pextra)
-
+print, 'container repopulated, but not updated in ', systime(/seconds) - t1
   ;; Redraw the parent widget
   widget_control, self.parentID, update=1
+
+  t2 = systime(/seconds)
+
+  print, 'Time for pfo_parinfo_container_cw repouplate = ', t2 - t1 
 end
 
 ;; Cleanup method
@@ -126,9 +137,11 @@ function pfo_parinfo_container_cw_obj::init, $
   ;; Register in the repopulate list (if possible)
   self->register_repop, _EXTRA=extra
 
-  ;; Make our container as a column base with each row left justified.
-  ;; Subsequent widgets decide how to handle each row.
-  self->create_container, /column, /base_align_left
+  ;; We need to create a container here, since we use this for
+  ;; repopulate ion.  Make our container as a column base with each
+  ;; row left justified.  Subsequent widgets decide how to handle each
+  ;; row.
+  self->create_container, /column;;, /base_align_left
 
   ;; If we made it here, we have successfully set up our container.  
   return, 1
@@ -164,7 +177,7 @@ function pfo_parinfo_container_cw, $
   containerID = !tok.nowhere
 
   ;; Create our controlling object
-  cw_obj = obj_new('pfo_parinfo_container_cw_obj', parentID, _EXTRA=extra)
+  cw_obj = pfo_cw_obj_new(parentID, _EXTRA=extra)
 
   ;; The init method creates the widget and stores its ID in self.tlb.
   ;; Use the getID method to access it.  We return this ID, since that
