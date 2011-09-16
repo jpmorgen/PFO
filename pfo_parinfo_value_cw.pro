@@ -33,9 +33,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_value_cw.pro,v 1.2 2011/09/08 20:01:33 jpmorgen Exp $
+; $Id: pfo_parinfo_value_cw.pro,v 1.3 2011/09/16 13:50:35 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_value_cw.pro,v $
+; Revision 1.3  2011/09/16 13:50:35  jpmorgen
+; Simplified widget hierarchy to try to speed up.  Made insensitive when
+; we are tied
+;
 ; Revision 1.2  2011/09/08 20:01:33  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -74,17 +78,19 @@ pro pfo_parinfo_value_cw_obj::refresh, $
    params=params
 
   ;; Refresh our display
+  
+  ;; Read our value from the parinfo.  Also read whether or not we are
+  ;; tied so that we can make ourselved insensitive
+  self.pfo_obj->parinfo_call_procedure, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     taglist_series='mpfit_parinfo', value=value, tied=tied
 
   ;; Use the value we have been passed as a keyword in preference to
   ;; that in the parinfo
-  if N_elements(params) eq 0 then begin
-     ;; Read our value from the parinfo
-     self.pfo_obj->parinfo_call_procedure, $
-        /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
-        taglist_series='mpfit_parinfo', value=params
-  endif ;; no value keyword specified
-
-  widget_control, self.ID, set_value=params
+  if N_elements(params) ne 0 then $
+     value=params
+  
+  widget_control, self.ID, set_value=value, sensitive=~keyword_set(tied)
 
 end
 
@@ -94,12 +100,14 @@ pro pfo_parinfo_value_cw_obj::populate, $
   ;; Read our value from the parinfo
   self.pfo_obj->parinfo_call_procedure, $
      /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
-     taglist_series='mpfit_parinfo', value=value
+     taglist_series='mpfit_parinfo', value=value, tied=tied
 
-  self.ID = pfo_cw_field(self.containerID, title='', /float, /return_events, $
+  self.ID = pfo_cw_field(self.tlbID, title='', /float, /return_events, $
                          /kbrd_focus_events, $
-                         value=value, $
-                         uvalue={method:'event', obj:self})              
+                         value=value, noedit=keyword_set(tied), $
+                         uvalue={method:'event', obj:self})
+
+  widget_control, self.ID, sensitive=~keyword_set(tied) 
 
 end
 
@@ -133,15 +141,10 @@ function pfo_parinfo_value_cw_obj::init, $
   ;; Register ourselves in the refresh list
   self->register_refresh, /value
 
-  ;; Create our container widget.  We need focus events to come from
-  ;; it, since cw_field doesn't generate them and fsc_field doesn't
-  ;; handle floating point numbers properly
-  self->create_container
-
   ;; Build our widget
   self->populate, _EXTRA=extra
 
-  ;; If we made it here, we have successfully set up our container.  
+  ;; If we made it here, we have successfully set up our widget.
   return, 1
 
 end
