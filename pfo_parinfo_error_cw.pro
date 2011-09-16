@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_error_cw.pro,v 1.1 2011/09/08 20:00:32 jpmorgen Exp $
+; $Id: pfo_parinfo_error_cw.pro,v 1.2 2011/09/16 13:51:33 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_error_cw.pro,v $
+; Revision 1.2  2011/09/16 13:51:33  jpmorgen
+; Fixed bug, Simplified widget hierarchy to try to speed up.
+;
 ; Revision 1.1  2011/09/08 20:00:32  jpmorgen
 ; Initial revision
 ;
@@ -55,7 +58,7 @@ pro pfo_parinfo_error_cw_obj::refresh
      ;; Read our value from the parinfo
      self.pfo_obj->parinfo_call_procedure, $
         /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
-        taglist_series='mpfit_parinfo', value=error, eformat=eformat
+        taglist_series='mpfit_parinfo', error=error, eformat=eformat
   endif ;; no value keyword specified
 
   widget_control, self.ID, set_value=string(format=eformat, error)
@@ -68,9 +71,14 @@ pro pfo_parinfo_error_cw_obj::populate, $
   ;; Read our error from the parinfo
   self.pfo_obj->parinfo_call_procedure, $
      /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
-     taglist_series='mpfit_parinfo', value=error, eformat=eformat
+     taglist_series=['mpfit_parinfo', 'pfo'], error=error, eformat=eformat
 
-  self.ID = widget_label(self.containerID, value=string(format=eformat, error))
+  ;; widget_label doesn't refresh correctly in Windows
+  ;;self.ID = widget_label(self.tlbID, value=string(format=eformat, error), /align_right)
+  ;; widget_text doesn't display quite right either.  Things
+  ;; fall off the right hand side 
+  ;;self.ID = widget_text(self.tlbID, value=string(format=eformat, error), editable=0)
+  self.ID = pfo_cw_field(self.tlbID, title='', /float, value=error, format=eformat, /noedit)
 
 end
 
@@ -104,13 +112,10 @@ function pfo_parinfo_error_cw_obj::init, $
   ;; Register ourselves in the refresh list.
   self->register_refresh
 
-  ;; Create our container widget.
-  self->create_container
-
   ;; Build our widget
   self->populate, _EXTRA=extra
 
-  ;; If we made it here, we have successfully set up our container.  
+  ;; If we made it here, we have successfully set up our widget.
   return, 1
 
 end
