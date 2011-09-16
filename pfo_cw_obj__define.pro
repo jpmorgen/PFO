@@ -5,23 +5,66 @@
 ; event handler which are used in the pfo_*_cw objects
 ; (objects that control PFO widgets)
 ;
-; CATEGORY:
+; CATEGORY: PFO widgets
 ;
-; CALLING SEQUENCE:
+; CALLING SEQUENCE: see pfo_finit_cw.pro for an example.  Basically,
+; you inherit this object into the controling object of the widget you
+; are creating.  When you call the init method of this object, you get
+; a tlb and possibly some other things, depending on your positional
+; argument (parentID) and a few other keywords.  You can use all of
+; the property and methods of this object in all of your *cw_obj objects.
 
-; DESCRIPTION:  This objects interfaces with the object
-; pfo_obj_cw_obj, which is intended to be inherited into pfo_obj or
-; any other object that needs to display widgets in the pfo system.
-; This object handls things like the link between the cw_obj and the
-; pfo_obj, so that if the cw_obj are formed as actions from the
-; pfo_obj (e.g. pfo_obj->widget), the widgets are killed when the
-; pfo_obj is killed.
+; DESCRIPTION: This objects interfaces with the object pfo_obj_cw_obj,
+; which is intended to be inherited into pfo_obj or any other object
+; that needs to display widgets in the pfo system.  This object
+; automatically handles the link between the cw_obj and the pfo_obj,
+; so that if the cw_obj are formed as actions from the pfo_obj
+; (e.g. pfo_obj->widget), the widgets are killed when the pfo_obj is
+; killed.  It also creates an object-oriented event handler and
+; defines a few useful event methods.
 
-; ContainerID: an important feature of the PFO widget system is the
-; creation and maintenance of "container" widgets.  These are widgets
-; which are hcildren of the first child of the cw.  They can be
-; killed and recreated with the pfo_cw_obj::clear_container method.
-; This allows widgets to be easily repopulated with new/modified content.
+; WIDGET HIERARCHY: The init method of this object creates a top level
+; base (tlb) widget and optionally a first child.  By default, this
+; object is stored in the uvalue of the tlb.  If the /first_child
+; switch is given to the init method, the self object is instead
+; stored in that first child.  Single-widget applications work fine
+; without the /first_child.  They should be created as children of
+; self.tlb.  
+
+; True top-level bases look nice with:
+
+;       /mbar, $ ;; Give ourselves a menu bar
+;       /first_child, $ ;; hide cw_obj in a first child uvalue instead of tlb uvalue
+;       /tlb_size_events, $ ;; have IDL generate resize events
+;       uvalue={method: 'resize', obj:self}, $ ;; catch resize events (/first_child needed to let this work)
+;       help='Detailed help'
+
+; For true top-level bases or other multi-widget applications, you
+; will need to use the create_container method and pass the necessary
+; arguments to it, like /column, /row, etc. to have that base arrange
+; the multiple widgets that you put into it.  The widget ID
+; self.containerID should then be the parent of your child widgets.
+; There is also a clear_container method, which allows you to delete
+; all children widgets created by your inheriting object.  This is
+; handy for "repopulate" methods (see pfo_parinfo_cw_obj__define.pro).
+
+; EVENTS: the object-oriented even handling system was inspired by
+; David Fanning's fsc_field compound widget.  The basic idea is to put
+; a structure in the uvalue of the widget that is generating the
+; event.  The structure, which created from within this object, or an
+; object that inherits this object, looks like one of the following:
+
+; uvalue={method:'method_name', obj:self}
+; uvalue={method:'method_name', obj:self, keywords:{keyword1:1, keyword2:1}})
+
+; The required pieces of the structure are the name of the method and
+; the object on which it will be called (e.g. self->method_name).
+; Keywords are optionally passed as a separte structure using IDL's
+; _EXTRA mechanism.  The method needs to be a function that accepts
+; one positional parameter, the original event (see, e.g.,
+; pfo_cw_obj::kill_tlb).  The event handling method can, in principle
+; be in any object (e.g. pfo_obj), but for organizational reasons, it
+; is recommended that the events be kept with the cw_obj code.
 
 ; INPUTS:
 ;
@@ -50,9 +93,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cw_obj__define.pro,v 1.3 2011/09/16 11:31:14 jpmorgen Exp $
+; $Id: pfo_cw_obj__define.pro,v 1.4 2011/09/16 13:39:46 jpmorgen Exp $
 ;
 ; $Log: pfo_cw_obj__define.pro,v $
+; Revision 1.4  2011/09/16 13:39:46  jpmorgen
+; Put tlb resize event method here.  Improve documentation
+;
 ; Revision 1.3  2011/09/16 11:31:14  jpmorgen
 ; Allow streamlining of widgets so child and container are optional
 ;
@@ -87,6 +133,28 @@ end
 function pfo_cw_obj::kill_tlb, event
   ;; The tlb top of this event will be the help window
   widget_control, event.top, /destroy
+end
+
+;; Resize event in case we are a tlb
+function pfo_cw_obj::resize, event
+
+  ;; Adjusting the screen size has different effects in the two
+  ;; windowing systems I use.
+
+  widget_control, event.top, update=0
+  if !d.name eq 'X' then begin
+     ;; I subtract a few pixels in X windows, since, at least for twm,
+     ;; the twm top decorations are included in the reported size
+     widget_control, event.ID, scr_xsize=event.x, scr_ysize=event.y-33
+  endif else begin
+     ;; In Windows, xsize and ysize are in tune with the event x and y
+     widget_control, event.ID, xsize=event.x, ysize=event.y
+  endelse
+
+  widget_control, event.top, update=1
+
+  return, !tok.nowhere
+
 end
 
 ;; HELP method for this cw_obj.  This is called by the cw_obj event
