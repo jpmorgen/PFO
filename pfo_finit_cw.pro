@@ -34,15 +34,21 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_finit_cw.pro,v 1.1 2011/09/01 22:17:47 jpmorgen Exp $
+; $Id: pfo_finit_cw.pro,v 1.2 2011/09/16 13:53:15 jpmorgen Exp $
 ;
 ; $Log: pfo_finit_cw.pro,v $
+; Revision 1.2  2011/09/16 13:53:15  jpmorgen
+; Added pfo_obj->update stuff, simplified widget hierarchy to try to
+; speed up
+;
 ; Revision 1.1  2011/09/01 22:17:47  jpmorgen
 ; Initial revision
 ;
 ;-
 
 function pfo_finit_cw_obj::event, event
+
+  self.pfo_obj->prepare_update, undo
 
   sn = tag_names(event, /structure_name)
   case sn of
@@ -57,8 +63,7 @@ function pfo_finit_cw_obj::event, event
 
   endcase
 
-  ;; This change requires a refresh.
-  self.pfo_obj->refresh
+  self.pfo_obj->update, undo
 
   ;; Swallow event
   return, !tok.nowhere
@@ -86,7 +91,7 @@ pro pfo_finit_cw_obj::populate, $
              '; ' + !pfo.axis_string[!pfo.Yaxis] + ' = '
 
   ;; Put this finit into a row widget
-  rowID = widget_base(self.containerID, /row)
+  rowID = widget_base(self.tlbID, /row)
   ID = widget_label(rowID, value=finit)
   ;; Add a droplist menu to select the default Yaxis
   s = string(format='(f3.0)', init_Yaxis)
@@ -119,10 +124,8 @@ function pfo_finit_cw_obj::init, $
   endif ;; not debugging
 
   ;; Call our inherited init routine.
-  ok = self->pfo_cw_obj::init(parentID, _EXTRA=extra)
+  ok = self->pfo_cw_obj::init(parentID, /row, /base_align_center, _EXTRA=extra)
   if NOT ok then return, 0
-
-  self->create_container, /row, /base_align_center
 
   ;; Register ourselves in the refresh list.
   self->register_refresh
@@ -158,7 +161,7 @@ function pfo_finit_cw, $
   cwID = !tok.nowhere
 
   ;; Create our controlling object
-  cw_obj = obj_new('pfo_finit_cw_obj', parentID, _EXTRA=extra)
+  cw_obj = pfo_cw_obj_new(parentID, _EXTRA=extra)
 
   ;; The init method creates the widget and stores its ID in self.tlb.
   ;; Use the getID method to access it.  We return this ID, since that
