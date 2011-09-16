@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_scint__fdefine.pro,v 1.3 2011/09/08 20:17:12 jpmorgen Exp $
+; $Id: pfo_scint__fdefine.pro,v 1.4 2011/09/16 11:19:17 jpmorgen Exp $
 ;
 ; $Log: pfo_scint__fdefine.pro,v $
+; Revision 1.4  2011/09/16 11:19:17  jpmorgen
+; Added linking.  Also fiddled with status_mask
+;
 ; Revision 1.3  2011/09/08 20:17:12  jpmorgen
 ; Added fname to pfo structure
 ;
@@ -63,6 +66,7 @@
 function pfo_scint__indices, $
    parinfo, $    ;; parinfo containing scint function(s)
    idx=idx, $	;; idx into parinfo over which to search for scint function(s)
+   status_mask=status_mask, $ ;; status mask (!pfo.active, inactive, delete, all_status)
    E0=E0, $		;; peak energy
    area=area, $		;; area
    W0=W0, $		;; Gaussian sigma=sqrt(W0 + E(0)*W1)
@@ -77,7 +81,7 @@ function pfo_scint__indices, $
    _REF_EXTRA=extra	;; soak up any extra parameters
 
   ;; Do basic idx error checking and collect our function indices
-  idx = pfo_fidx(parinfo, 'pfo_scint', idx=idx, pfo_obj=pfo_obj, $
+  idx = pfo_fidx(parinfo, 'pfo_scint', idx=idx, status_mask=status_mask, pfo_obj=pfo_obj, $
                  npar=npar, nfunct=nfunct)
   if nfunct ne 1 then $
     message, 'ERROR: ' + strtrim(nfunct, 2) + ' instances of function found, I can only work with one.  Use pfo_parinfo_parse and/or pfo_fidx to help process multiple instances of a function.'
@@ -223,9 +227,11 @@ function pfo_scint__init, $
 
   ;; Create our parinfo strand for this function, making sure to
   ;; include any substructure we need with required tags.  Start with
-  ;; one parinfo element.
+  ;; one parinfo element.  Include the pfo_link tag so that we can
+  ;; link width parameters together so that the resolution function
+  ;; works properly
   parinfo = pfo_parinfo_template(pfo_obj=pfo_obj, $
-                                 required_tags=['pfo'])
+                                 required_tags=['pfo', 'pfo_link'])
   ;; ... replicate it by fnpars
   parinfo = replicate(temporary(parinfo), fnpars)
 
@@ -312,6 +318,13 @@ function pfo_scint__init, $
   parinfo.limits = [0,0]
   parinfo.limited = [1,0]
   ;; --> I suppose W0 could be negative, but assume no for now
+
+  ;; LINKED
+  ;; Mark w0 and w1 as auto "interlinked" parameters so that as
+  ;; pfo_scints are added, they automatically connect to one master
+  parinfo[2:3].pfo_link.auto_link = !pfo.interlink
+  parinfo[2].pfo_link.to_ftype = 0.3 ;; w0
+  parinfo[3].pfo_link.to_ftype = 0.4 ;; w1
 
   ;; Convert keywords on the command line to tag assignments in the
   ;; parinfo.  This is a little risky, since we might have duplicate
