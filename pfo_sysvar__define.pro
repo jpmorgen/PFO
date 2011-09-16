@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.8 2011/09/01 22:12:22 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.9 2011/09/16 13:43:50 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -45,10 +45,10 @@ pro pfo_sysvar__define
        init_Yaxis:	!values.d_nan, $
        not_used	:	0, $	; status tokens
        not_pfo	:	0, $
-       active	:	1, $
-       inactive	:	2, $
-       delete	:	3, $
-       all_status:	1+2+3, $
+       active	:	2^1, $
+       inactive	:	2^2, $
+       delete	:	2^3, $
+       all_status:	2^1+2^2+2^3, $
        $ ;; Companion tokens for .fixed.  
        fixed	:	1, $    ; (see pfo_mode)
        free	:	0, $
@@ -109,6 +109,8 @@ pro pfo_sysvar__define
        $;;inactive:	0,   $  duplicate of pfo.status
        master	:	1, $
        slave	:	2, $
+       intralink:	1, $
+       interlink:	2, $
        $ ;; mpfit iterproc/stop stuff
        iterproc	:	'pfo_iterproc', $
        iterstop	:	-2, $   ;; stop fit, keep values
@@ -143,7 +145,9 @@ pro pfo_sysvar__define
        oplot_parinfo_thick_boost: 2, $
        oplot_ROI_thick_boost: 3, $
        oplot_ROI_allROI_color: 3, $ ;; a relaxing dark blue
-       oplot_ROI_allROI_thick_boost: 1}
+       oplot_ROI_allROI_thick_boost: 1, $
+       win_font		: 'fixedsys' $ ;; font to use for windows
+      }
 
 
 ;; obselete
