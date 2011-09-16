@@ -10,22 +10,24 @@
 ; DESCRIPTION: Works with three system variables in order to set the
 ; debugging level of PFO programs
 
-; 0: 	CATCH statements in PFO code are respected
+; 0: 	All CATCH statements in PFO code are respected
 ;	Default IDL XMANAGER behavior
 ;	Default IDL math exception reporting
 
-; 1:	CATCH statements in PFO code are turned off, allowing easier
+; 1:	Most CATCH statements in PFO code are turned off, allowing easier
 ; 	debugging of PFO code
 ;	Default IDL XMANAGER behavior
 ;	Default IDL math exception reporting
 
-; 2:	CATCH statements in PFO code are turned off, allowing easier
-; 	debugging of PFO code
+; 2:	More CATCH statements in PFO code are turned off, in
+; 	particular those for the pfo_obj->update method and widget events
+
+; 3:    Like 2 but 	
 ;	XMANAGER CATCHing is turned off, alowing easier debugging of
 ;	widget code
 ;	Default IDL math exception reporting
 
-; 3:	CATCH statements in PFO code are turned off, allowing easier
+; 4:	CATCH statements in PFO code are turned off, allowing easier
 ; 	debugging of PFO code
 ;	XMANAGER CATCHing is turned off, alowing easier debugging of
 ;	widget code
@@ -60,8 +62,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_debug.pro,v 1.2 2011/08/01 19:00:47 jpmorgen Exp $
+; $Id: pfo_debug.pro,v 1.3 2011/09/16 11:25:02 jpmorgen Exp $
 ; $Log: pfo_debug.pro,v $
+; Revision 1.3  2011/09/16 11:25:02  jpmorgen
+; Changed debug levels to add finer control over PFO CATCH statements.
+; Currently level 2 disables CATCH in pfo_parinfo_obj::update method.
+; Might want to add event catchning too.
+;
 ; Revision 1.2  2011/08/01 19:00:47  jpmorgen
 ; First reasonably functional version of pfo_obj
 ; Added documentation and math reporting on pfo_debug, 3
@@ -119,10 +126,9 @@ pro pfo_debug, level
         !except = 1
      end
      2: begin
-        ;; as with 1, CATCH statements in PFO_DEBUG-enabled code are skipped
-        ;; Turn off XMANAGER catching, so that widget code can be more
-        ;; easily debugged
-        xmanager, catch=0
+        ;; as with 1, but some additional CATCH statements in
+        ;; PFO_DEBUG-enabled code are skipped.
+        xmanager, catch=1
         ;; Math exception still IDL default
         !except = 1
      end
@@ -132,10 +138,20 @@ pro pfo_debug, level
         ;; you write your code to avoid math exceptions for expected
         ;; cases, so that when one happens, you know that there is a
         ;; real problem.
+        xmanager, catch=0
+        !except = 2
+     end
+     4: begin
+        ;; Like 2, but turn on full math exception reporting.  This
+        ;; reports the location of the offending calculation.  Ideally
+        ;; you write your code to avoid math exceptions for expected
+        ;; cases, so that when one happens, you know that there is a
+        ;; real problem.
+        xmanager, catch=0
         !except = 2
      end
      else: begin
-        message, /CONTINUE, 'NOTE: debug levels 0,1,2,3 are supported, setting to level 2'
+        message, /CONTINUE, 'NOTE: debug levels 0,1,2,3,4 are supported, setting to level 2'
         pfo_debug, 2
      end
   endcase
