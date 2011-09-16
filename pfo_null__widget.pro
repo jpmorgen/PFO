@@ -46,9 +46,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__widget.pro,v 1.2 2011/09/08 20:01:17 jpmorgen Exp $
+; $Id: pfo_null__widget.pro,v 1.3 2011/09/16 11:22:51 jpmorgen Exp $
 ;
 ; $Log: pfo_null__widget.pro,v $
+; Revision 1.3  2011/09/16 11:22:51  jpmorgen
+; Significant improvement in widget speed by using pfo_parinfo_text_cw
+; and edit button in pfo_parinfo_mode_cw
+;
 ; Revision 1.2  2011/09/08 20:01:17  jpmorgen
 ; Played with /align_right and found it not necessary.  It seems to mess
 ; with widget_label in pfo_parinfo_error_xw
@@ -64,6 +68,7 @@ pro pfo_null_cw_obj::populate, $
    params=params, $ 	;; parameters (entire array).
    fname=fname, $ ;; original fname of function in pfo_parinfo_parse
    first_funct=first_funct, $ ;; allows us to display some introductory material (e.g. column headings)
+   edit=edit, $ ;; bring up all widgets rather than just text widget with parinfo printed into it
    no_finit=no_finit, $ ;; Don't display X=Xin, Y=NaN function initialization string (e.g. you are displaying a segment of parinfo)
    param_names_only=param_names_only, $ ;; print parameter names only
    brief=brief, $ ;; print the function briefly on one line (just function name and parameters)
@@ -76,14 +81,13 @@ pro pfo_null_cw_obj::populate, $
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        junk = widget_text(self.containerID, value='Caught the following error: ' + !error_state.msg)
+        junk = widget_text(self.tlbID, value='Caught the following error: ' + !error_state.msg)
         message, /NONAME, !error_state.msg, /CONTINUE
         message, 'ERROR: caught the above error.  Returning widget as prepared so far,', /CONTINUE
         return
      endif
   endif ;; not debugging
 
-  
   ;; Do basic function consistency checking
   self.pfo_obj->parinfo_call_procedure, $
      /no_update, 'pfo_fcheck', fname, params=params, idx=*self.pidx, pfo_obj=self.pfo_obj
@@ -96,45 +100,79 @@ pro pfo_null_cw_obj::populate, $
   
   ;; Define our column widths.
   units = !tok.inches
+  mode_width = 1.5
   parname_width = 0.75
   val_width = 1.
   err_width = 0.75
-  delim_width = 0.75
+  delim_width = 0.65
+  pm_width = 0.25
 
   ;; See if we need to display our preamble
   if keyword_set(first_funct) then begin
      ;; Allow user to skip finit (X=Xin, Y=NaN) if they are not
      ;; displaying a whole function.
      if NOT keyword_set(no_finit) then $
-        ID = pfo_finit_cw(self.containerID, pfo_obj=self.pfo_obj)
+        ID = pfo_finit_cw(self.tlbID, pfo_obj=self.pfo_obj)
 
      ;; Create a row widget into which to put our delimiter key
-     rowID = widget_base(self.containerID, /row, /base_align_center)
+     rowID = widget_base(self.tlbID, /row, /base_align_center)
+     ;; Remember to move it over by mode_width
+     ID = widget_base(rowID, xsize=mode_width, units=units)
      ID = widget_label(rowID, value='(L: . = free, | = fixed, < = limited, <* = pegged)')
 
-     ;; Create a row widget into which to put our column headings
-     rowID = widget_base(self.containerID, /row, /base_align_center)
-     ID = widget_label(rowID, value='Param name', xsize=parname_width, units=units)
-     ID = widget_label(rowID, value='Left limit', xsize=val_width, units=units)
-     ID = widget_label(rowID, value=' L  ', xsize=delim_width, units=units)
-     ID = widget_label(rowID, value='Value', xsize=val_width, units=units)
-     ID = widget_label(rowID, value='', xsize=delim_width, units=units)
-     ID = widget_label(rowID, value='Error', xsize=err_width, units=units)
-     ID = widget_label(rowID, value='L   ', xsize=delim_width, units=units)
-     ID = widget_label(rowID, value='Right limit', xsize=val_width, units=units)
-     if keyword_set(include_mpstep) then begin
-        mpside_width = delim_width*3
-        ID = widget_label(rowID, value='Step', xsize=val_width, units=units)
-        ID = widget_label(rowID, value='Rel Step', xsize=val_width, units=units)
-        ID = widget_label(rowID, value='MPside', xsize=mpside_width, units=units)
-        ID = widget_label(rowID, value='MPmaxstep', xsize=val_width, units=units)
-     endif ;; optional MPside stuff
-     ;; Call the col_head sections of any other widget routines in
-     ;; the parinfo structure.  Make use of the call procedure system
-     ;; in the pfo_obj and then again at the struct level.
-     junk = self.pfo_obj->parinfo_call_function( $
-            /no_update, 'pfo_struct_call_function', 'widget', rowID, /col_head, $
-            idx=*self.pidx, _EXTRA=extra)
+     ;; If we are editing, do this in widget-land
+     if keyword_set(edit) then begin
+        ;; Create a row widget into which to put our column headings
+        rowID = widget_base(self.tlbID, /row, /base_align_center, /frame)
+        ;; Remember to move it over by mode_width
+        ID = widget_base(rowID, xsize=mode_width, units=units)
+        ID = widget_label(rowID, value='Param name', xsize=parname_width, units=units)
+        ID = widget_label(rowID, value='Left limit', xsize=val_width, units=units)
+        ID = widget_label(rowID, value=' L  ', xsize=delim_width, units=units)
+        ID = widget_label(rowID, value='Value', xsize=val_width, units=units)
+        ID = widget_label(rowID, value='', xsize=pm_width, units=units)
+        ID = widget_label(rowID, value='Error', xsize=err_width, units=units)
+        ID = widget_label(rowID, value='L   ', xsize=delim_width, units=units)
+        ID = widget_label(rowID, value='Right limit', xsize=val_width, units=units)
+        if keyword_set(include_mpstep) then begin
+           mpside_width = delim_width*3
+           ID = widget_label(rowID, value='Step', xsize=val_width, units=units)
+           ID = widget_label(rowID, value='Rel Step', xsize=val_width, units=units)
+           ID = widget_label(rowID, value='MPside', xsize=mpside_width, units=units)
+           ID = widget_label(rowID, value='MPmaxstep', xsize=val_width, units=units)
+        endif ;; optional MPside stuff
+        ;; Call the col_head sections of any other widget routines in
+        ;; the parinfo structure.  Make use of the call procedure system
+        ;; in the pfo_obj and then again at the struct level.
+        junk = self.pfo_obj->parinfo_call_function( $
+               /no_update, 'pfo_struct_call_function', 'widget', rowID, /col_head, $
+               idx=*self.pidx, _EXTRA=extra)
+
+     endif else begin
+        ;; If we are printing into text widgets to go faster, our
+        ;; formatting will be different
+
+        ;; Create a row widget into which to put our column headings
+        rowID = widget_base(self.tlbID, /row, /base_align_center, /frame)
+        ;; Remember to move it over by mode_width
+        ID = widget_base(rowID, xsize=mode_width, units=units)
+
+        junk =  self.pfo_obj->parinfo_call_function( $
+                /no_update, 'pfo_parinfo_parse', /print, /full, $
+                col_head=col_head, idx=*self.pidx, _EXTRA=extra)
+
+        ;; Select a fixed-width font we know is going to be there so
+        ;; things line up with FORMAT statements. --> a better font
+        ;; could be found -- what do they use for the terminal window
+        ;; in IDL?
+        if !d.name eq 'WIN' then $
+           font = !pfo.win_font
+
+        ID = widget_label(rowID, value=col_head, font=font)
+
+
+     endelse ;; printing into a text widget
+
   endif ;; Preamble stuff
 
   ;; Get current values for things
@@ -167,99 +205,124 @@ pro pfo_null_cw_obj::populate, $
      message, 'ERROR: more than one outfunct specified for ' + pfo_fname(ftype[0], pfo_obj=self.pfo_obj) + ' idx = ' + pfo_array2str(idx) + '.  If this function can really work that way, write its own __widget routine to deal with each parameter individually.'
   endif
 
-  ;; Create a row widget into which to put our equation.
-  rowID = widget_base(self.containerID, /row, /base_align_center)
-  ;; Remember to pass all of the idx so the whole function can be
-  ;; changed by the event functions
+  ;; Create a two-column base for each function.  Column one has the
+  ;; active, inactive, delete and edit buttons and column two is a row
+  ;; base that has the function.
 
-  ;; Outaxis
-  ID = pfo_parinfo_axis_cw(rowID, /out, idx=*self.pidx, pfo_obj=self.pfo_obj)
-  ;; =
-  ID = widget_label(rowID, value='=')
-  ;; Don't repeat the outaxis when we have operations of noop or repl.
-  ;; When we do want to repeat the outaxis, just make it a label, so
-  ;; it is clear we can't have y = x without going through a poly or
-  ;; something like that --> make a widget for this, so it works with refesh
+  fbaseID = widget_base(self.tlbID, column=2)
+  ID = pfo_parinfo_mode_cw(fbaseID, idx=*self.pidx, xsize=mode_width, units=units, $
+                           edit=edit, pfo_obj=self.pfo_obj)
+
+  ;; Only allow tabbing into base containing the function widgets if
+  ;; we are in editing mode.
+  col2ID = widget_base(fbaseID, /column, tab_mode=keyword_set(edit))
+
+  ;; Check to see if we are in full-up edit mode, in which case we
+  ;; display all of our widgets
+  if keyword_set(edit) then begin
+     ;; Create a row widget into which to put our equation.
+     rowID = widget_base(col2ID, /row, /base_align_center)
+     ;; Remember to pass all of the idx so the whole function can be
+     ;; changed by the event functions
+
+     ;; Outaxis
+     ID = pfo_parinfo_axis_cw(rowID, /out, idx=*self.pidx, pfo_obj=self.pfo_obj)
+     ;; =
+     ID = widget_label(rowID, value='=')
+     ;; Don't repeat the outaxis when we have operations of noop or repl.
+     ;; When we do want to repeat the outaxis, just make it a label, so
+     ;; it is clear we can't have y = x without going through a poly or
+     ;; something like that --> make a widget for this, so it works with refesh
 ;;  if NOT (fop[0] eq !pfo.noop or fop[0] eq !pfo.repl) then $
-  ;;ID = widget_label(rowID, value=!pfo.widget_axis_string[outaxis[0]])
+     ;;ID = widget_label(rowID, value=!pfo.widget_axis_string[outaxis[0]])
 
-  ;; Just use the droplist widget to always repeat the outaxis for now
-  ID = pfo_parinfo_axis_cw(rowID, /out, idx=*self.pidx, pfo_obj=self.pfo_obj)
+     ;; Just use the droplist widget to always repeat the outaxis for now
+     ID = pfo_parinfo_axis_cw(rowID, /out, idx=*self.pidx, pfo_obj=self.pfo_obj)
 
-  ;; Operation.  Always list this so it can be changed
-  ID = pfo_parinfo_fop_cw(rowID, idx=*self.pidx, pfo_obj=self.pfo_obj)
-  
-  ;; Outfunct: transformation performed to output (e.g. alog) --> make
-  ;; a widget for parenthesis
-  ID = pfo_parinfo_xfunct_cw(rowID, /out, idx=*self.pidx, pfo_obj=self.pfo_obj)
-  ID = widget_label(rowID, value='(')
-
-  ;; Function.  For now, we are not going to change functions, so
-  ;; widget_label is OK.  Eventually a dropdown might be in order, but
-  ;; that would need code to translate from one function to another.
-  ID = widget_label(rowID, value=pfo_fname(ftype[0], pfo_obj=self.pfo_obj))
-  ;; Function ID --> make a widget
-  ID = fsc_field(rowID, title='', value=pfoID[0], decimal=0, digits=3, xsize=3, /NONSENSITIVE)
-
-  ;; Inaxis stuff, including ()
-  ID = widget_label(rowID, value='(')
-  ;; Infunct: transformation performed on input axis (e.g. exp) -->
-  ;; make a widget for parenthesis
-  ID = pfo_parinfo_xfunct_cw(rowID, /in, idx=*self.pidx, pfo_obj=self.pfo_obj)
-  ID = widget_label(rowID, value='(')
-  ;; Inaxis
-  ID = pfo_parinfo_axis_cw(rowID, /in, idx=*self.pidx, pfo_obj=self.pfo_obj)
-  ID = widget_label(rowID, value=')')
-  ;; Close paranthesis from infunct
-  ID = widget_label(rowID, value=')')
-  ;; Close paranthesis from outfunct
-  ID = widget_label(rowID, value=')')
-
-  ;; fseq
-  ID = widget_label(rowID, value='fseq = ')
-  ;; --> make a real widet
-  ID = fsc_field(rowID, title='', value=fseq[0], decimal=0, digits=3, xsize=3, /NONSENSITIVE)
-
-  ;; Check to see if any of the parinfo structure tags want to
-  ;; display any other widgets on the equation line
-  ;; (e.g. pfo_ROI_struct).  This actually returns an array of
-  ;; structures, where the ID.result is the array of widget IDs
-  ID = self.pfo_obj->parinfo_call_function( $
-       /no_update, 'pfo_struct_call_function', 'widget', /equation, rowID, idx=*self.pidx, _EXTRA=extra)
-
-  ;; PARAMETERS
-  for ip=0, N_elements(*self.pidx)-1 do begin
-
-     ;; Create a row widget into which to put our parameters
-     rowID = widget_base(self.containerID, /row, /base_align_center)
-     ;; Parameter name.  widget_label width is in characters only
-     ID = widget_label(rowID, value=parname, xsize=parname_width, units=units)
-     ;; Left limit
-     ID = pfo_parinfo_limit_cw(rowID, side=!pfo.left, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                               xsize=val_width, units=units)
-     ;; Left deliminter
-     ID = pfo_parinfo_delimiter_cw(rowID, side=!pfo.left, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                                   xsize=delim_width, units=units)
-     ;; Value
-     ID = pfo_parinfo_value_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                               xsize=val_width, units=units)
-     ;; +/-
-     ID = widget_label(rowID, value='+/-', xsize=delim_width, units=units)
-     ;; Error
-     ID = pfo_parinfo_error_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                               xsize=err_width, units=units)
-     ;; Right delimiter
-     ID = pfo_parinfo_delimiter_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                                   xsize=delim_width, units=units)
-     ;; Right limit
-     ID = pfo_parinfo_limit_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
-                               xsize=val_width, units=units)
+     ;; Operation.  Always list this so it can be changed
+     ID = pfo_parinfo_fop_cw(rowID, idx=*self.pidx, pfo_obj=self.pfo_obj)
      
-  ID = self.pfo_obj->parinfo_call_function( $
-       /no_update, 'pfo_struct_call_function', 'widget', /parameter, rowID, idx=*self.pidx, _EXTRA=extra)
+     ;; Outfunct: transformation performed to output (e.g. alog) --> make
+     ;; a widget for parenthesis
+     ID = pfo_parinfo_xfunct_cw(rowID, /out, idx=*self.pidx, pfo_obj=self.pfo_obj)
+     ID = widget_label(rowID, value='(')
 
-  end ;; each parameter
+     ;; Function.  For now, we are not going to change functions, so
+     ;; widget_label is OK.  Eventually a dropdown might be in order, but
+     ;; that would need code to translate from one function to another.
+     ID = widget_label(rowID, value=pfo_fname(ftype[0], pfo_obj=self.pfo_obj))
+     ;; Function ID --> make a widget
+     ID = fsc_field(rowID, title='', value=pfoID[0], decimal=0, digits=3, xsize=3, /NONSENSITIVE)
 
+     ;; Inaxis stuff, including ()
+     ID = widget_label(rowID, value='(')
+     ;; Infunct: transformation performed on input axis (e.g. exp) -->
+     ;; make a widget for parenthesis
+     ID = pfo_parinfo_xfunct_cw(rowID, /in, idx=*self.pidx, pfo_obj=self.pfo_obj)
+     ID = widget_label(rowID, value='(')
+     ;; Inaxis
+     ID = pfo_parinfo_axis_cw(rowID, /in, idx=*self.pidx, pfo_obj=self.pfo_obj)
+     ID = widget_label(rowID, value=')')
+     ;; Close paranthesis from infunct
+     ID = widget_label(rowID, value=')')
+     ;; Close paranthesis from outfunct
+     ID = widget_label(rowID, value=')')
+
+     ;; fseq
+     ID = widget_label(rowID, value='fseq = ')
+     ;; --> make a real widet
+     ID = fsc_field(rowID, title='', value=fseq[0], decimal=0, digits=3, xsize=3, /NONSENSITIVE)
+
+     ;; Check to see if any of the parinfo structure tags want to
+     ;; display any other widgets on the equation line
+     ;; (e.g. pfo_ROI_struct).  This actually returns an array of
+     ;; structures, where the ID.result is the array of widget IDs
+     ID = self.pfo_obj->parinfo_call_function( $
+          /no_update, 'pfo_struct_call_function', 'widget', /equation, rowID, idx=*self.pidx, _EXTRA=extra)
+
+     ;; PARAMETERS
+     for ip=0, N_elements(*self.pidx)-1 do begin
+
+        ;; Read our value from the parinfo.  Also read whether or not we are
+        ;; tied so that we can make ourselved insensitive
+        self.pfo_obj->parinfo_call_procedure, $
+           /no_update, 'pfo_struct_setget_tag', /get, idx=(*self.pidx)[ip], $
+           taglist_series='mpfit_parinfo', parname=parname
+
+        ;; Create a row widget into which to put our parameters
+        rowID = widget_base(col2ID, /row, /base_align_center)
+        ;; Parameter name.  widget_label width is in characters only
+        ID = widget_label(rowID, value=parname, xsize=parname_width, units=units)
+        ;; Left limit
+        ID = pfo_parinfo_limit_cw(rowID, side=!pfo.left, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                                  xsize=val_width, units=units)
+        ;; Left deliminter
+        ID = pfo_parinfo_delimiter_cw(rowID, side=!pfo.left, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                                      xsize=delim_width, units=units)
+        ;; Value
+        ID = pfo_parinfo_value_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                                  xsize=val_width, units=units)
+        ;; +/-
+        ID = widget_label(rowID, value='+/-', xsize=pm_width, units=units)
+        ;; Error
+        ID = pfo_parinfo_error_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                                  xsize=err_width, units=units)
+        ;; Right delimiter
+        ID = pfo_parinfo_delimiter_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                                      xsize=delim_width, units=units)
+        ;; Right limit
+        ID = pfo_parinfo_limit_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                                  xsize=val_width, units=units)
+        
+        ID = self.pfo_obj->parinfo_call_function( $
+             /no_update, 'pfo_struct_call_function', 'widget', /parameter, rowID, idx=*self.pidx, _EXTRA=extra)
+
+     end ;; each parameter
+  endif else begin
+     ;; We are just printing information into a text widget to save
+     ;; time
+     ID = pfo_parinfo_text_cw(col2ID, idx=*self.pidx, pfo_obj=self.pfo_obj)
+  endelse 
 end
 
 ;; Cleanup method
@@ -286,14 +349,10 @@ function pfo_null_cw_obj::init, $
   endif ;; not debugging
 
   ;; Call our inherited init routines.  This puts pfo_obj and idx of
-  ;; this function into self, among other things
-  ok = self->pfo_parinfo_cw_obj::init(parentID, _EXTRA=extra)
+  ;; this function into self, among other things.  It also makes the
+  ;; tlb a column base.
+  ok = self->pfo_parinfo_cw_obj::init(parentID, /column, _EXTRA=extra)
   if NOT ok then return, 0
-
-  ;; For now, make our container for the whole function a column base
-  ;; with each row left justified.  This puts each parameter on a
-  ;; separate line, like pfo_parinfo_parse(/print, /full)
-  self->create_container, /column, /base_align_left
 
   ;; Build our widget
   self->populate, _EXTRA=extra
