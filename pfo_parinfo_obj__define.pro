@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj__define.pro,v 1.5 2011/09/15 20:52:06 jpmorgen Exp $
+; $Id: pfo_parinfo_obj__define.pro,v 1.6 2011/09/16 11:26:16 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj__define.pro,v $
+; Revision 1.6  2011/09/16 11:26:16  jpmorgen
+; Added debug level 2 to pfo_debug, so CATCH in update is disabled
+;
 ; Revision 1.5  2011/09/15 20:52:06  jpmorgen
 ; Improved update to handle transition from inactive to delete
 ;
@@ -464,28 +467,31 @@ pro pfo_parinfo_obj::update, $
    no_widget=no_widget, $ ;; don't refresh or repopulate widgets (this routine must be called again to get them to display right!)
    _REF_EXTRA=extra ;; passed to prepare_update and pfo_parinfo_update
 
-  ;; Catch any errors so we can put undo back
-  CATCH, err
-  if err ne 0 then begin
-     CATCH, /CANCEL
-     ;; Report error to console
-     message, /NONAME, !error_state.msg + '  Returning with whatever I have done and reverting the encapsulated parinfo to previous state, if possible', /CONTINUE
-     ;; And with a dialog box if we have any displayed widgets
-     if N_elements(*self.pcw_obj_list) gt 0 then $
-        junk = dialog_message(!error_state.msg)
-     ;; Put our debug level back to where it was.
-     !pfo.debug = odebug
-     ;; As promised, set parinfo back to undo, if undo exists
-     if N_elements(undo) gt 0 then $
-        *self.pparinfo = undo
-     ;; Redisplay our widget to clear whatever we just changed
-     ;; Refresh non-parinfo widgets first
-     self->refresh
-     ;; Refresh parinfo widgets
-     pfo_idx, *self.pparinfo, idx
-     self->refresh, idx=idx
-     return
-  endif ;; catching our errors
+  ;; Handle pfo_debug level.  CATCH errors if debug level is 1 or less
+  if !pfo.debug le 1 then begin
+     ;; Catch any errors so we can put undo back
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        ;; Report error to console
+        message, /NONAME, !error_state.msg + '  Returning with whatever I have done and reverting the encapsulated parinfo to previous state, if possible', /CONTINUE
+        ;; And with a dialog box if we have any displayed widgets
+        if N_elements(*self.pcw_obj_list) gt 0 then $
+           junk = dialog_message(!error_state.msg)
+        ;; Put our debug level back to where it was.
+        !pfo.debug = odebug
+        ;; As promised, set parinfo back to undo, if undo exists
+        if N_elements(undo) gt 0 then $
+           *self.pparinfo = undo
+        ;; Redisplay our widget to clear whatever we just changed
+        ;; Refresh non-parinfo widgets first
+        self->refresh
+        ;; Refresh parinfo widgets
+        pfo_idx, *self.pparinfo, idx
+        self->refresh, idx=idx
+        return
+     endif ;; catching our errors
+  endif ;; debugging
 
   ;; Turn debugging on so we can catch errors with our code above in
   ;; the !pfo.debug=1 or =0 case
