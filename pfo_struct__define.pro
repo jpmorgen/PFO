@@ -51,9 +51,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct__define.pro,v 1.7 2011/09/08 20:15:30 jpmorgen Exp $
+; $Id: pfo_struct__define.pro,v 1.8 2011/09/16 13:54:31 jpmorgen Exp $
 ;
 ; $Log: pfo_struct__define.pro,v $
+; Revision 1.8  2011/09/16 13:54:31  jpmorgen
+; Changed default error decimals to 3
+;
 ; Revision 1.7  2011/09/08 20:15:30  jpmorgen
 ; Added fname to pfo structure
 ;
@@ -400,7 +403,7 @@ function pfo_struct__init, $
   pfo_struct.fop = !pfo.add
   ;; Default formats
   pfo_struct.format='(g12.6)'
-  pfo_struct.eformat='(g12.6)'
+  pfo_struct.eformat='(g12.3)'
 
   ;; Create our description
   descr = $
