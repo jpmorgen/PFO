@@ -38,9 +38,12 @@
 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct_updated.pro,v 1.1 2011/09/08 20:17:50 jpmorgen Exp $
+; $Id: pfo_struct_updated.pro,v 1.2 2011/09/16 13:55:26 jpmorgen Exp $
 ;
 ; $Log: pfo_struct_updated.pro,v $
+; Revision 1.2  2011/09/16 13:55:26  jpmorgen
+; Fixed bug.
+;
 ; Revision 1.1  2011/09/08 20:17:50  jpmorgen
 ; Initial revision
 ;
@@ -54,7 +57,7 @@ function pfo_struct_updated, completed_updates
   ;; Get our call stack list
   help, calls=calls
   ;; Extract the tagname
-  tag = strmid(calls[1], 0, strpos(calls[1], '_struct__update'))
+  tag = strmid(calls[1], 0, strpos(calls[1], '_STRUCT__UPDATE'))
   
   junk = where(tag eq completed_updates, count)
   if count eq 0 then $

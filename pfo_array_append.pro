@@ -73,9 +73,12 @@
 ; 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_array_append.pro,v 1.3 2011/08/01 18:40:47 jpmorgen Exp $
+; $Id: pfo_array_append.pro,v 1.4 2011/09/16 13:56:04 jpmorgen Exp $
 ;
 ; $Log: pfo_array_append.pro,v $
+; Revision 1.4  2011/09/16 13:56:04  jpmorgen
+; Fixed bug.
+;
 ; Revision 1.3  2011/08/01 18:40:47  jpmorgen
 ; First reasonably functional version of pfo_obj
 ; Improved merging of structures
@@ -194,17 +197,16 @@ pro pfo_array_append, orig_array, more_array, null_array=null_array
         if err ne 0 then begin
            CATCH, /CANCEL
            message, /NONAME, !error_state.msg, /INFORMATIONAL
-           message, /INFORMATIONAL, 'NOTE: Caught above error when trying to initialize tag ' + mtag_names[it] + ' with the pfo_stuct system.  Adding tag as a copy of more_array[0].' + mtag_names[it]
+           message, /INFORMATIONAL, 'NOTE: Caught above error when trying to initialize tag ' + mtag_names[it] + ' with the pfo_stuct system.  Adding tag as a copy of more_array[0], which means it might not be properly initialized.' + mtag_names[it]
            new_struct1 = $
               create_struct(temporary(new_struct1), mtag_names[it], more_array[0].(it))
            CONTINUE
         endif ;; not a pfo_struct_new enabled tag
-        ;; Try to create our new tag with the pfo_struct system
-        new_tag = pfo_struct_new(mtag_names[it] + '_struct')
+        ;; Try to append our new tag with the pfo_struct system
+        pfo_struct_append, new_struct1, mtag_names[it]
         ;; If we made it here, everything should be OK, --> as long as
         ;; tag name in more_array is not accidentally the same as a
         ;; structure definition in the pfo_struct system
-        pfo_struct_append, new_struct1, new_tag
         ;; Presumably, pfo_struct_new has been called properly
         ;; inside of the pfo_parinfo_template system so that the
         ;; descr is tracked properly.  pfo_array_append was just

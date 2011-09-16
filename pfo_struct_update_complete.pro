@@ -43,9 +43,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct_update_complete.pro,v 1.1 2011/09/08 20:17:35 jpmorgen Exp $
+; $Id: pfo_struct_update_complete.pro,v 1.2 2011/09/16 13:55:06 jpmorgen Exp $
 ;
 ; $Log: pfo_struct_update_complete.pro,v $
+; Revision 1.2  2011/09/16 13:55:06  jpmorgen
+; Fixed bug.
+;
 ; Revision 1.1  2011/09/08 20:17:35  jpmorgen
 ; Initial revision
 ;
@@ -54,5 +57,5 @@ pro pfo_struct_update_complete, completed_updates
   help, calls=calls
   pfo_array_append, $
      completed_updates, $
-     strmid(calls[1], 0, strpos(calls[1], '_struct__update'))
+     strmid(calls[1], 0, strpos(calls[1], '_STRUCT__UPDATE'))
 end
