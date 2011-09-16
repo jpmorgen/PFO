@@ -164,9 +164,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.6 2011/09/15 20:53:32 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.7 2011/09/16 11:20:32 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.7  2011/09/16 11:20:32  jpmorgen
+; Propagated status_mask to primitives, since they (particularly
+; __indices) call pfo_fidx.
+;
 ; Revision 1.6  2011/09/15 20:53:32  jpmorgen
 ; Changed widget system to use pfo_parinfo_edit
 ;
@@ -345,7 +349,6 @@ function pfo_parinfo_parse, $
               parentID = $
                  pfo_parinfo_edit(parinfo=parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
                                   status_mask=status_mask, group_leader=group_leader, _EXTRA=extra)
-              ;;pfo_parinfo_edit_base(group_leader=group_leader, realize=0, /tlb_size_events, pfo_obj=pfo_obj, _EXTRA=extra)
               return, parentID
            endif ;;
 
@@ -855,6 +858,7 @@ function pfo_parinfo_parse, $
                                          funct_name, $
                                          temporary(x), params, $
                                          parinfo=parinfo, idx=fidx, $
+                                         status_mask=status_mask, $
                                          pfo_obj=pfo_obj, $
                                          _EXTRA=extra)
 
@@ -901,6 +905,7 @@ function pfo_parinfo_parse, $
                                          call_function( $
                                          funct_name, parinfo, params=params, $
                                          idx=fidx, $
+                                         status_mask=status_mask, $
                                          fname=fname, first_funct=first_funct, $
                                          pfo_obj=pfo_obj, $
                                          _EXTRA=extra)
@@ -913,6 +918,7 @@ function pfo_parinfo_parse, $
                                          funct_name, containerID, $
                                          params=params, $
                                          idx=fidx, $
+                                         status_mask=status_mask, $
                                          fname=fname, first_funct=first_funct, $
                                          pfo_obj=pfo_obj, $
                                          cw_obj=cw_obj, $
@@ -927,6 +933,7 @@ function pfo_parinfo_parse, $
                                          call_function( $
                                          funct_name, $
                                          parinfo, idx=fidx, $
+                                         status_mask=status_mask, $
                                          fname=fname, first_funct=first_funct, $
                                          pfo_obj=pfo_obj, $
                                          _EXTRA=extra)
