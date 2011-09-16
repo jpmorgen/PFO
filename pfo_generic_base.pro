@@ -50,9 +50,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_generic_base.pro,v 1.2 2011/09/01 22:15:43 jpmorgen Exp $
+; $Id: pfo_generic_base.pro,v 1.3 2011/09/16 13:42:32 jpmorgen Exp $
 ;
 ; $Log: pfo_generic_base.pro,v $
+; Revision 1.3  2011/09/16 13:42:32  jpmorgen
+; Moved tlb resize event handler to cw_obj, cleaned up cw_obj widget
+; hierarchy stuff
+;
 ; Revision 1.2  2011/09/01 22:15:43  jpmorgen
 ; *** empty log message ***
 ;
@@ -61,26 +65,9 @@
 ;
 ;-
 
-;; Event to make sure scrollbars are refreshed --> this doesn't quite
-;; work right in twm: event.y seems to include twm frame.
-function pfo_generic_base_cw_obj::resize, event
-
-  widget_control, event.top, update=0
-  ;; scr_xsize seemed to produce undesirable behavior in IDL 8.1 on
-  ;; Windows but almost correct behavior in twm (see above)
-  widget_control, event.ID, scr_xsize=event.x, scr_ysize=event.y
-  ;; xsize makes the resize larger in twm
-  ;;widget_control, event.ID, xsize=event.x, ysize=event.y
-  ;; draw_xsize does about the same thing as no call to widget_control
-  ;;widget_control, event.ID, draw_xsize=event.x, draw_ysize=event.y
-  widget_control, event.top, update=1
-
-  return, !tok.nowhere
-
-end
 
 ;; Cleanup method
-pro pfo_generic_base_cw_obj::cleanup
+pro pfo_generic_base_obj::cleanup
   ;; Call our inherited cleaup routines
   self->pfo_cw_obj::cleanup
   ;; Free our pointers
@@ -88,7 +75,8 @@ pro pfo_generic_base_cw_obj::cleanup
 end
 
 ;; Init method
-function pfo_generic_base_cw_obj::init, $
+function pfo_generic_base_obj::init, $
+   parentID, $ ;; here for compatibility with pfo_cw_obj_new, but not used
    title=title, $	;; title string
    x_scroll_size=x_scroll_size, $ ;; size of scrolling area (widget sizes appropriately)
    y_scroll_size=y_scroll_size, $ ;; size of scrolling area (widget sizes appropriately)
@@ -131,11 +119,12 @@ function pfo_generic_base_cw_obj::init, $
   ;;scr_ysize = screen[1] < scr_ysize
 
   ;; Call our inherited init routines.  This creates a top-level base
-  ;; with a menu bar and puts pfo_obj into self, etc.
+  ;; with a menu bar and makes sure that uvalue can be set to
+  ;; something user specified.  It also puts pfo_obj into self, etc.
   ok = self->pfo_cw_obj::init( $
        title=title, $
        pfo_obj=pfo_obj, $
-       /mbar, $
+       /mbar, /first_child, $
        $;;/scroll, $
        $;; Made a tiny base widget with scroll bars
        $;; xsize=scr_xsize, $
@@ -146,7 +135,7 @@ function pfo_generic_base_cw_obj::init, $
        $;; made widget a bit big -- boarder around plot window
        x_scroll_size=x_scroll_size, $ 
        y_scroll_size=y_scroll_size, $ 
-       uvalue={method: 'resize', obj:self}, $ ;; catch resize events
+       uvalue={method: 'resize', obj:self}, $ ;; catch resize events (/first_child needed to let this work)
        help='Select Menu -> exit to exit widget', $
        _EXTRA=extra)
   if NOT ok then begin
@@ -171,15 +160,15 @@ function pfo_generic_base_cw_obj::init, $
   widget_control, realize=realize, self.tlbID
   xmanager, 'pfo_generic_base', self.tlbID, event_handler='pfo_cw_event_pro', /no_block
 
-  ;; If we made it here, we have successfully set up our container.  
+  ;; If we made it here, we have successfully set up our widget.  
   return, 1
 
 end
 
 ;; Object class definition
-pro pfo_generic_base_cw_obj__define
+pro pfo_generic_base_obj__define
   objectClass = $
-     {pfo_generic_base_cw_obj, $
+     {pfo_generic_base_obj, $
       inherits pfo_cw_obj}
 end
 
@@ -187,7 +176,7 @@ function pfo_generic_base, $
    mbarID=mbarID, $ ;; (output) ID of the menubar widget
    containerID=containerID, $ ;; (output) optional parent widget of any subsequent children of this base
    cw_obj=cw_obj, $ ;; (output) the object that runs this cw
-   _EXTRA=extra
+   _REF_EXTRA=extra
 
   ;; Make sure our system variables are defined for all of the
   ;; routines in this file
@@ -197,9 +186,9 @@ function pfo_generic_base, $
   ;; Initialize output
   cwID = !tok.nowhere
   
-  ;; Create our controlling object.  By passing parentID=!tok.nowhere,
-  ;; we are signaling that we want a top-level base widget with a menu bar
-  cw_obj = obj_new('pfo_generic_base_cw_obj', parentID=!tok.nowhere, _EXTRA=extra)
+  ;; Create our controlling object.  No parentID means that we want a
+  ;; top-level base widget with a menu bar
+  cw_obj = pfo_cw_obj_new(_EXTRA=extra)
 
   ;; The init method creates the widget and stores its ID in self.tlb.
   ;; Use the getID method to access it.  We return this ID, since that
