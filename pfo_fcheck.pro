@@ -6,9 +6,13 @@
 ; CATEGORY: PFO functions
 ;
 ; CALLING SEQUENCE: pfo_fcheck, parinfo, fname, params=params, idx=idx, pfo_obj=pfo_obj
-;
-; DESCRIPTION:
-;
+
+; DESCRIPTION: Makes sure that parinfo exists.  Copies over
+; parinfo.value if params are not specified, makes sure idx exists
+; (set to index entire parinfo, if not), and, most importantly, checks
+; parinfo[idx] to make sure it is consistent with fname (one and only
+; one function defined).  See code for details and other primitives used.
+
 ; INPUTS: 
 
 ;   parinfo: parinfo array in which function fname is expected to be
@@ -51,9 +55,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fcheck.pro,v 1.1 2011/09/01 22:20:58 jpmorgen Exp $
+; $Id: pfo_fcheck.pro,v 1.2 2011/09/16 13:46:45 jpmorgen Exp $
 ;
 ; $Log: pfo_fcheck.pro,v $
+; Revision 1.2  2011/09/16 13:46:45  jpmorgen
+; Improved documentation
+;
 ; Revision 1.1  2011/09/01 22:20:58  jpmorgen
 ; Initial revision
 ;
