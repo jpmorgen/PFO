@@ -50,9 +50,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cw_obj__define.pro,v 1.2 2011/09/03 15:30:03 jpmorgen Exp $
+; $Id: pfo_cw_obj__define.pro,v 1.3 2011/09/16 11:31:14 jpmorgen Exp $
 ;
 ; $Log: pfo_cw_obj__define.pro,v $
+; Revision 1.3  2011/09/16 11:31:14  jpmorgen
+; Allow streamlining of widgets so child and container are optional
+;
 ; Revision 1.2  2011/09/03 15:30:03  jpmorgen
 ; ABout to experiment with no child, but having everything in parent to
 ; see if that speeds things up
@@ -116,12 +119,10 @@ function pfo_cw_obj::help, event
 
   ;; Make our help a text widget.  Put it into the container, just in
   ;; case we eventually want to do fancy refreshing
-  cw_obj->create_container, /column
   tlbID = cw_obj->tlbID()
-  containerID = cw_obj->containerID()
   ;; textlineformat is from David Fanning's Coyote
   ;; library.  It does a line wrap
-  ID = widget_text(containerID, $
+  ID = widget_text(tlbID, $
                    /scroll, $
                    value=textlineformat(*self.phelp, length=80), $
                    xsize=85, ysize=24)
@@ -129,7 +130,7 @@ function pfo_cw_obj::help, event
   ;; if we use self (cw_obj of invoking widget) or cw_obj, since the
   ;; method just queries the event structure.  We might not always be
   ;; that lucky, so make sure we are carefuly with obj
-  doneID = widget_button(containerID, value='Done', $
+  doneID = widget_button(tlbID, value='Done', $
                          uvalue={method: 'kill_tlb', obj:cw_obj})
   ;; Only useful for modal widget
   ;;widget_control, tlbID, $
@@ -167,9 +168,17 @@ pro pfo_cw_obj::create_container, $
   if N_elements(extra) ne 0 then $
      *self.pcontainer_args = extra
 
+  ;; By default, put our container directly under the tlb.  This
+  ;; streamlines things
+  parentID = self.tlbID
+  ;; If we have a valid first child, put the container under that so
+  ;; that we can clear out the tlb uvalue and event_* keywords
+  if widget_info(self.childID, /valid_id) then $
+     parentID = self.childID  
+
   ;; Create our container with the encapsulated arguments
   self.containerID = $
-     widget_base(self.childID, $
+     widget_base(parentID, $
                  _EXTRA=*self.pcontainer_args)
 end
 
@@ -244,9 +253,11 @@ pro pfo_cw_event_pro, event
 end
 
 ;; Kill notify procedure
-;; This is called when the first child of the tlb is destroyed by a
-;; widget operation.
+;; This is called when the first child is destroyed by a widget operation.
 pro pfo_cw_kill, ID
+  ;; Get our cw_obj out of the first child.  We can only use
+  ;; widget_control at this point, otherwise I would have rather
+  ;; done away with the first child and made things run faster
   widget_control, ID, get_uvalue=cw_obj
   obj_destroy, cw_obj
 end
@@ -286,8 +297,10 @@ end
 function pfo_cw_obj::init, $
    parentID, $ 		;; Parent widget ID.  If not specified, or !tok.nowhere, a top-level base is created
    pfo_obj=pfo_obj, $	;; Encapsulates parinfo that will be displayed (optional)
+   first_child=first_child , $ ;; create a first child in which the self object is stored.  This clears room for a user-defined uvalue at the tlb.  Most pfo widgets don't need this kind of first child to work properly and they work more slowly if there is one
    mbar=mbar, $		;; If present and widget will be a top-level base, is the widgetID of the menu bar (see IDL widget_base documentation)
    title=title, $	;; title string (for top-level base widgets and tab widgets)
+   tab_mode=tab_mode, $ ;; by default, tab_mode=1, so tabbing works
    help=help, $		;; Help string for this cw
    _EXTRA=extra 	;; Capture extra keywords in the *self.pextra property.  
   $			;; Note, these also include any _EXTRA to widget_base, at least for now
@@ -352,38 +365,63 @@ function pfo_cw_obj::init, $
   ;; confuse this with the _EXTRA that are encapsulated above, but for
   ;; now, it is convenient to lump them all together.
 
+  ;; Default is no mbar
+  self.mbarID = !tok.nowhere
+
   ;; Respond to our flag that the cw is for a top-level widget
   if self.parentID eq !tok.nowhere then begin
      ;; top-level widget case.  See if we want a menu bar
      if arg_present(mbar) or N_elements(mbar) ne 0 then begin
-        self.tlbID = widget_base(title=title, mbar=mbar, _EXTRA=extra)
+        self.tlbID = $
+           widget_base(title=title, mbar=mbar, _EXTRA=extra)
         self.mbarID = mbar
      endif else begin
-        self.tlbID = widget_base(_EXTRA=extra)
-        self.mbarID = !tok.nowhere
+        self.tlbID = widget_base(title=title, _EXTRA=extra)
      endelse ;; mbar
   endif else begin
-     ;; Widgets are immediately realized in a base that is already
-     ;; realized, even if update=0.  This slows things down
-     ;; significantly.  Issuing a widget_control, update=0 here
-     ;; doesn't speed things up, but does keep container window
-     ;; blanked longer in LINUX.  In Windows, it has no effect.
-
      ;; Regular compound widget case
      self.tlbID = widget_base(self.parentID, _EXTRA=extra)
   endelse
 
-  ;; Make a simple first child base and put our cw_obj in as its
-  ;; uvalue.  Also handle all events at this level, where possible.
-  ;; NOTE: if the calling routine is not using the containerID system,
-  ;; a separate reference to pfo_cw_event is needed.  NOTE: tab mode
-  ;; works the right way by default in UNIX.  --> this might need some
-  ;; experimenting in Windows
-  self.childID = widget_base(self.tlbID, tab=1, $
-                             kill_notify='pfo_cw_kill', $
-                             event_func='pfo_cw_event_func', $
-                             uvalue=self)
-  
+  ;; Tab mode works what I think of as the right way by default in
+  ;; UNIX.  We need tab_mode=1 for Windows, unless, of course, the
+  ;; user doesn't want it.
+  if N_elements(tab_mode) eq 0 then $
+     tab_mode = 1
+  widget_control, self.tlbID, tab_mode=tab_mode
+
+
+  ;; A proper compund widget (which you can get with the /first_child
+  ;; switch) has a base into which the user cab write their own uvalue
+  ;; and can intercept set_value with a pro_set_value.  But most PFO
+  ;; widgets don't need all of that stuff and adding the layer of a
+  ;; first child multiplied the amount of time it took to repopulate
+  ;; widgets, particularly on Windows machines.  So by default, just
+  ;; keep as much as possible in our tlb.  If you want to have the
+  ;; first child scheme, just specify /first_child.  
+
+  ;; See if we are going to create a first child or not
+  if keyword_set(first_child) then begin
+     ;; In the first child way of doing things, the tlb is left as
+     ;; empty as possible.  All subsequent widgets should be the
+     ;; children of the first child so that the events are sure to be
+     ;; handled by the pfo_cw_event_func.  If you don't get the
+     ;; parentage right, hopefully the call to xmanager for the very
+     ;; most tlb has event_handler='pfo_cw_event_pro'
+     self.childID = widget_base(self.tlbID, $
+                                event_func='pfo_cw_event_func', $
+                                uvalue=self, kill_notify='pfo_cw_kill')
+
+  endif else begin
+     ;; By default, we streamline things by leaving out the first
+     ;; child.  Note that the kill_notify must be associated with the
+     ;; widget that has uvalue set to the cw_obj
+     self.childID = !tok.nowhere
+     widget_control, self.tlbID, $
+                     set_uvalue=self, event_func='pfo_cw_event_func', $
+                     kill_notify='pfo_cw_kill'
+  endelse
+
   ;; Let the user create_container with their own arguments.  This
   ;; lets us encapsulate these arguments for use later, if necessary
   self.containerID = !tok.nowhere
@@ -418,8 +456,8 @@ pro pfo_cw_obj__define
      {pfo_cw_obj, $
       parentID	:	0L, $ ;; widget ID of parent.  !tok.nowhere if this is a top-level base
       tlbID	:	0L, $ ;; top level base of this widget
+      childID	:	0L, $ ;; widget ID of first child, created with /first_child switch to init
       mbarID	:	0L, $ ;; menu bar widget ID, if a top-level base, !tok.nowhere otherwise
-      childID	:	0L, $ ;; first child ID of this widget
       containerID:	0L, $ ;; base into which all child widgets will be deposited (first child of first child)
       pfo_obj	:	obj_new(), $ ;; pfo_obj encapsulating PFO data, parinfo, etc.
       created_pfo_obj : 0, $ ;; we create a vestigial pfo_obj on the fly if none is provided
