@@ -36,9 +36,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_cw_obj__define.pro,v 1.3 2011/09/15 20:52:57 jpmorgen Exp $
+; $Id: pfo_parinfo_cw_obj__define.pro,v 1.4 2011/09/16 11:16:02 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_cw_obj__define.pro,v $
+; Revision 1.4  2011/09/16 11:16:02  jpmorgen
+; Played with status_mask stuff.  Still not sure if I like it
+;
 ; Revision 1.3  2011/09/15 20:52:57  jpmorgen
 ; Broke off repopulate_ok from register_repop so pfo_parinfo_edit could
 ; use it
@@ -81,17 +84,26 @@ function pfo_parinfo_cw_obj::repopulate_ok, $
 
   ;; Get the length of our parinfo in the pfo_obj
   N_parinfo = self.pfo_obj->parinfo_call_function(/no_update, 'N_elements')
+  
+  ;; --> I am starting to have second thoughts about the default value
+  ;; of status_mask being !pfo.active.  This code says that
+  ;; status_mask is OK if you don't specify it, but if you do,
+  ;; it has to be !pfo.all_status
+  status_mask_ok = 1
+  if N_elements(status_mask) ne 0 then $
+     status_mask_ok = status_mask eq !pfo.all_status
 
   ;; Check keywords that would not allow us to repopulate.  Code
   ;; similar to that in pfo_calc_obj::parinfo_cache_ok
   return, (N_elements(parinfo) + $
            N_elements(params) + $
            N_elements(ispec) + $
-           N_elements(iROI) + $
-           N_elements(status_mask) $
-           eq 0 $ ;; Be a little more sophisticated with idx since we might have
+           N_elements(iROI))  $
+           eq 0 $
+           and (status_mask_ok eq 1) $ 
+           $ ;; Be a little more sophisticated with idx since we might have run pfo_idx
            and (N_elements(idx) eq 0 or (N_elements(idx) eq N_parinfo)) $
-           and (N_elements(*self.pidx) eq 0 or (N_elements(*self.pidx) eq N_parinfo)))
+           and (N_elements(*self.pidx) eq 0 or (N_elements(*self.pidx) eq N_parinfo))
 
 end
 
