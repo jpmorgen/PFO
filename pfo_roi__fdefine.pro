@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi__fdefine.pro,v 1.3 2011/09/08 20:17:17 jpmorgen Exp $
+; $Id: pfo_roi__fdefine.pro,v 1.4 2011/09/16 11:19:38 jpmorgen Exp $
 ;
 ; $Log: pfo_roi__fdefine.pro,v $
+; Revision 1.4  2011/09/16 11:19:38  jpmorgen
+; Fiddled with status_mask
+;
 ; Revision 1.3  2011/09/08 20:17:17  jpmorgen
 ; Added fname to pfo structure
 ;
@@ -63,6 +66,7 @@
 function pfo_ROI__indices, $
    parinfo, $    ;; parinfo containing function
    idx=idx, $	;; idx into parinfo over which to search for function
+   status_mask=status_mask, $ ;; status mask (!pfo.active, inactive, delete, all_status)
    ROI_left, $   ;; verbose parameter names for disambiguation
    ROI_right, $
    left=left, $  ;; general parameter names, useful for grouping functions
@@ -73,7 +77,7 @@ function pfo_ROI__indices, $
    _REF_EXTRA=extra ;; soak up any extra parameters
 
   ;; Do basic idx error checking and collect our function indices
-  idx = pfo_fidx(parinfo, 'pfo_ROI', idx=idx, pfo_obj=pfo_obj, $
+  idx = pfo_fidx(parinfo, 'pfo_ROI', idx=idx, status_mask=status_mask, pfo_obj=pfo_obj, $
                  npar=npar, nfunct=nfunct)
   if nfunct ne 1 then $
      message, 'ERROR: ' + strtrim(nfunct, 2) + ' instances of function found, I can only work with one.  Use pfo_parinfo_parse and/or pfo_fidx to help process multiple instances of a function.'
