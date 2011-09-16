@@ -40,44 +40,18 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_edit.pro,v 1.2 2011/09/16 11:14:18 jpmorgen Exp $
+; $Id: pfo_parinfo_edit.pro,v 1.3 2011/09/16 13:41:08 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_edit.pro,v $
+; Revision 1.3  2011/09/16 13:41:08  jpmorgen
+; Moved tlb resize event handler to cw_obj
+;
 ; Revision 1.2  2011/09/16 11:14:18  jpmorgen
 ; *** empty log message ***
 ;
 ; Revision 1.1  2011/09/15 20:50:18  jpmorgen
 ; Initial revision
-;
-; Revision 1.2  2011/09/01 22:15:43  jpmorgen
-; *** empty log message ***
-;
-; Revision 1.1  2011/08/29 18:31:33  jpmorgen
-; Initial revision
-;
 ;-
-
-;; Event to make sure scrollbars are refreshed
-function pfo_parinfo_edit_obj::resize, event
-
-  ;; Adjusting the screen size has different effects in the two
-  ;; windowing systems I use.
-
-  widget_control, event.top, update=0
-  if !d.name eq 'X' then begin
-     ;; I subtract a few pixels in X windows, since, at least for twm,
-     ;; the twm top decorations are included in the reported size
-     widget_control, event.ID, scr_xsize=event.x, scr_ysize=event.y-33
-  endif else begin
-     ;; In Windows, xsize and ysize are in tune with the event x and y
-     widget_control, event.ID, xsize=event.x, ysize=event.y
-  endelse
-
-  widget_control, event.top, update=1
-
-  return, !tok.nowhere
-
-end
 
 ;; Helper function to let us know if we have recursively rerun
 ;; ourselves to get scroll bars
