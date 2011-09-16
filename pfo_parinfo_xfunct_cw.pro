@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_xfunct_cw.pro,v 1.2 2011/09/08 20:01:39 jpmorgen Exp $
+; $Id: pfo_parinfo_xfunct_cw.pro,v 1.3 2011/09/16 13:49:43 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_xfunct_cw.pro,v $
+; Revision 1.3  2011/09/16 13:49:43  jpmorgen
+; Simplified widget hierarchy to try to speed up
+;
 ; Revision 1.2  2011/09/08 20:01:39  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -128,7 +131,7 @@ pro pfo_parinfo_xfunct_cw_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
   self.xfunctID = widget_droplist( $
-                  self.containerID, $
+                  self.tlbID, $
                   value=[self->get_xfunct(), $
                          *self.pxfuncts], $
                   uvalue={method: 'event', obj:self})
@@ -184,13 +187,10 @@ function pfo_parinfo_xfunct_cw_obj::init, $
   ;; Register ourselves in the refresh list.
   self->register_refresh
 
-  ;; Create our container widget
-  self->create_container
-
   ;; Build our widget
   self->populate, _EXTRA=extra
 
-  ;; If we made it here, we have successfully set up our container.  
+  ;; If we made it here, we have successfully set up our widget.
   return, 1
 
 end

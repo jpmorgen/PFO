@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plotwin_obj__define.pro,v 1.1 2011/09/01 22:12:30 jpmorgen Exp $
+; $Id: pfo_plotwin_obj__define.pro,v 1.2 2011/09/16 13:49:24 jpmorgen Exp $
 ;
 ; $Log: pfo_plotwin_obj__define.pro,v $
+; Revision 1.2  2011/09/16 13:49:24  jpmorgen
+; Simplified widget hierarchy to try to speed up
+;
 ; Revision 1.1  2011/09/01 22:12:30  jpmorgen
 ; Initial revision
 ;
@@ -181,12 +184,8 @@ function pfo_plotwin_obj::init, $
   ok = self->pfo_cw_obj::init(parentID, pfo_obj=self.pfo_obj, _EXTRA=extra)
   if NOT ok then return, 0
 
-  self->create_container
-
-  ;; Create our draw widget in the container so events end up in the
-  ;; right place.  Make sure IDL does the backing store in the window
-  ;; with retain=2
-  self.drawID = widget_draw(self.containerID, xsize=self.xsize, ysize=self.ysize, $
+  ;; Make sure IDL does the backing store in the window with retain=2
+  self.drawID = widget_draw(self.tlbID, xsize=self.xsize, ysize=self.ysize, $
                             retain=2, _EXTRA=extra)
 
   ;; Register with our pfo_obj

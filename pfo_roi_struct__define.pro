@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.4 2011/09/08 20:08:20 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.5 2011/09/16 13:48:57 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.5  2011/09/16 13:48:57  jpmorgen
+; Simplified widget hierarchy to try to speed up
+;
 ; Revision 1.4  2011/09/08 20:08:20  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -138,7 +141,7 @@ pro pfo_ROI_struct_cw_obj::populate, $
 
   ;; Use fsc_field to handle numeric/text entry.  FSC_field requries
   ;; event_func be set or else keyword focus events aren't reported.
-  self.ispecID = fsc_field(self.containerID, title='ispec:', $
+  self.ispecID = fsc_field(self.tlbID, title='ispec:', $
                            /highlight, $
                            value=ispec, digits=3, xsize=3, $
                            uvalue={method:'event', obj:self}, $
@@ -146,7 +149,7 @@ pro pfo_ROI_struct_cw_obj::populate, $
                            /cr_only, /focus_events, $
                            object=object)
   self.ispec_obj = object
-  self.iROIID = fsc_field(self.containerID, title='iROI:', $
+  self.iROIID = fsc_field(self.tlbID, title='iROI:', $
                           /highlight, $
                           value=iROI, digits=3, xsize=3, $
                           uvalue={method:'event', obj:self}, $
@@ -199,13 +202,10 @@ function pfo_ROI_struct_cw_obj::init, $
   ;; Register with the refresh list
   self->register_refresh
 
-  ;; Create our container
-  self->create_container, /row
-
   ;; Build our widget
   self->populate, _EXTRA=extra
 
-  ;; If we made it here, we have successfully set up our container.  
+  ;; If we made it here, we have successfully set up our widget.
   return, 1
 
 end
