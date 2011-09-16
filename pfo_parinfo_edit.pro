@@ -40,9 +40,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_edit.pro,v 1.1 2011/09/15 20:50:18 jpmorgen Exp $
+; $Id: pfo_parinfo_edit.pro,v 1.2 2011/09/16 11:14:18 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_edit.pro,v $
+; Revision 1.2  2011/09/16 11:14:18  jpmorgen
+; *** empty log message ***
+;
 ; Revision 1.1  2011/09/15 20:50:18  jpmorgen
 ; Initial revision
 ;
@@ -115,7 +118,7 @@ function pfo_parinfo_edit_obj::init, $
    $ ;; By defailt, the widget is non-blocking (other events and the IDL command line are processed).
    $ ;; You may wich to set no_block=0 to force user to finish with the widget before other things happen
    no_block=no_block, $
-   _REF_EXTRA=extra ;; All other input parameters are passed to underlying routines via _REF_EXTRA
+   _EXTRA=extra ;; ;; don't use REF_EXTRA here, as that lets things like idx get set on recursive call
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -158,39 +161,45 @@ function pfo_parinfo_edit_obj::init, $
   helpID = widget_button(self.mbarID, value='Help', /Help)
   ID = widget_button(helpID, value=*self.ptitle + ' help', $
                          uvalue={method: 'help', obj:self})
-  ;; Add undo to menu bar
-  undoID = widget_button(self.mbarID, value='Undo')
-  ID = widget_button(undoID, value='Enable undo', /checked_menu, $
-                     uvalue={method: 'undo', obj:pfo_obj, keywords:{enable:1}})
-  ID = widget_button(undoID, value='Undo', $
-                     uvalue={method: 'undo', obj:pfo_obj, keywords:{undo:1}})
-  ID = widget_button(undoID, value='Redo', $
-                     uvalue={method: 'undo', obj:pfo_obj, keywords:{redo:1}})
+;;  ;; Add undo to menu bar
+;;  undoID = widget_button(self.mbarID, value='Undo')
+;;  ID = widget_button(undoID, value='Enable undo', /checked_menu, $
+;;                     uvalue={method: 'undo', obj:pfo_obj, keywords:{enable:1}})
+;;  ID = widget_button(undoID, value='Undo', $
+;;                     uvalue={method: 'undo', obj:pfo_obj, keywords:{undo:1}})
+;;  ID = widget_button(undoID, value='Redo', $
+;;                     uvalue={method: 'undo', obj:pfo_obj, keywords:{redo:1}})
+
+  ;; Create a container into which the individal parinfo widgets
+  ;; will display.  Make it a column base (see also pfo_parinfo_container_cw)
+  self->create_container, /column
 
   ;; Check to see if we have been passed any parameters that would
   ;; invalidate our ability to just display the whole parinfo.  If
   ;; this is the case, we still need to register with the repopulation
   ;; list, but we will behave differently when the time comes: we will
   ;; need to delete ourselves since our contents will be invalid.
-  if NOT self->repopulate_ok(_EXTRA=extra) then begin
-     ;; Create a container into which the individal parinfo widgets
-     ;; will display
-     self->create_container
-     ;; Save the containerID so that it will be defined when we pass
-     ;; it to pfo_parinfo_parse
-     containerID = self->containerID()
-     ;; Register _this_ cw_obj with the repopulation list.  In the
-     ;; case that repopulation is OK, pfo_parinfo_parse will make sure
-     ;; that the pfo_parinfo_container_cw is registered.  NOTE: we
-     ;; have to do this with pfo_obj's method rathre than the local
-     ;; method, since the local method will run repopulate_ok again!
+  if self->repopulate_ok(_EXTRA=extra) then begin
+     ;; In the case where repopulation by pfo_parinfo_container_cw is
+     ;; OK, pass the container we made here as the parent.  Let
+     ;; pfo_parinfo_container_cw create the container that does the
+     ;; repopulate and register itself with the repop list
+     junk = pfo_parinfo_parse(/widget, parinfo, status_mask=!pfo.all_status, $
+                              parentID=self->containerID(), $
+                              pfo_obj=pfo_obj, _EXTRA=extra)
+  endif else begin
+     ;; If repopulation is not OK, register _this_ cw_obj with the
+     ;; repopulation list.  The local repopulate method kills this
+     ;; widget.  NOTE: we have to do this with pfo_obj's method rathre
+     ;; than the local method, since the local method will run
+     ;; repopulate_ok again!
      self.pfo_obj->register_repop, self
-  endif
-
-  junk = pfo_parinfo_parse(/widget, parinfo, $
-                           parentID=self.childID, $ ;; this is used only when we have no containerID
-                           containerID=containerID, $
-                           pfo_obj=pfo_obj, _EXTRA=extra)
+     ;; Call pfo_parinfo_parse with our containerID, since then it
+     ;; will skip the needless creation of one.
+     junk = pfo_parinfo_parse(/widget, parinfo, status_mask=!pfo.all_status, $
+                              containerID=self->containerID(), $
+                              pfo_obj=pfo_obj, _EXTRA=extra)
+  endelse
 
   ;; Check to see if x_scroll_size and/or y_scroll_size have been
   ;; specified by user.  If so, skip the fancy recursive code
