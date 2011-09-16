@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_delimiter_cw.pro,v 1.2 2011/09/08 19:59:48 jpmorgen Exp $
+; $Id: pfo_parinfo_delimiter_cw.pro,v 1.3 2011/09/16 13:51:51 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_delimiter_cw.pro,v $
+; Revision 1.3  2011/09/16 13:51:51  jpmorgen
+; Simplified widget hierarchy to try to speed up.
+;
 ; Revision 1.2  2011/09/08 19:59:48  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -155,11 +158,11 @@ pro pfo_parinfo_delimiter_cw_obj::populate, $
   self->get_delimiter, params=params, delimiter=delimiter, pegged=pegged
 
   self.delimiterID = widget_droplist( $
-                     self.containerID, $
+                     self.tlbID, $
                      value=[delimiter, !pfo.delimiters], $
                      uvalue={method:'event', obj:self})
   self.peggedID = widget_label( $
-                  self.containerID, $
+                  self.tlbID, $
                   value=pegged)
 
 end
@@ -196,21 +199,16 @@ function pfo_parinfo_delimiter_cw_obj::init, $
 
   ;; Call our inherited init routines.  This puts pfo_obj into self,
   ;; among other things
-  ok = self->pfo_parinfo_cw_obj::init(parentID, _EXTRA=extra)
+  ok = self->pfo_parinfo_cw_obj::init(parentID, /row, /base_align_center, _EXTRA=extra)
   if NOT ok then return, 0
 
   ;; Register ourselves in the refresh list.
   self->register_refresh
 
-  ;; Create our container widget.  We need focus events to come from
-  ;; it, since cw_field doesn't generate them and fsc_field doesn't
-  ;; handle floating point numbers properly
-  self->create_container, /row, /base_align_center
-
   ;; Build our widget
   self->populate, _EXTRA=extra
 
-  ;; If we made it here, we have successfully set up our container.  
+  ;; If we made it here, we have successfully set up our widget.  
   return, 1
 
 end

@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_limit_cw.pro,v 1.2 2011/09/08 20:01:47 jpmorgen Exp $
+; $Id: pfo_parinfo_limit_cw.pro,v 1.3 2011/09/16 13:50:50 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_limit_cw.pro,v $
+; Revision 1.3  2011/09/16 13:50:50  jpmorgen
+; Simplified widget hierarchy to try to speed up.
+;
 ; Revision 1.2  2011/09/08 20:01:47  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -94,7 +97,7 @@ pro pfo_parinfo_limit_cw_obj::populate, $
      /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
      taglist_series='mpfit_parinfo', limits=limits, format=format
 
-  self.ID = pfo_cw_field(self.containerID, title='', /float, /return_events, $
+  self.ID = pfo_cw_field(self.tlbID, title='', /float, /return_events, $
                          /kbrd_focus_events, format=format, $
                          value=limits[self.side], $
                          uvalue={method:'event', obj:self})              
@@ -139,15 +142,10 @@ function pfo_parinfo_limit_cw_obj::init, $
   ;; Register ourselves in the refresh list.
   self->register_refresh
 
-  ;; Create our container widget.  We need focus events to come from
-  ;; it, since cw_field doesn't generate them and fsc_field doesn't
-  ;; handle floating point numbers properly
-  self->create_container
-
   ;; Build our widget
   self->populate, _EXTRA=extra
 
-  ;; If we made it here, we have successfully set up our container.  
+  ;; If we made it here, we have successfully set up our widget.  
   return, 1
 
 end

@@ -36,9 +36,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_fop_cw.pro,v 1.2 2011/09/08 20:14:59 jpmorgen Exp $
+; $Id: pfo_parinfo_fop_cw.pro,v 1.3 2011/09/16 13:51:03 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_fop_cw.pro,v $
+; Revision 1.3  2011/09/16 13:51:03  jpmorgen
+; Simplified widget hierarchy to try to speed up.
+;
 ; Revision 1.2  2011/09/08 20:14:59  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -101,7 +104,7 @@ pro pfo_parinfo_fop_cw_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
   self.fopID = widget_droplist( $
-               self.containerID, $
+               self.tlbID, $
                value=[self->get_fop_string(), !pfo.widget_fop_string], $
                uvalue={method: 'event', obj:self})
 
@@ -136,9 +139,6 @@ function pfo_parinfo_fop_cw_obj::init, $
 
   ;; Register ourselves in the refresh list
   self->register_refresh
-
-  ;; Create our container
-  self->create_container
 
   ;; Build our widget
   self->populate, _EXTRA=extra
