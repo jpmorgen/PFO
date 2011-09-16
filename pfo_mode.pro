@@ -85,9 +85,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mode.pro,v 1.4 2011/09/08 20:00:10 jpmorgen Exp $
+; $Id: pfo_mode.pro,v 1.5 2011/09/16 13:57:38 jpmorgen Exp $
 ;
 ; $Log: pfo_mode.pro,v $
+; Revision 1.5  2011/09/16 13:57:38  jpmorgen
+; Fixed bug in permanent stuff
+;
 ; Revision 1.4  2011/09/08 20:00:10  jpmorgen
 ; Fixed bug in /permanent /cancel_permanent
 ;
@@ -131,8 +134,8 @@ pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
   ;; Handle the /permanent and /cancel_permanent switches
   if keyword_set(permanent) + keyword_set(non_permanent) gt 1 then $
      message, 'ERROR: specify permanent, non_permanent or neither, but not both.'
-  if keyword_set(permanent) then $
-     parinfo[idx].pfo.fixed_mode  = !pfo.permanent
+
+  ;; Canceling permanent should go first
   if keyword_set(cancel_permanent) then $
      parinfo[idx].pfo.fixed_mode  = !pfo.non_permanent
   
@@ -194,6 +197,10 @@ pro pfo_mode, parinfo, mode, idx=idx, permanent=permanent, $
      else : message, 'ERROR: invalid mode ' + strtrim(mode, 2)
 
   endcase
+
+  ;; After we have set our mode, make it permanent, if desired
+  if keyword_set(permanent) then $
+     parinfo[idx].pfo.fixed_mode  = !pfo.permanent
 
   ;; Raise a warning if someone thinks that /permanent refers to
   ;; something other than fixed or free
