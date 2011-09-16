@@ -74,9 +74,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fidx.pro,v 1.2 2011/09/01 22:28:59 jpmorgen Exp $
+; $Id: pfo_fidx.pro,v 1.3 2011/09/16 11:21:35 jpmorgen Exp $
 ;
 ; $Log: pfo_fidx.pro,v $
+; Revision 1.3  2011/09/16 11:21:35  jpmorgen
+; Fixed status_mask code.  Still not sure about best default value
+;
 ; Revision 1.2  2011/09/01 22:28:59  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -144,7 +147,7 @@ function pfo_fidx, parinfo, fname_or_fnum, idx=idx, $
     status_mask = !pfo.active
 
   ;; Apply our bitmask to the parinfo (optionally narrowed to idx)
-  use_idx = where((parinfo[idx].pfo.status OR status_mask) gt 0, npar)
+  use_idx = where((parinfo[idx].pfo.status AND status_mask) gt 0, npar)
   ;; return -1 a la IDL's where, if no parameters matching our
   ;; bitmask are found
   if npar eq 0 then $
