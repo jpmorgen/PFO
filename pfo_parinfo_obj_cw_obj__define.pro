@@ -77,9 +77,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj_cw_obj__define.pro,v 1.2 2011/09/08 20:18:48 jpmorgen Exp $
+; $Id: pfo_parinfo_obj_cw_obj__define.pro,v 1.3 2011/09/16 11:18:24 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj_cw_obj__define.pro,v $
+; Revision 1.3  2011/09/16 11:18:24  jpmorgen
+; Fixed repop when objects kill themselves
+;
 ; Revision 1.2  2011/09/08 20:18:48  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -95,9 +98,20 @@ pro pfo_parinfo_obj_cw_obj::repopulate
   ;; Do this first, since repopulation can be slow.
   self->refresh
 
+  ;; Our job is done if we have nothing in our repop list
+  N_repop = N_elements(*self.pparinfo_repop_list)
+  if N_repop eq 0 then $
+     return
+
+  ;; Save the list of repops, since some of the methods end up
+  ;; killing the cw_objs
+  repop_list = *self.pparinfo_repop_list
+  
   ;; Cycle through the cw_objs on our repop list one by one
-  for iw=0,N_elements(*self.pparinfo_repop_list)-1 do begin
-     (*self.pparinfo_repop_list)[iw]->repopulate
+  for iw=0,N_repop-1 do begin
+     if NOT obj_valid(repop_list[iw]) then $
+        CONTINUE
+     repop_list[iw]->repopulate
   endfor ;; each repop 
 end
 
