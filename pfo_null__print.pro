@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__print.pro,v 1.3 2011/09/01 22:23:31 jpmorgen Exp $
+; $Id: pfo_null__print.pro,v 1.4 2011/09/16 13:47:51 jpmorgen Exp $
 ;
 ; $Log: pfo_null__print.pro,v $
+; Revision 1.4  2011/09/16 13:47:51  jpmorgen
+; Added col_head output and idx and tied printing
+;
 ; Revision 1.3  2011/09/01 22:23:31  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -58,6 +61,8 @@ function pfo_null__print, $
    brief=brief, $ ;; print the function briefly on one line (just function name and parameters)
    full=full, $ ;; print function name and algebraic info on a line by itself and then one line per parameter
    include_mpstep=include_mpstep, $, ;; also include MPFIT autoderivative step stuff (usually defaults are fine, so these are just zero)
+   no_preamble=no_preamble, $ ;; don't include the preamble for first_funct (used in pfo_parinfo_text_cw)
+   col_head=col_head, $ ;; (return) column headings (used in, e.g.,  pfo_null__widget for pfo_parinfo_text_cw)
    pfo_obj=pfo_obj, $ ;; This ends up getting ignored in pfo_null__print
    _REF_EXTRA=extra ;; Extra keywords to pass on to *struct__print methods
 
@@ -161,6 +166,9 @@ function pfo_null__print, $
   equation_string = oaxs + eqsign + oaxs2 + fos + $
             outfunct + '(' + inaxs + ')('
 
+  ;; Clear out the preamble if the caller doesn't want it
+  if keyword_set(no_preamble) then $
+     preamble = ''
 
   ;; PARAM_NAMES_ONLY: just list them on one line them with no other
   ;; information.  List them the same width as their corresponding
@@ -203,6 +211,13 @@ function pfo_null__print, $
 
   ;; FULL: Print one parameter per line
   if keyword_set(full) then begin
+
+     ;; set up formats that are wide enough for idx and tied.  They
+     ;; should be at least as wide as their column headings plus one
+     idx_nchar = floor(alog10(max(idx)))+1 > 4
+     idx_format = '(i' + strtrim(idx_nchar, 2) + ')'
+     tied_format = '(a' + strtrim(max(strlen(parinfo[idx].tied))+2 > 5, 2) + ')'
+
      ;; We want to prepend column headings and other explanations to our preamble
      if keyword_set(first_funct) then begin
         ;; Assume all our values print to the same width as the first one
@@ -210,10 +225,12 @@ function pfo_null__print, $
         val_col_format = 'a' + strtrim(strlen(test), 2)
         test = string(parinfo[idx[0]].value, format=parinfo[idx[0]].pfo.eformat)
         err_col_format = 'a' + strtrim(strlen(test), 2)
+        
+        idx_col_format = 'a' + strtrim(strlen(idx[0]), 2)
         col_head = string(format='(a' + strtrim(!pfo.pname_width, 2) + ', 3X, ' + $
                           val_col_format + ', " L  ", ' + val_col_format + ', 5X, ' + err_col_format + $
-                          ', " L  ", '  + val_col_format + ')' , $
-                          'Param name', 'Left limit', 'Value', 'Error', 'Right limit')
+                          ', " L  ", '  + val_col_format + ', a' + strtrim(idx_nchar, 2) + ', ' + tied_format + ')' , $
+                          'Param name', 'Left limit', 'Value', 'Error', 'Right limit', 'idx', 'tied')
         if keyword_set(include_mpstep) then $
            col_head += string(format='(2('  + val_col_format + '), a7, ' + val_col_format + ' )' , $
                           'Step', 'Relstep', 'MPside', 'MPmaxstep')
@@ -222,11 +239,21 @@ function pfo_null__print, $
         ;; the parinfo structure
         pfo_struct_call_procedure, parinfo, 'print', col_head=col_head, idx=idx, _EXTRA=extra
         preamble = 'Expression; (L: . = free, | = fixed, < = limited, <* = pegged)' + !tok.newline + col_head + !tok.newline + preamble
+
      endif
-     
-     ;; Add a newline to our preamble.  If we are not the first_funct,
-     ;; this just puts a newline after the last function that was printed
-     toprint += preamble + !tok.newline
+
+     ;; Initialize our output variable
+     toprint = ''
+
+     ;; Put in our preamble, remembering to add a newline.  Skip this
+     ;; (and thus any leading newline) if no_preamble is set
+     if NOT keyword_set(no_preamble) then $
+        toprint += preamble + !tok.newline
+
+     ;; The code does not put a trailing newline on functions, so
+     ;; subsequent functions after the first new a prepending newline
+     if NOT keyword_set(first_funct) then $
+        toprint += !tok.newline
 
      ;; Check to see if any of the parinfo structure tags want to
      ;; print anything on the equation line (e.g. pfo_ROI_struct)
@@ -234,10 +261,6 @@ function pfo_null__print, $
 
      toprint += equation_string + !tok.newline
      for ip=0, N_elements(idx)-1 do begin
-        ;; Parameter numbers
-;;     if print ge !pfo.pall then $
-        toprint = toprint + string(format='(i4)', idx[ip])
-
         ;; parname = 
         ;; Build up a formatted 'parname = ' using
         ;; !pfo.pname_width as the runtime format specifier
@@ -265,10 +288,16 @@ function pfo_null__print, $
            eformat = '(' + parinfo[idx[ip]].pfo.eformat + ')'
         param_print += string(parinfo[idx[ip]].error, format=eformat)
 
+        ;; Right delimiter
         param_print += pfo_delimiter(parinfo, !pfo.right, params, $
                                      idx[ip], _EXTRA=extra)
-        
+        ;; Right limit
         param_print += string(parinfo[idx[ip]].limits[!pfo.right], format=pformat)
+
+        ;; Parameter numbers
+        param_print += string(idx[ip], format=idx_format)
+        ;; linked
+        param_print += string(parinfo[idx[ip]].tied, format=tied_format)
         
         ;; Additional mpfit stuff, if desired
         if keyword_set(include_mpstep) then begin
