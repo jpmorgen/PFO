@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj__define.pro,v 1.4 2011/09/08 20:07:08 jpmorgen Exp $
+; $Id: pfo_obj__define.pro,v 1.5 2011/09/22 23:48:55 jpmorgen Exp $
 ;
 ; $Log: pfo_obj__define.pro,v $
+; Revision 1.5  2011/09/22 23:48:55  jpmorgen
+; Add edit method.  Start of integrated pfo_fit widget interface!
+;
 ; Revision 1.4  2011/09/08 20:07:08  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -51,6 +54,13 @@
 ; Initial revision
 ;
 ;-
+
+
+;; Edit method brings up pfo_fit_widget
+pro pfo_obj::edit, $
+   _REF_EXTRA=extra
+  pfo_fit_widget, pfo_obj=self, _EXTRA=extra
+end
 
 ;; Each inherited class should have a descr method.
 function pfo_obj::descr
