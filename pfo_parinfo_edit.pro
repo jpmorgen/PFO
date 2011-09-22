@@ -40,9 +40,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_edit.pro,v 1.4 2011/09/22 01:42:51 jpmorgen Exp $
+; $Id: pfo_parinfo_edit.pro,v 1.5 2011/09/22 23:45:28 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_edit.pro,v $
+; Revision 1.5  2011/09/22 23:45:28  jpmorgen
+; Some improvement to recursive stuff
+;
 ; Revision 1.4  2011/09/22 01:42:51  jpmorgen
 ; About to delete some commented out code
 ;
@@ -78,8 +81,7 @@ end
 pro pfo_parinfo_edit_obj::cleanup
   ;; Call our inherited cleaup routines
   self->pfo_parinfo_cw_obj::cleanup
-  ;; Free our pointers
-  ptr_free, self.phelp
+  ;; Nothing local to do
 end
 
 ;; Init method
@@ -88,6 +90,7 @@ function pfo_parinfo_edit_obj::init, $
    parinfo=parinfo, $ 	;; parinfo, which should be the pfo_obj parinfo via _reference_
    title=title, $	;; title string
    menus=menus, $	;; list of menus to be used with pfo_menubar (default: 'pfo_generic')
+   menu_args=menu_args, $ ;; optional keyword argument(s) to the *_menu widget functions
    pfo_obj=pfo_obj, $	;; pfo_obj is optional.  One will be created if not provided
    x_scroll_size=x_scroll_size, $ ;; experimenting with on-the-fly scrollbar decisions
    y_scroll_size=y_scroll_size, $
@@ -127,13 +130,13 @@ function pfo_parinfo_edit_obj::init, $
      message, 'WARNING: pfo_cw_obj::init returned error.  Object not properly initilized'
      return, 0
   endif
-  
+
   ;; Set up the default menus for the parinfo editor
   if N_elements(menus) eq 0 then $
      menus = ['pfo_generic', 'pfo_parinfo_edit']
   ;; Insert the menu bar menus into the menu bar.  Help is always the
   ;; last menu
-  self->mbar, menus
+  self->mbar, menus, menu_args=menu_args
 
   ;; Create a container into which the individal parinfo widgets
   ;; will display.  Make it a column base (see also pfo_parinfo_container_cw)
@@ -152,9 +155,6 @@ function pfo_parinfo_edit_obj::init, $
      self.pfo_obj->parinfo_edit, status_mask=!pfo.all_status, $
                                  parentID=self->containerID(), $
                                  _EXTRA=extra
-;;     junk = pfo_parinfo_parse(/widget, parinfo, status_mask=!pfo.all_status, $
-;;                              parentID=self->containerID(), $
-;;                              pfo_obj=pfo_obj, _EXTRA=extra)
   endif else begin
      ;; If repopulation is not OK, register _this_ cw_obj with the
      ;; repopulation list.  The local repopulate method kills this
@@ -165,10 +165,8 @@ function pfo_parinfo_edit_obj::init, $
      ;; Call pfo_parinfo_parse with our containerID, since then it
      ;; will skip the needless creation of one.
      self.pfo_obj->parinfo_edit, status_mask=!pfo.all_status, $
-                                 containerID=self->containerID()
-;;     junk = pfo_parinfo_parse(/widget, parinfo, status_mask=!pfo.all_status, $
-;;                              containerID=self->containerID(), $
-;;                              pfo_obj=pfo_obj, _EXTRA=extra)
+                                 containerID=self->containerID(), $
+                                 _EXTRA=extra
   endelse
 
   ;; Check to see if x_scroll_size and/or y_scroll_size have been
@@ -197,11 +195,6 @@ function pfo_parinfo_edit_obj::init, $
                        pfo_obj=pfo_obj, $       ;; 
                        x_scroll_size=x_scroll_new, $ ;; experimenting with on-the-fly scrollbar decisions
                        y_scroll_size=y_scroll_new, $
-                       $ ;; By default, widget is realized, but you may which to avoid that for some reason
-                       realize=realize, $ 
-                       $ ;; By defailt, the widget is non-blocking (other events and the IDL command line are processed).
-                       $ ;; You may wich to set no_block=0 to force user to finish with the widget before other things happen
-                       no_block=no_block, $
                        /recursive_call, $ ;; signal pfo_parinfo_edit that we are not done yet
                        cw_obj=self.new_cw_obj, $ ;; Store cw_obj of created widget so we can delete first-time through obj
                        _EXTRA=extra
@@ -231,14 +224,14 @@ pro pfo_parinfo_edit, $
    $ ;; If pfo_obj exists outside of pfo_parinfo_edit, parinfo should be passed via _reference_ as parinfo=*self.pparinfo
    $ ;; If pfo_obj is not specified in any way by the caller, the widget is blocking and, after editing, parinfo is returned and the pfo_obj is destroyed
    $ ;; If pfo_obj is present as a keyword but undefined, the pfo_obj created here is returned
-   parinfo=parinfo, $ ;; (optional)
-   pfo_obj=pfo_obj, $ ;; (optional) pfo_obj encapsulting parinfo and widget stuff
+   parinfo=parinfo, $ ;; (optional: see above)
+   pfo_obj=pfo_obj, $ ;; (optional: see above)
    mbarID=mbarID, $ ;; (output) ID of the menubar widget
    containerID=containerID, $ ;; (output) optional parent widget of any subsequent children of this base
    cw_obj=cw_obj, $ ;; (output) the object that runs this cw
    $ ;; By default, widget is realized, but you may which to avoid that for some reason
    realize=realize_in, $ ;;  be polite to calling code
-   $ ;; By defailt, the widget is non-blocking (other events and the IDL command line are processed).
+   $ ;; By default, the widget is non-blocking (other events and the IDL command line are processed).
    $ ;; You may wish to set no_block=0 to force user to finish with the widget before other things happen.  
    $ ;; When pfo_obj is created on the fly, no_block is always set to 0
    no_block=no_block_in, $ ;;  be polite to calling code
@@ -250,92 +243,61 @@ pro pfo_parinfo_edit, $
   init = {tok_sysvar}
   init = {pfo_sysvar}
 
-  ;; Initialize output
-  cwID = !tok.nowhere
-  
-  ;; Check to see if the user supplied a pfo_obj but forgot to supply
-  ;; a parinfo.  Ideally, the parinfo in the pfo_obj (*self.pparinfo)
-  ;; and parinfo are the same memory area.  This can only happen if
-  ;; pfo_parinfo_edit was called from within the pfo_obj with code
-  ;; something like this:
-  ;;ID = pfo_obj->call_function( $
-  ;;     /no_update, 'pfo_parinfo_parse', /widget, group_leader=self.tlbID, no_block=0, $
-  ;;     /no_finit, menus=['pfo_finit', 'pfo_parinfo_edit'])
-  if N_elements(parinfo) eq 0 and obj_valid(pfo_obj) then begin
-     N_parinfo = pfo_obj->parinfo_call_function(/no_update, 'N_elements')
-     if N_parinfo ne 0 then begin
-        message, 'WARNING: _Copying_ parinfo out of pfo_obj.  If you have a pfo_obj, you should really '
-     endif ;; some parinfo in pfo_obj
-  endif ;; no parinfo supplied
+  ;; For debugging purposes, make sure we are running in
+  ;; object-oriented mode only, politely saving off old state of flag
+  oobjects_only = !pfo.objects_only
+  !pfo.objects_only = 1
 
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     ;; Return to the calling routine with our error
+     ON_ERROR, !tok.return
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        ;; Remember to restore old state of objects_only
+        !pfo.objects_only = oobjects_only
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'USAGE: pfo_parinfo_edit, parinfo=parinfo, pfo_obj=pfo_obj, mbarID=mbarID, containerID=containerID, cw_obj=cw_obj, realize=realize, no_block=no_block, _EXTRA=extra'
+     endif
+  endif ;; not debugging
 
-  ;; Handle no_block in a polite way to the caller
+  ;; Handle no_block in a polite way to the caller, since we may
+  ;; change it
   if N_elements(no_block_in) ne 0 then $
      no_block = no_block_in
 
   ;; Create pfo_obj on the fly if none provided.  
-  if N_elements(pfo_obj) eq 0 or NOT obj_valid(pfo_obj) then begin
+  if NOT obj_valid(pfo_obj) then begin
+     ;; --> change this when I get a file menu with write capabilities
+     if NOT (arg_present(pfo_obj) or arg_present(parinfo) or N_elements(parinfo) ne 0) then $
+        message, 'ERROR: pfo_obj and/or parinfo are not specified.  No way to capture output'
      message, /INFORMATIONAL, 'NOTE: creating pfo_obj.  If this is not what you expect, make sure you pass pfo_obj.  Use pfo_quiet to suppress message.'
      ;; Make a basic pfo_obj to make parinfo editing work.
      pfo_obj = pfo_obj_new()
-     created_pfo_obj = 1
      ;; _Copy_ our parinfo into the pfo_obj since we depend on it
      ;; being defined both inside and outside the pfo_obj.  For this
      ;; reason it is preferable to call this from within the parinfo
-     pfo_obj->set_property, parinfo_array=parinfo
-     ;; Make sure we are a blocking widget
-     if keyword_set(no_block) then $
-        message, /CONTINUE, 'NOTE: forcing no_block=0 so parinfo can be captured and returned'
-     no_block = 0
-  endif ;; creating pfo_obj on the fly
+     pfo_obj->set_property, parinfo_array=parinfo, /no_copy
+     ;; Make sure we are a blocking widget if the user expects output
+     if (arg_present(pfo_obj) or arg_present(parinfo) or N_elements(parinfo) ne 0) then begin
+        if keyword_set(no_block) then $
+           message, /CONTINUE, 'NOTE: forcing no_block=0 so parinfo and/or pfo_obj can be captured and returned (if possible -- IDL XMANAGER cannot block if the first widget was non-blocking)'
+        no_block = 0
+     endif ;; adjusting no_block to wait for return of parinfo and/or pfo_obj
+     ;; Call the edit_parinfo method of our new pfo_obj
+     pfo_obj->parinfo_edit,    $
+        mbarID=mbarID, $ ;; (output) ID of the menubar widget
+        containerID=containerID, $ ;; (output) optional parent widget of any subsequent children of this base
+        cw_obj=cw_obj, $ ;; (output) the object that runs this cw
+        $ ;; By default, widget is realized, but you may which to avoid that for some reason
+        realize=realize_in, $ ;;  be polite to calling code
+        no_block=no_block, $ ;; Make sure we are non-blocking, if possible
+        _EXTRA=extra
 
-  ;; Create our widget controlling object.  No parentID means that we want a
-  ;; top-level base widget with a menu bar
-  cw_obj = pfo_cw_obj_new(parinfo=parinfo, pfo_obj=pfo_obj, no_block=no_block, _EXTRA=extra)
-
-  ;; See if there was any problem in the cw_obj creation
-  if obj_valid(cw_obj) and NOT keyword_set(recursive_call) then begin
-     ;; Successful cw_obj creation
-     ;; Get our tlb
-     cwID = cw_obj->tlbID()
-     ;; Get our containerID, in case caller wants to put more stuff in
-     containerID = cw_obj->containerID()
-     ;; Get our mbarID in case caller wants to add more menus (better
-     ;; to do with menus keyword, so help ends up in the right order)
-     mbarID = cw_obj->mbarID()
-     ;; See if we recursively run ourselves to get scroll bars on.  If
-     ;; so, destroy the first instance of our object and widget which
-     ;; never realized and replace the output object with the one we
-     ;; created.
-     new_cw_obj = cw_obj->new_cw_obj()
-     if obj_valid(new_cw_obj) then begin
-        obj_destroy, cw_obj
-        cw_obj = new_cw_obj
-     endif ;; second-time object creation for scroll bars
-
-     ;; Default is to realize the widget, to make sure it displays.  You
-     ;; may wish to wait to do that with a "widget_control, ID, /realize"
-     ;; where ID is the return value of the function that invokes this
-     ;; object.
-     ;; Handle realize in a polite way to the caller
-     if N_elements(realize_in) ne 0 then $
-        realize = realize_in
-     if N_elements(realize) eq 0 then $
-        realize = 1
-     widget_control, realize=realize, cwID
-
-     ;; Default is to raise a non-blocking widget
-     if N_elements(no_block) eq 0 then $
-        no_block = 1
-     xmanager, 'pfo_parinfo_edit', cwID, event_handler='pfo_cw_event_pro', no_block=no_block
-
-  endif ;; valid cw_obj
-
-  ;; Handle the case where we created our pfo_obj
-  if keyword_set(created_pfo_obj) then begin
      ;; We are going to want the parinfo from the pfo_obj.  If the
      ;; user doesn't want the pfo_obj, move the parinfo out.
-     ;; Beware the case of undefined parinfo
+     ;; Otherwise, copy it.  Beware the case of undefined parinfo
      N_parinfo = pfo_obj->parinfo_call_function(/no_update, 'N_elements')
      if N_parinfo ne 0 then $
         parinfo = pfo_obj->parinfo(no_copy=~arg_present(pfo_obj))     
@@ -343,6 +305,71 @@ pro pfo_parinfo_edit, $
      ;; really wants it
      if NOT arg_present(pfo_obj) then $
         obj_destroy, pfo_obj
-  endif ;; cleaning up creating pfo_obj
 
-end
+  endif else begin
+     
+     ;; If we made it here, we have the "normal" case, where this code is
+     ;; invoked with a pfo_obj and its encapsulated parinfo (e.g. from
+     ;; within pfo_parinfo_parse)
+
+     ;; Create our widget controlling object.  No parentID means that we want a
+     ;; top-level base widget with a menu bar.  We are going to use some
+     ;; fancy recursive code to get the scroll bars set up.  Pass all _input_
+     ;; command line arguments so everything propagates through.  Output
+     ;; command line arguments will be constructed below.
+     cw_obj = pfo_cw_obj_new( $
+              parinfo=parinfo, $ ;; If we made it here, parinfo and pfo_obj are defined
+              pfo_obj=pfo_obj, $ ;; 
+              $ ;; By default, widget is realized, but you may which to avoid that for some reason
+              realize=realize_in, $ ;;  be polite to calling code
+              $ ;; By defailt, the widget is non-blocking (other events and the IDL command line are processed).
+              $ ;; You may wish to set no_block=0 to force user to finish with the widget before other things happen.  
+              $ ;; When pfo_obj is created on the fly, no_block is always set to 0
+              no_block=no_block_in, $ ;;  be polite to calling code
+              _EXTRA=extra) ;; all other arguments are passed to and from primitives with the _EXTRA mechanism
+
+     ;; See if there was any problem in the cw_obj creation.  If we are a
+     ;; recursive call, return without realizing the widget
+     if obj_valid(cw_obj) and NOT keyword_set(recursive_call) then begin
+        ;; Successful cw_obj creation
+        ;; Get our tlb
+        cwID = cw_obj->tlbID()
+        ;; Get our containerID, in case caller wants to put more stuff in
+        containerID = cw_obj->containerID()
+        ;; Get our mbarID in case caller wants to add more menus (better
+        ;; to do with menus keyword, so help ends up in the right order)
+        mbarID = cw_obj->mbarID()
+        ;; See if we recursively ran ourselves to get scroll bars on.  If
+        ;; so, destroy the first instance of our object and widget which
+        ;; never realized and replace the output object with the one we
+        ;; created.
+        new_cw_obj = cw_obj->new_cw_obj()
+        if obj_valid(new_cw_obj) then begin
+           obj_destroy, cw_obj
+           cw_obj = new_cw_obj
+        endif ;; second-time object creation for scroll bars
+
+        ;; Default is to realize the widget, to make sure it displays.  You
+        ;; may wish to wait to do that with a "widget_control, ID, /realize"
+        ;; where ID is the return value of the function that invokes this
+        ;; object.
+        ;; Handle realize in a polite way to the caller
+        if N_elements(realize_in) ne 0 then $
+           realize = realize_in
+        if N_elements(realize) eq 0 then $
+           realize = 1
+        widget_control, realize=realize, cwID
+
+        ;; Default is to raise a non-blocking widget
+        if N_elements(no_block) eq 0 then $
+           no_block = 1
+        xmanager, 'pfo_parinfo_edit', cwID, event_handler='pfo_cw_event_pro', no_block=no_block
+
+     endif ;; valid cw_obj
+
+  endelse ;; creating pfo_obj vs. using an existing one
+
+  ;; Remember to restore old state of objects_only
+  !pfo.objects_only = oobjects_only
+
+  end
