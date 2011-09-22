@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plotwin_obj__define.pro,v 1.2 2011/09/16 13:49:24 jpmorgen Exp $
+; $Id: pfo_plotwin_obj__define.pro,v 1.3 2011/09/22 23:48:07 jpmorgen Exp $
 ;
 ; $Log: pfo_plotwin_obj__define.pro,v $
+; Revision 1.3  2011/09/22 23:48:07  jpmorgen
+; Minor changes
+;
 ; Revision 1.2  2011/09/16 13:49:24  jpmorgen
 ; Simplified widget hierarchy to try to speed up
 ;
@@ -181,11 +184,15 @@ function pfo_plotwin_obj::init, $
 
   ;; Call our inherited init routine.  Pass the pfo_obj we may have
   ;; just created.
-  ok = self->pfo_cw_obj::init(parentID, pfo_obj=self.pfo_obj, _EXTRA=extra)
+  ok = self->pfo_cw_obj::init(parentID, $
+                              pfo_obj=self.pfo_obj, $
+                              xsize=xsize, $
+                              ysize=ysize, $
+                              _EXTRA=extra)
   if NOT ok then return, 0
 
   ;; Make sure IDL does the backing store in the window with retain=2
-  self.drawID = widget_draw(self.tlbID, xsize=self.xsize, ysize=self.ysize, $
+  self.drawID = widget_draw(self.tlbID, scr_xsize=self.xsize, scr_ysize=self.ysize, $
                             retain=2, _EXTRA=extra)
 
   ;; Register with our pfo_obj
