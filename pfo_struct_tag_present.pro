@@ -40,9 +40,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct_tag_present.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_struct_tag_present.pro,v 1.2 2011/09/22 23:46:51 jpmorgen Exp $
 ;
 ; $Log: pfo_struct_tag_present.pro,v $
+; Revision 1.2  2011/09/22 23:46:51  jpmorgen
+; Make a gentler exit when no struct
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -50,6 +53,10 @@
 function pfo_struct_tag_present, struct, tagname, tag_idx=tag_idx
 
   init = {pfo_sysvar}
+
+  ;; Quietly return if we have no struct
+  if N_elements(struct) eq 0 then $
+     return, 0
 
   ;; Handle pfo_debug level.  CATCH invocation errors if _not_ debugging
   if !pfo.debug le 0 then begin
