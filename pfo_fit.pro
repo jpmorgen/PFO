@@ -55,9 +55,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 1.3 2011/02/10 22:27:31 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 1.4 2011/09/22 17:45:01 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 1.4  2011/09/22 17:45:01  jpmorgen
+; Preparing to adapt to PFO of 2011
+;
 ; Revision 1.3  2011/02/10 22:27:31  jpmorgen
 ; Fix bug in propagation of _EXTRA keywords!
 ;
@@ -65,14 +68,61 @@
 ; Change error reporting a little
 ;
 ;-
-pro pfo_fit, x, y, yerr, parinfo, mpfit_info=mpfit_info, _EXTRA=extra
+pro pfo_fit, Xin, Yin, Yerr, parinfo=parinfo, idx=idx, pfo_obj=pfo_obj, $
+             mpfit_info=mpfit_info, _REF_EXTRA=extra
 
+  ;; Make sure custom system variables are read in.  These provide,
+  ;; among other things, tokens for referring to numeric values.  They
+  ;; are therefore a little like INCLUDE statements in C
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     ;; Return to the calling routine with our error
+     ON_ERROR, !tok.return
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        ;; Remember to restore old state of objects_only
+        !pfo.objects_only = oobjects_only
+        
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: Caught above error.  Returning to calling routine'
+;;        message, 'USAGE: pfo_fit...'
+     endif
+  endif ;; not debugging
+
+
+  ;; Check to see if the calling routine is prepared to deal with
+  ;; pfo_obj (e.g. destroying it to prevent memory leak)
+  if N_elements(pfo_obj) + arg_present(pfo_obj) eq 0 then $
+     need_to_destroy_pfo_obj = 1
+
+  ;; Make sure we are running in object-oriented mode only, politely
+  ;; saving off old state of flag
+  oobjects_only = !pfo.objects_only
+  !pfo.objects_only = 1
+
+  ;; Make sure we have a pfo_obj
+  if N_elements(pfo_obj) eq 0 then $
+     pfo_obj = pfo_obj_new()
+
+  ;; Politely restore old state of objects_only
+  !pfo.objects_only = oobjects_only
+  ;; Check to see if we need to destroy our pfo_obj
+  if keyword_set(need_to_destroy_pfo_obj) then begin
+     ;; If the user wants a parinfo as output, assume they are
+     ;; dropping back into
+     if arg_present(parinfo) then begin
+        parinfo = pfo_obj->parinfo()
+  endif
 
   pfo_link_check, parinfo
 
   ;; Make sure we have at least parinfo.  If the user supplied more
   ;; arguments, append them properly.
-  functargs = {parinfo:parinfo}
+  functargs = {calc:1 , parinfo:parinfo}
   if keyword_set(extra) then $
     pfo_struct_append, functargs, extra
 
@@ -87,7 +137,7 @@ pro pfo_fit, x, y, yerr, parinfo, mpfit_info=mpfit_info, _EXTRA=extra
     iterproc=!pfo.iterproc
 
   params = $
-    mpfitfun('pfo_funct', x, y, yerr, $
+    mpfitfun('pfo_parinfo_parse', x, y, yerr, $
              parinfo=parinfo, functargs=functargs, $
              autoderivative=1, ftol=ftol, xtol=xtol, $
              gtol=gtol, nfev=nfev, niter=niter, $
