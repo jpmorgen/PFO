@@ -1,35 +1,31 @@
 ;+
 ; NAME: pfo_cw_obj__define
-;
-; PURPOSE: Define common property, methods, and an object-oriented
-; event handler which are used in the pfo_*_cw objects
-; (objects that control PFO widgets)
+
+; PURPOSE: Handles top-level widget creation and management for pfo
+; widgets.
 ;
 ; CATEGORY: PFO widgets
 ;
-; CALLING SEQUENCE: see pfo_finit_cw.pro for an example.  Basically,
-; you inherit this object into the controling object of the widget you
-; are creating.  When you call the init method of this object, you get
-; a tlb and possibly some other things, depending on your positional
-; argument (parentID) and a few other keywords.  You can use all of
-; the property and methods of this object in all of your *cw_obj objects.
+; CALLING SEQUENCE:
 
-; DESCRIPTION: This objects interfaces with the object pfo_obj_cw_obj,
-; which is intended to be inherited into pfo_obj or any other object
-; that needs to display widgets in the pfo system.  This object
-; automatically handles the link between the cw_obj and the pfo_obj,
-; so that if the cw_obj are formed as actions from the pfo_obj
-; (e.g. pfo_obj->widget), the widgets are killed when the pfo_obj is
-; killed.  It also creates an object-oriented event handler and
-; defines a few useful event methods.
+; DESCRIPTION: This is the general workhorse of the PFO widget
+; system.  It can create:
 
-; WIDGET HIERARCHY: The init method of this object creates a top level
-; base (tlb) widget and optionally a first child.  By default, this
-; object is stored in the uvalue of the tlb.  If the /first_child
-; switch is given to the init method, the self object is instead
-; stored in that first child.  Single-widget applications work fine
-; without the /first_child.  They should be created as children of
-; self.tlb.  
+; a top-level base (with or without a menubar, with or without a
+; "first child" and with or without a "container base")
+
+; a top-level base that is the child of another widget (parentID
+; positional argument to init method, again with or without first
+; child and/or "container")
+
+; a top-level button for a menu to be inserted into an mbar
+
+; In all cases, a compound widget controlling object, cw_obj, is
+; created and stored in the uvalue of either the top-level widget or
+; its first child.  This cw_obj is also "registered" with a list of
+; cw_obj maintained by pfo_obj_cw_obj (inherited into the pfo_obj).
+; That means that widgets created by the object will be kill when the
+; object is destroyed.
 
 ; True top-level bases look nice with:
 
@@ -51,8 +47,9 @@
 ; EVENTS: the object-oriented even handling system was inspired by
 ; David Fanning's fsc_field compound widget.  The basic idea is to put
 ; a structure in the uvalue of the widget that is generating the
-; event.  The structure, which created from within this object, or an
-; object that inherits this object, looks like one of the following:
+; event.  The structure, which is created from within this object, or
+; an object that inherits this object, looks like one of the
+; following:
 
 ; uvalue={method:'method_name', obj:self}
 ; uvalue={method:'method_name', obj:self, keywords:{keyword1:1, keyword2:1}})
@@ -64,7 +61,8 @@
 ; one positional parameter, the original event (see, e.g.,
 ; pfo_cw_obj::kill_tlb).  The event handling method can, in principle
 ; be in any object (e.g. pfo_obj), but for organizational reasons, it
-; is recommended that the events be kept with the cw_obj code.
+; is recommended that the events be kept with the object that inherits
+; this code.
 
 ; INPUTS:
 ;
@@ -93,9 +91,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cw_obj__define.pro,v 1.4 2011/09/16 13:39:46 jpmorgen Exp $
+; $Id: pfo_cw_obj__define.pro,v 1.5 2011/09/22 23:50:17 jpmorgen Exp $
 ;
 ; $Log: pfo_cw_obj__define.pro,v $
+; Revision 1.5  2011/09/22 23:50:17  jpmorgen
+; Add menus, generic resize
+;
 ; Revision 1.4  2011/09/16 13:39:46  jpmorgen
 ; Put tlb resize event method here.  Improve documentation
 ;
@@ -129,19 +130,30 @@ function pfo_cw_obj::containerID
 end
 
 ;; Common event-oriented methods:
-;; Kill_tlb
+
+;; Kill_tlb.  This kills the entire widget hierarchy.
 function pfo_cw_obj::kill_tlb, event
   ;; The tlb top of this event will be the help window
   widget_control, event.top, /destroy
 end
 
-;; Resize event in case we are a tlb
+;; Resize event in case we are a tlb.  This is necessary to make sure
+;; sure that our scoll bars track with the window size in UNIX.  If we
+;; don't have scrollbars in our widget, this method should be
+;; overridden.
 function pfo_cw_obj::resize, event
+
+  ;; Prepare to swallow the event
+  retval = !tok.nowhere
+
+  sn = tag_names(event, /structure_name)
+  if sn ne 'WIDGET_BASE' then begin
+     message, 'WARNING: received an event of type "' + sn + '" which I do not know how to deal with.  Swallowing event.', /CONTINUE
+     return, retval
+  endif
 
   ;; Adjusting the screen size has different effects in the two
   ;; windowing systems I use.
-
-  widget_control, event.top, update=0
   if !d.name eq 'X' then begin
      ;; I subtract a few pixels in X windows, since, at least for twm,
      ;; the twm top decorations are included in the reported size
@@ -151,9 +163,7 @@ function pfo_cw_obj::resize, event
      widget_control, event.ID, xsize=event.x, ysize=event.y
   endelse
 
-  widget_control, event.top, update=1
-
-  return, !tok.nowhere
+  return, retval
 
 end
 
@@ -205,6 +215,41 @@ function pfo_cw_obj::help, event
   ;;                cancel_button=doneID, default_button=doneID
   widget_control, tlbID, /realize
   xmanager, *self.ptitle, tlbID, event_handler='pfo_cw_event_pro', /no_block
+
+end
+
+;; The mbar method creates the menu bar.  calls the widget functions in the menu_list (appending
+;; _menu) in order to 
+pro pfo_cw_obj::mbar, $
+   menu_list, $ ;; vector string of top-level menu widgets to insert into the self.mbar (see *_menu.pro)
+   menu_args=menu_args ;; optional keyword argument(s) to the *_menu widget functions
+
+  ;; Always make sure there is a menu item to exit the widget
+  if N_elements(menu_list) eq 0 then $
+     ID = pfo_generic_menu(self.mbarID, pfo_obj=self.pfo_obj)
+
+  ;; Cycle through any menu_list items
+  for im=0, N_elements(menu_list)-1 do begin
+     ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+     if !pfo.debug le 0 then begin
+        CATCH, err
+        if err ne 0 then begin
+           CATCH, /CANCEL
+           message, /NONAME, !error_state.msg, /CONTINUE
+           message, 'ERROR: caught the above error.  Skipping menu ' + menu_list[im], /CONTINUE
+           CONTINUE
+        endif
+     endif ;; not debugging
+     ID = call_function(menu_list[im] + '_menu', self.mbarID, pfo_obj=self.pfo_obj, _EXTRA=menu_args)
+  endfor ;; each menu
+  
+  ;; Always add help.  Hopefully, the user has passed a decent help
+  ;; string into the widget.  The /help makes the help menu appear on
+  ;; the far right side of the menubar in UNIX, but has no effect in
+  ;; Windows.
+  helpID = widget_button(self.mbarID, value='Help', /Help)
+  ID = widget_button(helpID, value=*self.ptitle + ' help', $
+                         uvalue={method: 'help', obj:self})
 
 end
 
@@ -367,6 +412,7 @@ function pfo_cw_obj::init, $
    pfo_obj=pfo_obj, $	;; Encapsulates parinfo that will be displayed (optional)
    first_child=first_child , $ ;; create a first child in which the self object is stored.  This clears room for a user-defined uvalue at the tlb.  Most pfo widgets don't need this kind of first child to work properly and they work more slowly if there is one
    mbar=mbar, $		;; If present and widget will be a top-level base, is the widgetID of the menu bar (see IDL widget_base documentation)
+   menu=menu, $		;; /menu indicates widget will be the top menu button suitable for insertion into an mbar
    title=title, $	;; title string (for top-level base widgets and tab widgets)
    tab_mode=tab_mode, $ ;; by default, tab_mode=1, so tabbing works
    help=help, $		;; Help string for this cw
@@ -386,7 +432,7 @@ function pfo_cw_obj::init, $
 
   ;; Initialize our property
 
-  ;; Default title
+  ;; Capture title input for use in help window
   self.ptitle = ptr_new(/allocate_heap)
   if N_elements(title) ne 0 then $
      *self.ptitle = title
@@ -394,7 +440,7 @@ function pfo_cw_obj::init, $
   ;; Create pfo_obj on the fly if none provided.  This makes sure the
   ;; pfo_cw_obj registration/killing stuff always works
   if N_elements(pfo_obj) eq 0 then begin
-     message, /INFORMATIONAL, 'NOTE: creating pfo_obj.  If this is not what you expect, make sure you pass me a pfo_obj.  Use pfo_quiet to suppress message.'
+     message, /INFORMATIONAL, 'NOTE: creating pfo_obj.  If this is not what you expect, make sure you pass pfo_obj.  Use pfo_quiet to suppress message.'
      ;; Just include the minimal piece of pfo_obj that we need to make
      ;; registration and unregistration work.
      self.pfo_obj = obj_new('pfo_obj_cw_obj')
@@ -436,31 +482,47 @@ function pfo_cw_obj::init, $
   ;; Default is no mbar
   self.mbarID = !tok.nowhere
 
+  ;; Here is the code that figures out what kind of tlb to create: a
+  ;; genuine tlb (with or without a menu bar), a tlb that has a parent
+  ;; or a top-level button in a menu
+
   ;; Respond to our flag that the cw is for a top-level widget
   if self.parentID eq !tok.nowhere then begin
-     ;; top-level widget case.  See if we want a menu bar
+     ;; top-level widget case.  Check to see if user erroneously
+     ;; specified /menu and didn't provide a parentID
+     if keyword_set(menu) then $
+        message, 'ERROR: /menu is not a valid keyword when creating a top-level base.  Did you mean /mbar?'
+     ;; See if we want a menu bar
      if arg_present(mbar) or N_elements(mbar) ne 0 then begin
         self.tlbID = $
            widget_base(title=title, mbar=mbar, _EXTRA=extra)
         self.mbarID = mbar
      endif else begin
+        ;; Just a plain base with no menu bar
         self.tlbID = widget_base(title=title, _EXTRA=extra)
-     endelse ;; mbar
+     endelse ;; mbar or not
   endif else begin
-     ;; Regular compound widget case
-     self.tlbID = widget_base(self.parentID, _EXTRA=extra)
+     ;; Check to see if we are creating a regular compound widget or
+     ;; the top button of a menu
+     if keyword_set(menu) then begin
+        ;; This will raise an error if self.parentID is not an mbar
+        ;; widgetID.        
+        self.tlbID = widget_button(self.parentID, _EXTRA=extra)
+     endif else begin
+        ;; Regular compound widget case
+        self.tlbID = widget_base(self.parentID, _EXTRA=extra)
+     endelse
   endelse
 
   ;; Tab mode works what I think of as the right way by default in
   ;; UNIX.  We need tab_mode=1 for Windows, unless, of course, the
-  ;; user doesn't want it.
-  if N_elements(tab_mode) eq 0 then $
+  ;; user doesn't want it.  NOTE: tab mode needs to be avoided in menus
+  if N_elements(tab_mode) eq 0 and NOT keyword_set(menu) then $
      tab_mode = 1
   widget_control, self.tlbID, tab_mode=tab_mode
 
-
   ;; A proper compund widget (which you can get with the /first_child
-  ;; switch) has a base into which the user cab write their own uvalue
+  ;; switch) has a base into which the user can write their own uvalue
   ;; and can intercept set_value with a pro_set_value.  But most PFO
   ;; widgets don't need all of that stuff and adding the layer of a
   ;; first child multiplied the amount of time it took to repopulate
