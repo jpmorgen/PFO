@@ -55,9 +55,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 1.4 2011/09/22 17:45:01 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 2.0 2011/09/22 23:54:49 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 2.0  2011/09/22 23:54:49  jpmorgen
+; Using pfo_obj and pfo_fit_widget
+;
 ; Revision 1.4  2011/09/22 17:45:01  jpmorgen
 ; Preparing to adapt to PFO of 2011
 ;
@@ -68,14 +71,29 @@
 ; Change error reporting a little
 ;
 ;-
-pro pfo_fit, Xin, Yin, Yerr, parinfo=parinfo, idx=idx, pfo_obj=pfo_obj, $
-             mpfit_info=mpfit_info, _REF_EXTRA=extra
+pro pfo_fit, $
+   p0, $ ;; either the name of the object to create or one of the data vectors
+   p1, $ ;; one of the data vectors ([x], y, [yerr])
+   p2, $
+   p3, $
+   parinfo=parinfo, $ ;; optional input or output
+   pfo_obj=pfo_obj, $ ;; optional input or output
+   $ ;; By defailt, the widget is non-blocking (other events and the IDL command line are processed).
+   $ ;; You may wish to set no_block=0 to force user to finish with the widget before other things happen.  
+   $ ;; When pfo_obj is created on the fly, no_block is always set to 0
+   no_block=no_block_in, $ ;;  be polite to calling code
+   _REF_EXTRA=extra ;; passed to underlying routines
 
   ;; Make sure custom system variables are read in.  These provide,
   ;; among other things, tokens for referring to numeric values.  They
   ;; are therefore a little like INCLUDE statements in C
   init = {pfo_sysvar}
   init = {tok_sysvar}
+
+  ;; For debugging purposes, make sure we are running in
+  ;; object-oriented mode only, politely saving off old state of flag
+  oobjects_only = !pfo.objects_only
+  !pfo.objects_only = 1
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -86,128 +104,33 @@ pro pfo_fit, Xin, Yin, Yerr, parinfo=parinfo, idx=idx, pfo_obj=pfo_obj, $
         CATCH, /CANCEL
         ;; Remember to restore old state of objects_only
         !pfo.objects_only = oobjects_only
-        
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'ERROR: Caught above error.  Returning to calling routine'
-;;        message, 'USAGE: pfo_fit...'
+        message, 'USAGE: pfo_fit...'
      endif
   endif ;; not debugging
 
+  ;; Create a pfo_obj if needed
+  if NOT obj_valid(pfo_obj) then begin
+     pfo_obj = pfo_obj_new(p0, p1, p2, p3, parinfo_array=parinfo, _EXTRA=extra)
+     created_pfo_obj = 1
+     no_block = arg_present(pfo_obj) or arg_present(parinfo)
+     ;; Make sure we are a blocking widget if the user expects output
+     if (arg_present(pfo_obj) or arg_present(parinfo) or N_elements(parinfo) ne 0) then begin
+        if keyword_set(no_block) then $
+           message, /CONTINUE, 'NOTE: forcing no_block=0 so parinfo and/or pfo_obj can be captured and returned (if possible -- IDL XMANAGER cannot block if the first widget was non-blocking)'
+        no_block = 0
+     endif ;; adjusting no_block to wait for return of parinfo and/or pfo_obj
+  endif
 
-  ;; Check to see if the calling routine is prepared to deal with
-  ;; pfo_obj (e.g. destroying it to prevent memory leak)
-  if N_elements(pfo_obj) + arg_present(pfo_obj) eq 0 then $
-     need_to_destroy_pfo_obj = 1
+  ;; This is the meat of our code.  It brings up the pfo_fit widget
+  pfo_obj->edit, no_block=no_block, _EXTRA=extra
 
-  ;; Make sure we are running in object-oriented mode only, politely
-  ;; saving off old state of flag
-  oobjects_only = !pfo.objects_only
-  !pfo.objects_only = 1
+  ;; If we created our own pfo_obj, get rid of it_obj to prevent
+  ;; memory leaks, unless the user really wants it
+  if keyword_set(created_pfo_obj) and NOT arg_present(pfo_obj) then $
+        obj_destroy, pfo_obj
 
-  ;; Make sure we have a pfo_obj
-  if N_elements(pfo_obj) eq 0 then $
-     pfo_obj = pfo_obj_new()
-
-  ;; Politely restore old state of objects_only
+  ;; Remember to restore old state of objects_only
   !pfo.objects_only = oobjects_only
-  ;; Check to see if we need to destroy our pfo_obj
-  if keyword_set(need_to_destroy_pfo_obj) then begin
-     ;; If the user wants a parinfo as output, assume they are
-     ;; dropping back into
-     if arg_present(parinfo) then begin
-        parinfo = pfo_obj->parinfo()
-  endif
-
-  pfo_link_check, parinfo
-
-  ;; Make sure we have at least parinfo.  If the user supplied more
-  ;; arguments, append them properly.
-  functargs = {calc:1 , parinfo:parinfo}
-  if keyword_set(extra) then $
-    pfo_struct_append, functargs, extra
-
-  ;; I wish that mpfitfun automatically returned these, but it
-  ;; doesn't, so borrow them from mpfit, where Craig defines them
-  if n_elements(ftol) EQ 0 then ftol = 1.D-10
-  if n_elements(xtol) EQ 0 then xtol = 1.D-10
-  if n_elements(gtol) EQ 0 then gtol = 1.D-10
-  if n_elements(maxiter) EQ 0 then maxiter = 200L
-
-  if NOT keyword_set(iterproc) then $
-    iterproc=!pfo.iterproc
-
-  params = $
-    mpfitfun('pfo_parinfo_parse', x, y, yerr, $
-             parinfo=parinfo, functargs=functargs, $
-             autoderivative=1, ftol=ftol, xtol=xtol, $
-             gtol=gtol, nfev=nfev, niter=niter, $
-             nfree=nfree, npegged=npegged, $
-             perror=perror, status=status, $
-             bestnorm=bestnorm, covar=covar, errmsg=errmsg, $
-             _EXTRA=extra)
-
-  ;; mpfitfun is usually robust with its errors, so if we
-  ;; made it here, it has something useful to say in the
-  ;; status variable.  For our purposes, we either want to
-  ;; keep what it did, or throw it away
-  keep = 1
-  case status of
-     0: begin
-        fmesg = 'MPFITFUN: ' + errmsg
-        keep = 0
-     end
-     !pfo.iterstop: begin
-        fmesg = 'WARNING: user interrupted fit, KEEPING parameters, but errors can''t be calculated'
-        perror=!values.d_nan
-     end
-     !pfo.iterquit: begin
-        fmesg = 'WARNING: user interrupted fit, RESETTING parameters'
-        keep = 0
-     end
-     1: fmesg = 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2)
-     2: fmesg = 'which means parameters are not changing by more than XTOL' + strtrim(xtol, 2)
-     3: fmesg = 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2) + ' AND the parameters are not changing by more than XTOL' + strtrim(xtol, 2)
-     4: fmesg = 'which means the abs value of the cosine of the angle between fvec and any column of the jacobian is at most GTOL=' + strtrim(gtol, 2)
-     5: fmesg = 'WARNING: this means MAXITER=' + strtrim(maxiter,2) + ' was reached'
-     6: fmesg = 'WARNING: this means FTOL=' + strtrim(ftol,2) + ' is too small no further reduction in the sum of squares is possible.'
-     7: fmesg = 'WARNING: this means XTOL=' + strtrim(xtol,2) + ' is too small no further improvement in the approximate solution x is possible.'
-     8: fmesg = 'WARNING: this means GTOL=' + strtrim(gtol,2) + ' is too small fvec is orthogonal to the columns of the jacobian to the specified precision.'
-     9: message, 'ERROR: code not set up to handle external procedure'
-     else: begin
-        if status le 0 then begin
-           fmesg = 'ERROR: STATUS value le 0, which looks bad.  Resetting parameters to their original values.'
-           keep = 0
-        endif else begin
-           fmesg = 'NOTE: STATUS it is positive, so I am assuming it is OK'
-        endelse
-     end
-  endcase
-  if keep eq 0 and NOT keyword_set(no_status) then $
-    message, 'ERROR: ' + fmesg
-
-  if keep then begin
-     ;; Set return values in parinfo to fitted params.  This clobbers
-     ;; whatever was in parinfo.value and .perror.  If the users
-     ;; wans to save these, they can copy parinfo themselves
-     parinfo.value = params
-     parinfo.error = perror
-     ;; Put the additional returns from MPFIT into a structure
-
-     mpfit_info = $
-       {nfev	: nfev, $
-        errmsg	: fmesg, $
-        ftol	: ftol, $
-        xtol	: xtol, $
-        gtol	: gtol, $
-        niter	: niter, $
-        nfree	: nfree, $
-        npegged	: npegged, $
-        status	: status, $
-        bestnorm	: bestnorm, $
-        covar	: covar}
-
-  endif
-  if NOT keyword_set(no_status) then $
-    message, /INFORMATIONAL, 'NOTE: mpfitfun returned status ' + strtrim(status, 2) + ' ' + fmesg
 
 end
