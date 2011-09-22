@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.5 2011/09/16 13:48:57 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.6 2011/09/22 23:46:30 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.6  2011/09/22 23:46:30  jpmorgen
+; Get rid of FSC_field and no more segmentation faults on LINUX!
+;
 ; Revision 1.5  2011/09/16 13:48:57  jpmorgen
 ; Simplified widget hierarchy to try to speed up
 ;
@@ -88,10 +91,6 @@ pro pfo_ROI_struct_cw_obj::get_iROI_ispec, ispec=ispec, iROI=iROI
 end
 
 function pfo_ROI_struct_cw_obj::event, event
-
-  sn = tag_names(event, /structure_name)
-  if sn ne 'FSC_FIELD_EVENT' then $
-     message, 'ERROR: unexpected event'
 
   ;; We will always swallow the event
   retval = !tok.nowhere
@@ -139,24 +138,13 @@ pro pfo_ROI_struct_cw_obj::populate, $
 
   self->get_iROI_ispec, ispec=ispec, iROI=iROI
 
-  ;; Use fsc_field to handle numeric/text entry.  FSC_field requries
-  ;; event_func be set or else keyword focus events aren't reported.
-  self.ispecID = fsc_field(self.tlbID, title='ispec:', $
-                           /highlight, $
-                           value=ispec, digits=3, xsize=3, $
-                           uvalue={method:'event', obj:self}, $
-                           event_func='pfo_cw_event_func', $
-                           /cr_only, /focus_events, $
-                           object=object)
-  self.ispec_obj = object
-  self.iROIID = fsc_field(self.tlbID, title='iROI:', $
-                          /highlight, $
-                          value=iROI, digits=3, xsize=3, $
-                          uvalue={method:'event', obj:self}, $
-                          event_func='pfo_cw_event_func', $
-                          /cr_only, /focus_events, $
-                          object=object)
-  self.iROI_obj = object
+  ;; Try pfo_cw_field for these widgets
+  self.ispecID = pfo_cw_field(self.tlbID, title='ispec:', xsize=5, $
+                              value=ispec, /integer, /noedit)
+  self.iROIID = pfo_cw_field(self.tlbID, title='iROI:', xsize=5, $
+                             value=iROI, /integer, /return_events, $
+                             /kbrd_focus_events, $
+                             uvalue={method:'event', obj:self})
 
   ;; Register ourselves in the refresh list.  
   self->register_refresh
