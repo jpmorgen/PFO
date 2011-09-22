@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_link_struct__define.pro,v 1.3 2011/09/16 13:46:02 jpmorgen Exp $
+; $Id: pfo_link_struct__define.pro,v 1.4 2011/09/22 23:47:05 jpmorgen Exp $
 ;
 ; $Log: pfo_link_struct__define.pro,v $
+; Revision 1.4  2011/09/22 23:47:05  jpmorgen
+; Fix bug of no pfo_obj
+;
 ; Revision 1.3  2011/09/16 13:46:02  jpmorgen
 ; Improved substantially so that this works with an __update method,
 ; etc. in the pfo_obj system
@@ -96,7 +99,7 @@ pro pfo_link_struct__update, $
         ;; unwrap
         interlink_idx = use_idx[interlink_idx]
         ;; Find the first function and make it the master
-        master_idx = pfo_parinfo_parse(/indices, parinfo, expand_idx=interlink_idx[0])
+        master_idx = pfo_parinfo_parse(/indices, parinfo, expand_idx=interlink_idx[0], pfo_obj=pfo_obj)
         parinfo[master_idx].pfo_link.msstatus = !pfo.master
         ;; Check to make sure all parameters have the same ID
         ID = parinfo[master_idx].pfo_link.linkID
@@ -142,7 +145,7 @@ pro pfo_link_struct__update, $
      if N_intralink gt 0 then $
         intralink_idx = use_idx[intralink_idx]
      for ip=0, N_intralink-1 do begin
-        f_idx = pfo_parinfo_parse(/indices, parinfo, expand_idx=intralink_idx[ip])
+        f_idx = pfo_parinfo_parse(/indices, parinfo, expand_idx=intralink_idx[ip], pfo_obj=pfo_obj)
         ;; Check to make sure all parameters have the same ID
         ID = parinfo[f_idx].pfo_link.linkID
         if N_elements(uniq(ID, sort(ID))) gt 1 then begin
