@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_mode_cw.pro,v 1.1 2011/09/15 20:51:09 jpmorgen Exp $
+; $Id: pfo_parinfo_mode_cw.pro,v 1.2 2011/09/23 13:10:22 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_mode_cw.pro,v $
+; Revision 1.2  2011/09/23 13:10:22  jpmorgen
+; Sucessfully using parinfo_edit method, remembered to save_undo
+;
 ; Revision 1.1  2011/09/15 20:51:09  jpmorgen
 ; Initial revision
 ;
@@ -76,9 +79,9 @@ function pfo_parinfo_mode_cw_obj::event, event, action=action
 
   case action of 
      !pfo.active : self.pfo_obj->parinfo_call_procedure, $
-        'pfo_mode', 'active', idx=*self.pidx
+        /save_undo, 'pfo_mode', 'active', idx=*self.pidx
      !pfo.inactive : self.pfo_obj->parinfo_call_procedure, $
-        'pfo_mode', 'inactive', idx=*self.pidx
+        /save_undo, 'pfo_mode', 'inactive', idx=*self.pidx
      !pfo.delete : begin 
         ;; Prepare to do the update
         self.pfo_obj->prepare_update, undo
@@ -87,13 +90,14 @@ function pfo_parinfo_mode_cw_obj::event, event, action=action
         self.pfo_obj->parinfo_call_procedure, $
            /no_update, 'pfo_gc'
         ;; Do the update
-        self.pfo_obj->update, undo
+        self.pfo_obj->update, undo, /save_undo
      end
      !pfo.all_status : begin ;; borrowed token for edit
         topID = pfo_widget_top(self.parentID)
-        ID = self.pfo_obj->parinfo_call_function( $
-             /no_update, 'pfo_parinfo_parse', /widget, /edit, status_mask=!pfo.all_status, $
-             title='PFO PARINFO SUB-FUNCTION EDITOR', idx=*self.pidx, /no_finit, group_leader=topID, pfo_obj=self.pfo_obj)
+        self.pfo_obj->parinfo_edit, $
+           /edit, status_mask=!pfo.all_status, $
+           title='PFO PARINFO SUB-FUNCTION EDITOR', $
+           idx=*self.pidx, /no_finit, group_leader=topID
         ;; Put flag back to where it belongs
         self->refresh
      end
