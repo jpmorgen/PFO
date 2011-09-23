@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_text_cw.pro,v 1.1 2011/09/16 11:30:15 jpmorgen Exp $
+; $Id: pfo_parinfo_text_cw.pro,v 1.2 2011/09/23 13:05:29 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_text_cw.pro,v $
+; Revision 1.2  2011/09/23 13:05:29  jpmorgen
+; Fixed bug
+;
 ; Revision 1.1  2011/09/16 11:30:15  jpmorgen
 ; Initial revision
 ;
@@ -55,7 +58,7 @@ pro pfo_parinfo_text_cw_obj::get_text, $
   text = self.pfo_obj->parinfo_call_function( $
          /no_update, 'pfo_parinfo_parse', /print, /full, $
          /no_preamble, idx=*self.pidx, status_mask=!pfo.all_status, $
-         _EXTRA=extra)
+         pfo_obj=self.pfo_obj, _EXTRA=extra)
 
   ;; Get our status to see if we should modify our appearance
   self.pfo_obj->parinfo_call_procedure, $
