@@ -164,9 +164,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.7 2011/09/16 11:20:32 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.8 2011/09/23 01:59:57 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.8  2011/09/23 01:59:57  jpmorgen
+; Changed to use pfo_parinfo_edit and minor things
+;
 ; Revision 1.7  2011/09/16 11:20:32  jpmorgen
 ; Propagated status_mask to primitives, since they (particularly
 ; __indices) call pfo_fidx.
@@ -240,6 +243,7 @@ function pfo_parinfo_parse_catch, action, toprint, indices_idx, yaxis, error, co
               ID = widget_label(containerID, value=print_msg)
         junk = dialog_message('% PFO_PARINFO_PARSE: ERROR: Function did not parse properly.  See terminal window for details.')
      end
+     else :
   endcase ;; different additional display for different actions
 
   return, retval
@@ -252,7 +256,7 @@ function pfo_parinfo_parse, $
    calc=calc, Xin=Xin, xaxis=xaxis, ROI_Xin_idx=ROI_Xin_idx, convol_center=convol_center, $
    print=print, $
    indices=indices, expand_idx=expand_idx, terminate_idx=terminate_idx, $
-   widget=widget, parentID=parentID_in, group_leader=group_leader, containerID=containerID, $
+   widget=widget, parentID=parentID_in, group_leader=group_leader, containerID=containerID, cw_objs=cw_objs, $
    _REF_EXTRA=extra
 
   init = {tok_sysvar}
@@ -333,24 +337,30 @@ function pfo_parinfo_parse, $
      !pfo.widget : begin
         ;; WIDGET
         action_method = '__widget'
-        ;; pfo_parinfo_parse(/widget) is going to be called in a variety of circumstances: no existing top-level widget, a
-        ;; widget into which you want to insert the parinfo widgets, and internally from pfo_parinfo_container_cw_obj when the
-        ;; pfo_obj->widget_repopulate method is called.  It is the later case that necessitates that we set things up to call
-        ;; pfo_parinfo_parse recursively so that fundamentally what pfo_parinfo_parse does is insert function widgets into
-        ;; the pfo_parinfo_container_cw
+        ;; pfo_parinfo_parse(/widget) is going to be called in a variety of circumstances: no existing top-level widget of
+        ;; any kind, a parent widget, but no specific container and a container all set up to use with the pfo_cw_obj
+        ;; clear_container system (see pfo_parinfo_cw_obj__define.pro)
         if N_elements(containerID) eq 0 then begin
-           ;; This is the first time through.  We need to set up our nested widgets
-           ;; Check to see if we need to create our own top-level widget.  Do so in a way that doesn't muck with an
-           ;; undefined parentID in the calling routine
+           ;; We need to set up our own container in which the parinfo widgets will be displayed
+
+           ;; Check to see if we need to create our own top-level base.  Do so in a way that doesn't muck with an undefined
+           ;; parentID in the calling routine
            if N_elements(parentID_in) ne 0 then $
               parentID = parentID_in
            if N_elements(parentID) eq 0 then begin
               ;; We are basically just being a wrapper for pfo_parinfo_edit
-              parentID = $
-                 pfo_parinfo_edit(parinfo=parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
-                                  status_mask=status_mask, group_leader=group_leader, _EXTRA=extra)
-              return, parentID
-           endif ;;
+              pfo_parinfo_edit, parinfo=parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
+                                status_mask=status_mask, group_leader=group_leader, cw_obj=cw_obj, _EXTRA=extra
+              ;; The return value should be the widget ID of the tlb, if the cw_obj is still valid
+              if obj_valid(cw_obj) then $
+                 return, cw_obj->tlbID() $
+              else $
+                 return, !tok.nowhere
+                         
+           endif ;; Handing off to pfo_parinfo_edit
+
+           ;; If we made it here, we have a parent in which the parinfo should be displayed, but we are not sure if a
+           ;; container has been properly set up.  Use pfo_parinfo_container_cw to set up the container
 
            ;; To avoid excessive redraws of widgets, turn off update in parent widget until we are done (this turns off
            ;; update for all the widgets in the tlb)
@@ -370,18 +380,14 @@ function pfo_parinfo_parse, $
            junk = pfo_parinfo_parse(/widget, parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
                                      status_mask=status_mask, containerID=containerID, _EXTRA=extra)
 
-           ;; Now that we are done putting all of the widgets together, do one redraw.
+           ;; Now that we are done putting all of the widgets into the container we just created, do one redraw.
            widget_control, parentID, update=1
 
-           ;; Return the ID of the top-most widget we have created here, since that is what the users will expect
-           if N_elements(parentID_in) eq 0 then begin
-              ;; Realize the widget
-              widget_control, /realize, parentID
-              return, parentID
-           endif
+           ;; Always return the ID of the top-most widget we have created here, since that is what the users will expect
            return, pfo_parinfo_container_cwID
         endif ;; Don't have a container yet
         
+        ;; If we made it here, we should have been handed a container
         if NOT widget_info(containerID, /valid_ID) then $
            message, 'ERROR: invalid containerID.  This should not happen.  Are you using containerID in your calling routine?'
 
@@ -555,10 +561,12 @@ function pfo_parinfo_parse, $
         ;; Get our ROI parameters in order.  We know that each ROI has the same number of parameters, so we can just sort and
         ;; reform
         if nROI gt 0 then begin
-           ;; This should put all of the lefts together and then rights.  The way sort works, the first listed left ends up
-           ;; first, etc.  Reform then quickly puts the array in the format we want: each instance of the function occupies a
-           ;; column and the rows correspond to parameter numbers.  The array values themselves are indices into ROI_idx.
-           fidx_array = sort(parinfo[ROI_idx].pfo.ftype)
+           ;; This should put all of the lefts together and then rights.  IDL sort does not work consistently between
+           ;; platforms with respect to identical array values.  bsort from the IDLASTRO library always returns identical
+           ;; elements in the same order they were originally listed.  So with bsort, the first listed left ends up first,
+           ;; etc.  Reform then quickly puts the array in the format we want: each instance of the function occupies a column
+           ;; and the rows correspond to parameter numbers.  The array values themselves are indices into ROI_idx.
+           fidx_array = bsort(parinfo[ROI_idx].pfo.ftype)
            fidx_array = reform(fidx_array, nROI, pfo_fnpars('pfo_ROI', pfo_obj=pfo_obj), /overwrite)
         endif ;; have some ROIs
 
@@ -738,13 +746,12 @@ function pfo_parinfo_parse, $
                                 
 
                                 ;; This should put all of the decimal ftypes of the same kind together (see similar code in
-                                ;; ROI section, above).  The way sort works, the each individual instance of an ftype gets
-                                ;; listed listed in the order they were originally found in the parinfo.  The next set of
-                                ;; f_array_indices point to the next decimal ftype, etc.
-                                fidx_array = sort(parinfo[ID_idx].pfo.ftype)
-                                ;; Having stacked up all of the indices in a long line in memory, use reform to just pretend
-                                ;; that each row corresponds to a parameter (IDL is a row major language) and each column to
-                                ;; an instance of the function
+                                ;; ROI section, above).  The way bsort works, the each individual instance of an ftype gets
+                                ;; listed listed in the order they were originally found in the parinfo.
+                                fidx_array = bsort(parinfo[ID_idx].pfo.ftype)
+                                ;; Having stacked up all of the indices in a long line in memory, in decimal ftype order, use
+                                ;; reform to just pretend that each row corresponds to a parameter (IDL is a row major
+                                ;; language) and each column to an instance of the function
                                 fidx_array = reform(fidx_array, npar/fnpars, fnpars, /overwrite)
                              endif else begin
                                 ;; This is the fnpars = 0 case, which signals that we don't know the number of parameters our
