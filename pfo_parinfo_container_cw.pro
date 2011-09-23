@@ -56,9 +56,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_container_cw.pro,v 1.4 2011/09/22 01:42:35 jpmorgen Exp $
+; $Id: pfo_parinfo_container_cw.pro,v 1.5 2011/09/23 13:08:54 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_container_cw.pro,v $
+; Revision 1.5  2011/09/23 13:08:54  jpmorgen
+; Sucessfully using parinfo_edit methods
+;
 ; Revision 1.4  2011/09/22 01:42:35  jpmorgen
 ; About to delete some commented out code
 ;
@@ -100,10 +103,6 @@ pro pfo_parinfo_container_cw_obj::repopulate
   ;; possible, but would take some property to keep track of it.
   self.pfo_obj->parinfo_edit, status_mask=!pfo.all_status, $
          containerID=self.containerID, _EXTRA=*self.pextra
-;;  junk = self.pfo_obj->parinfo_call_function( $
-;;         /no_update, 'pfo_parinfo_parse', /widget, status_mask=!pfo.all_status, pfo_obj=self.pfo_obj, $
-;;         containerID=self.containerID, $
-;;         _EXTRA=*self.pextra)
   ;;print, 'container repopulated, but not updated in ', systime(/seconds) - t1
   ;; Redraw the parent widget
   widget_control, self.parentID, update=1
