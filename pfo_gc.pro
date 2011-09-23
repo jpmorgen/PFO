@@ -44,7 +44,7 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_gc.pro,v 1.2 2011/02/10 22:31:06 jpmorgen Exp $
+; $Id: pfo_gc.pro,v 1.3 2011/09/23 12:57:45 jpmorgen Exp $
 ;-
 pro pfo_gc, parinfo
   init = {pfo_sysvar}
@@ -61,10 +61,10 @@ pro pfo_gc, parinfo
   ;; If we find none, just return without doing anything
   if count eq 0 then $
     return
-  ;; If we have deleted everything, set parinfo = 'none' so
-  ;; array_append works and return
+  ;; If we have deleted everything, use temporary to make parinfo
+  ;; undefined
   if nkeep eq 0 then begin
-     parinfo = 'none'
+     junk = temporary(parinfo)
      return
   endif
   parinfo = parinfo[keep_idx]  
