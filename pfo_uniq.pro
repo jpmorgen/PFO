@@ -11,8 +11,19 @@
 ; reverse_indices=reverse_indices][, N_uniq=N_uniq])
 
 ; DESCRIPTION: pfo_uniq combines characteristics of IDL's uniq and
-; histogram routines.  If you just want to find some indices of the
-; unique array
+; histogram routines by providing the option to return a reverse index
+; lookup array of the _identical_ elements.  Using the reverse_indices
+; output of histogram or pfo_uniq is much faster than using where when
+; looping through many sets of identical elements in an array.
+; Basically, the array is only scanned once.  IDL's histrogram suffers
+; from the problem that it has to output a histogram, which may be
+; very inefficient for the input array (e.g. several values grouped
+; around 0 and then one at a very large value).  pfo_uniq just lines
+; everything up and creates the reverse lookup array based on
+; identical elements.  NOTE: the order in which the reverse indices
+; are listed can be affected by which OS issues the sort command.  Use
+; the IDLASTRO bsort command (or equivalent) to achieve consistent
+; results between platforms.
 
 ; INPUTS:
 
@@ -23,14 +34,18 @@
 ; OPTIONAL INPUTS:
 
 ;	sidx: the output of sort(array).  Using array and sidx allows
-;	pfo_uniq to work without the need to rewrite the input array
+;	pfo_uniq to work without the need to rewrite the input array.
 
 ;
 ; KEYWORD PARAMETERS:
 
 ;       reverse_indices (output): an array, much like that used by
 ;       IDL's historgam routine, that allows lookup of groups of
-;       identical elements of array
+;       identical elements of array.  The ith group is given by:
+
+;                  idx = r_idx[r_idx[i]:r_idx[i+1]-1]
+
+;	N_uniq (output): the number of unique elements in the input array
 
 ;
 ; OUTPUTS:
@@ -38,7 +53,7 @@
 ;	array of indices into array of unique elements of that array.
 ;	If array is sorted monotonically increasing, the last unique
 ;	element in each set of duplicates is returned.  If the sort is
-;	in decreasing order, the first is returned
+;	in decreasing order, the first is returned.
 
 ;
 ; OPTIONAL OUTPUTS:
@@ -57,9 +72,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_uniq.pro,v 1.2 2011/09/01 22:26:01 jpmorgen Exp $
+; $Id: pfo_uniq.pro,v 1.3 2011/09/23 13:11:04 jpmorgen Exp $
 ;
 ; $Log: pfo_uniq.pro,v $
+; Revision 1.3  2011/09/23 13:11:04  jpmorgen
+; Improve documentation
+;
 ; Revision 1.2  2011/09/01 22:26:01  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
