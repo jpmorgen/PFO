@@ -2,7 +2,8 @@
 ; NAME: pfo_finit_cw
 ;
 ; PURPOSE: create a compound widget that displays the standard pfo
-; parinfo finit sequence: X=Xin, Y=NaN
+; parinfo finit sequence: X=Xin, Y=NaN and a droplist widget prompting
+; the user to add a new sub-function
 ;
 ; CATEGORY: PFO widgets
 ;
@@ -34,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_finit_cw.pro,v 1.2 2011/09/16 13:53:15 jpmorgen Exp $
+; $Id: pfo_finit_cw.pro,v 1.3 2011/09/23 13:03:34 jpmorgen Exp $
 ;
 ; $Log: pfo_finit_cw.pro,v $
+; Revision 1.3  2011/09/23 13:03:34  jpmorgen
+; Added "Add new function" droplist menu
+;
 ; Revision 1.2  2011/09/16 13:53:15  jpmorgen
 ; Added pfo_obj->update stuff, simplified widget hierarchy to try to
 ; speed up
@@ -48,25 +52,32 @@
 
 function pfo_finit_cw_obj::event, event
 
-  self.pfo_obj->prepare_update, undo
+  ;; Prepare to swallow this event
+  retval = !tok.nowhere
 
   sn = tag_names(event, /structure_name)
-  case sn of
-     'WIDGET_DROPLIST' : begin
-        case event.index of
-           0: ;; No change in init_Yaxis
-           1: self.pfo_obj->set_property, init_Yaxis=!values.d_NAN
-           2: self.pfo_obj->set_property, init_Yaxis=0d
-        endcase
-     end
-     else: message, 'ERROR: unexpected event'
+  if sn ne 'WIDGET_DROPLIST' then $
+     message, 'ERROR: unexpected event type ' + sn
 
+  ;; Nothing to do if the default value is selected
+  if event.index eq 0 then $
+     return, retval
+
+  ;; If we made it here, we have a change that we want to handle in
+  ;; the context of our update/undo system
+  self.pfo_obj->prepare_update, undo
+
+  case event.index of
+     0: ;; No change in init_Yaxis (handled above)
+     1: self.pfo_obj->set_property, init_Yaxis=!values.d_NAN
+     2: self.pfo_obj->set_property, init_Yaxis=0d
+     else: message, 'ERROR: unrecognized event index'
   endcase
 
-  self.pfo_obj->update, undo
+  self.pfo_obj->update, undo, /save_undo
 
   ;; Swallow event
-  return, !tok.nowhere
+  return, retval
 end
 
 ;; Refresh method.  pfo_cw_obj handles error catching
@@ -77,6 +88,7 @@ pro pfo_finit_cw_obj::refresh
   s = string(format='(f3.0)', init_Yaxis)
   widget_control, self.init_YaxisID, $
                   set_value=[s, 'NaN', '0']
+
 end
 
 pro pfo_finit_cw_obj::populate, $
@@ -90,13 +102,14 @@ pro pfo_finit_cw_obj::populate, $
   finit = !pfo.axis_string[!pfo.Xaxis] + ' = ' + !pfo.axis_string[!pfo.Xin] + $
              '; ' + !pfo.axis_string[!pfo.Yaxis] + ' = '
 
-  ;; Put this finit into a row widget
-  rowID = widget_base(self.tlbID, /row)
-  ID = widget_label(rowID, value=finit)
+  ID = widget_label(self.tlbID, value=finit)
   ;; Add a droplist menu to select the default Yaxis
   s = string(format='(f3.0)', init_Yaxis)
-  self.init_YaxisID = widget_droplist(rowID, value=[s, 'NaN', '0'], $
-                        uvalue={method: 'event', obj:self})
+  self.init_YaxisID = widget_droplist(self.tlbID, value=[s, 'NaN', '0'], $
+                                      uvalue={method: 'event', obj:self})
+
+  ;; Add the new function droplist
+  ID = pfo_parinfo_new_droplist(self.tlbID, pfo_obj=self.pfo_obj)
 
 end
 
@@ -104,7 +117,6 @@ end
 pro pfo_finit_cw_obj::cleanup
   ;; Call our inherited cleaup routines
   self->pfo_cw_obj::cleanup
-  ;; Nothing local to do
 end
 
 ;; Init method
@@ -123,7 +135,8 @@ function pfo_finit_cw_obj::init, $
      endif
   endif ;; not debugging
 
-  ;; Call our inherited init routine.
+  ;; Call our inherited init routine.  Make sure we are a row base and
+  ;; thing line up centered top-to-bottom
   ok = self->pfo_cw_obj::init(parentID, /row, /base_align_center, _EXTRA=extra)
   if NOT ok then return, 0
 
