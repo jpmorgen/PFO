@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__widget.pro,v 1.3 2011/09/16 11:22:51 jpmorgen Exp $
+; $Id: pfo_null__widget.pro,v 1.4 2011/09/23 13:06:22 jpmorgen Exp $
 ;
 ; $Log: pfo_null__widget.pro,v $
+; Revision 1.4  2011/09/23 13:06:22  jpmorgen
+; Minor change
+;
 ; Revision 1.3  2011/09/16 11:22:51  jpmorgen
 ; Significant improvement in widget speed by using pfo_parinfo_text_cw
 ; and edit button in pfo_parinfo_mode_cw
@@ -352,7 +355,10 @@ function pfo_null_cw_obj::init, $
   ;; this function into self, among other things.  It also makes the
   ;; tlb a column base.
   ok = self->pfo_parinfo_cw_obj::init(parentID, /column, _EXTRA=extra)
-  if NOT ok then return, 0
+  if NOT ok then begin
+     message, 'WARNING: object not initialized properly'
+     return, 0
+  endif
 
   ;; Build our widget
   self->populate, _EXTRA=extra
