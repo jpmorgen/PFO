@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj__define.pro,v 1.6 2011/09/16 11:26:16 jpmorgen Exp $
+; $Id: pfo_parinfo_obj__define.pro,v 1.7 2011/09/23 13:08:18 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj__define.pro,v $
+; Revision 1.7  2011/09/23 13:08:18  jpmorgen
+; Add edit, parinfo_edit methods and minor changes
+;
 ; Revision 1.6  2011/09/16 11:26:16  jpmorgen
 ; Added debug level 2 to pfo_debug, so CATCH in update is disabled
 ;
@@ -91,6 +94,8 @@ function pfo_parinfo_obj::print, $
 
 end
 
+;; The widget method returns the widget ID of a function editing
+;; widget.  It is going to get overridden by higher-level widgets
 function pfo_parinfo_obj::widget, $
    parinfo=parinfo, $ ;; Capture parinfo so we can get it into the object properly
    _REF_EXTRA=extra
@@ -116,6 +121,22 @@ function pfo_parinfo_obj::widget, $
 
 end
 
+;; Define a parinfo_edit method that is just a wrapper around
+;; self->widget() _of this object_, since it is handy to sometimes
+;; just edit the parinfo
+pro pfo_parinfo_obj::parinfo_edit, $
+   _REF_EXTRA=extra
+  junk = self->pfo_parinfo_obj::widget(_EXTRA=extra)
+end
+
+;; The edit method points to parinfo_edit at this level.  The edit
+;; method will be overridden by inheriting objects to reflect the
+;; complexity of the object
+pro pfo_parinfo_obj::edit, $ $
+   _REF_EXTRA=extra
+  self->parinfo_edit, _EXTRA=extra
+end
+
 function pfo_parinfo_obj::indices, $
    parinfo=parinfo, $ ;; Capture parinfo so we can get it into the object properly
    _REF_EXTRA=extra
@@ -138,6 +159,15 @@ function pfo_parinfo_obj::indices, $
   endif
 
   return, retval
+
+end
+
+
+function pfo_parinfo_obj::parinfo, $
+   no_copy=no_copy ;; Dangerous!  This guts the pfo_parinfo_obj of parinfo, so any additional calls to this object that require knowledge of parinfo will fail!
+
+  self->get_property, parinfo_array=parinfo, no_copy=no_copy
+  return, parinfo
 
 end
 
@@ -357,8 +387,9 @@ pro pfo_parinfo_obj::undo
   ;; Prepare to use it.  Our current parinfo will become the local undo
   self->prepare_update, undo
 
-  ;; Put our current parinfo on the redo list
-  self.parinfo_redo_obj->add, *self.pparinfo
+  ;; Put our current parinfo on the redo list.  Don't add an empty parinfo
+  if N_elements(*self.pparinfo) ne 0 then $
+     self.parinfo_redo_obj->add, *self.pparinfo
   ;; Replace our parinfo with the one from the undo list.  Make sure
   ;; we copy it so the node can be deleted from the list
   *self.pparinfo = self.parinfo_undo_obj->get_item(/dereference)
@@ -533,10 +564,11 @@ pro pfo_parinfo_obj::update, $
   endif ;; have parinfo widgets     
 
 
-  ;; Get the old and new uniqueID.  These no not raise errors if undo or parinfo are undefined
-  pfo_struct_setget_tag, /get, undo, taglist_series='pfo_unique', uniqueID=orig_uniqueID
-  ;; Get the new uniqueID 
-  pfo_struct_setget_tag, /get, *self.pparinfo, taglist_series='pfo_unique', uniqueID=uniqueID
+  ;; Get the old and new uniqueID
+  if N_elements(undo) gt 0 then $
+     pfo_struct_setget_tag, /get, undo, taglist_series='pfo_unique', uniqueID=orig_uniqueID
+  if N_elements(*self.pparinfo) gt 0 then $
+     pfo_struct_setget_tag, /get, *self.pparinfo, taglist_series='pfo_unique', uniqueID=uniqueID
 
   ;; Decide whether to refresh or repopulate.  Be careful of the case
   ;; where we didn't get any sensible indices or uniqueID arrays back
@@ -577,12 +609,15 @@ pro pfo_parinfo_obj::update, $
 
 end
 
-function pfo_parinfo_obj::parinfo, $
-   no_copy=no_copy ;; Dangerous!  This guts the pfo_parinfo_obj of parinfo, so any additional calls to this object that require knowledge of parinfo will fail!
-
-  self->get_property, parinfo_array=parinfo, no_copy=no_copy
-  return, parinfo
-
+;; Delete the parinfo
+pro pfo_parinfo_obj::delete_parinfo
+  ;; Save the existing parinfo, if undo is enabled
+  self->save_undo
+  ;; Delete the parinfo from memory
+  ptr_free, self.pparinfo
+  ;; Reallocate an undefined variable
+  self.pparinfo = ptr_new(/allocate_heap)
+  self->update
 end
 
 pro pfo_parinfo_obj::get_property, $
@@ -591,6 +626,7 @@ pro pfo_parinfo_obj::get_property, $
    parinfo_descr=parinfo_descr, $
    pfo_fstruct_array=pfo_fstruct_array, $
    pfo_fstruct_descr=pfo_fstruct_descr, $
+   enable_undo=enable_undo, $
    no_copy=no_copy ;; Dangerous!  This guts the pfo_parinfo_obj of its property, so calls to methods referring to that property won't work
 
   ;; parinfo
@@ -637,6 +673,8 @@ pro pfo_parinfo_obj::get_property, $
      else $
        pfo_fstruct_descr = *self.ppfo_fstruct_descr
   endif ;; pfo_fstruct_descr
+
+  enable_undo = obj_valid(self.parinfo_undo_obj)
 
 end ;; get_property
 
@@ -780,7 +818,7 @@ function pfo_parinfo_obj::init, $
      = ptr_new( $
      {README	: 'pfo_parinfo_obj stores the parinfo and associated information used by the PFO system', $
       SUPERCLASSES: 'pfo_parinfo_obj_cw_obj', $
-      METHODS	: 'print, widget, indices, parinfo, parinfo_call_procedure, parinfo_call_function'} $
+      METHODS	: 'print, widget, indices, parinfo, edit, parinfo_edit, parinfo_call_procedure, parinfo_call_function, redo, undo, save_undo, prepare_update, update, delete_parinfo'} $
               )
   ;; Grab a decent guess at what our property is from the list of
   ;; keywords in our get_property method
