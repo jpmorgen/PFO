@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi__fdefine.pro,v 1.4 2011/09/16 11:19:38 jpmorgen Exp $
+; $Id: pfo_roi__fdefine.pro,v 1.5 2011/11/18 16:10:30 jpmorgen Exp $
 ;
 ; $Log: pfo_roi__fdefine.pro,v $
+; Revision 1.5  2011/11/18 16:10:30  jpmorgen
+; Add auto_ROI_flist and automatic ROI incrementing features
+;
 ; Revision 1.4  2011/09/16 11:19:38  jpmorgen
 ; Fiddled with status_mask
 ;
@@ -140,7 +143,7 @@ function pfo_ROI__calc, $
    Xin, $ 	;; Input X axis in natural units 
    params, $ 	;; parameters (entire array)
    parinfo=parinfo, $ ;; parinfo array (whole array)
-  idx=idx, $    ;; idx into parinfo of parinfo segment defining this function
+   idx=idx, $    ;; idx into parinfo of parinfo segment defining this function
    Xaxis=Xaxis, $ ;; transformed from Xin by pfo_funct, in case ROI boundary is cast in terms of "real" units.  Passing it this way saves recalculation in this routine
    count=count, $ ;; number of xaxis points found in ROI
    pfo_obj=pfo_obj, $ ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
@@ -240,6 +243,9 @@ end
 function pfo_ROI__init, $
    value=value, $	;; catch value to make sure no conflict with other keywords
    ftype=ftype, $	;; catch ftype to make sure no conflict in pfo_struct_setget_tag
+   parinfo=eparinfo, $	;; pass existing parinfo to avoid collision of iROIs
+   min_iROI=min_iROI, $ ;; minimum iROI to use when assigning unique (mathematically independent) iROIs
+   auto_ROI_flist=auto_ROI_flist, $ ;; [list of] function[s] which will be added to the returned parinfo segment and have the same ispec and iROI as the created ROI
    pfo_obj=pfo_obj, $	;; pfo_obj for parinfo_template
    _REF_EXTRA=extra, $	;; _REF_EXTRA passed to pfo_struct_setget_tag
    ROI=ROI, $		;; ROI will be the usual way the ROI boundaries are specified
@@ -274,7 +280,7 @@ function pfo_ROI__init, $
   ;; include any substructure we need with required tags.  Start with
   ;; one parinfo element.
   parinfo = pfo_parinfo_template(pfo_obj=pfo_obj, $
-                                 required_tags=['pfo', pfo_fname()])
+                                 required_tags=['pfo', 'pfo_ROI'])
   ;; ... replicate it by fnpars
   parinfo = replicate(temporary(parinfo), fnpars)
 
@@ -348,7 +354,64 @@ function pfo_ROI__init, $
   ;; parameters "permanently" fixed so that a casual call to pfo_mode,
   ;; parinfo, 'free' doesn't free them
   pfo_mode, parinfo, 'fixed', /permanent
+
+  ;; AUTO_ROI_FLIST
+
+  ;; Automatically create functions in this ROI, if desired (usually
+  ;; pfo_poly).  This may get a little convoluted if the function init
+  ;; "methods" call update.  They shouldn't
+  for ifn=0,N_elements(auto_ROI_flist)-1 do begin
+     pfo_array_append, $
+        parinfo, $
+        pfo_parinfo_new(auto_ROI_flist[ifn], parinfo=eparinfo, pfo_obj=pfo_obj, _EXTRA=extra)
+  endfor ;; adding functions automatically to ROI
+
+  ;; iROI
+
+  ;; The default iROI for all functions, assigned by
+  ;; pfo_ROI_struct__init, is !pfo.allROI (-1).  This makes
+  ;; mathematically linked ROIs.  In other words, a function with iROI
+  ;; = !pfo.allROI is valid across all ROIs that are marked as
+  ;; !pfo.allROI.  This is useful for a continuum or a peak with
+  ;; extended wings.  iROI = !pfo.allROI also happens to avoid any
+  ;; troubles with duplicate iROIs, since there can be many ROIs with
+  ;; iROI = !pfo.allROI, but not more than one ROI with iROI ge 0.  
+
+  ;; In some applications, it is useful to have mathematically
+  ;; independent ROIs.  This includes analysis of spectra which have
+  ;; complicated continua that need to be chopped up on an almost
+  ;; peak-by-peak basis.  To enable this, iROI can be set to a value =
+  ;; !pfo.allROI + 1 or higher.  min_iROI is an input parameter to
+  ;; this routine that determines the starting point for a run of
+  ;; unique iROIs, assuming that the parinfo that is being built up is
+  ;; passed as the parinfo=parinfo keyword to this routine.
   
+  ;; NOTE: This code sets the default iROI.  The actual iROI can still
+  ;; be manipulated by setting the iROI keyword in the call to
+  ;; pfo_parinfo_new, since that keyword is converted to a parinfo
+  ;; tag assignment, below.
+  if N_elements(min_iROI) gt 0 then begin
+     ;; min_iROI = !pfo.allROI is valid, but means we revert to the
+     ;; allROI case
+     if min_iROI ne !pfo.allROI then begin
+        if min_iROI lt !pfo.allROI then $
+           message, 'ERROR: min_iROI lt !pfo.allROI.  Incrementing min_iROI will create create strange results.  I suggest that you use min_iROI = !pfo.allROI + 0 or 1 when calling this routine.'
+
+        ;; If we made it here, we have a sensible min_iROI.  Set the
+        ;; default iROI to our min_iROI
+        iROI = min_iROI
+        ;; If the user passed in the existing parinfo (recommended!),
+        ;; we can make sure to choose our new parinfo's iROI so that
+        ;; doesn't conflict with any others.
+        eROI_idx = pfo_fidx(eparinfo, 'pfo_ROI', status_mask=!pfo.all_status, $
+                            pfo_obj=pfo_obj, nfunct=nROI)
+        if nROI gt 0 then $
+           iROI = max(eparinfo[eROI_idx].pfo_ROI.iROI) + 1
+        ;; Put iROI into the new parinfo segment
+        parinfo.pfo_ROI.iROI = iROI
+     endif ;; a min_iROI 
+  endif ;; min_iROI specified
+
   ;; Convert keywords on the command line to tag assignments in the
   ;; parinfo.  This is a little risky, since we might have duplicate
   ;; tags in the different sub-structures (e.g. status is a popular
