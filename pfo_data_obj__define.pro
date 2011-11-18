@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_data_obj__define.pro,v 1.3 2011/09/01 22:29:16 jpmorgen Exp $
+; $Id: pfo_data_obj__define.pro,v 1.4 2011/11/18 16:16:09 jpmorgen Exp $
 ;
 ; $Log: pfo_data_obj__define.pro,v $
+; Revision 1.4  2011/11/18 16:16:09  jpmorgen
+; Modified to handle different invocation order at init
+;
 ; Revision 1.3  2011/09/01 22:29:16  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -123,7 +126,8 @@ pro pfo_data_obj::set_property, $
    Yin=Yin, $	;; data Y-axis
    Yerr=Yerr, $	;; 1-sigma error bars on data
    weights=weights, $ ;; weight(s) used to calculate deviates (used in preference to yerr)
-   no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+   no_copy=no_copy, $ ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+   _EXTRA=extra ;; to ignore any extra keywords
 
   ;; Xin
   if N_elements(Xin) gt 0 then begin
@@ -172,7 +176,8 @@ pro pfo_data_obj::new_data, $
    p1, $        ;; Yin
    p2, $        ;; Yerr
    quiet=quiet, $ ;; don't report change
-   no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+   no_copy=no_copy, $ ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+   _EXTRA=extra ;; pass on any extra keywords (e.g. /no_update) to subclassed set_property methods
 
   ;; We are called by routines which always mention p0, p1, p2, even
   ;; if they ar enot defined.  This means we cannot use N_params() to
@@ -200,7 +205,8 @@ pro pfo_data_obj::new_data, $
            Xin=Xin, $
            Yin=p0, $
            Yerr=sqrt(p0), $
-           no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+           no_copy=no_copy, $ ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+           _EXTRA=extra ;; to ignore any extra keywords
      end
      2: begin
         ;; Assume Xin and Yin are specified.  Assume Yerr is Poisson
@@ -209,7 +215,8 @@ pro pfo_data_obj::new_data, $
            Xin=p0, $
            Yin=p1, $
            Yerr=sqrt(p1), $
-           no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+           no_copy=no_copy, $  ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+           _EXTRA=extra ;; to ignore any extra keywords
      end
      3: begin
         ;; No ambiguities
@@ -217,7 +224,8 @@ pro pfo_data_obj::new_data, $
            Xin=p0, $
            Yin=p1, $
            Yerr=p2, $
-           no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+           no_copy=no_copy, $ ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+           _EXTRA=extra ;; to ignore any extra keywords
      end
   endcase 
 
@@ -311,18 +319,25 @@ function pfo_data_obj::init, $
   self.pYerr = ptr_new(/allocate_heap)
   self.pweights = ptr_new(/allocate_heap)
 
-  ;; Use new_data method to handle positional parameters
+  ;; Use new_data method to handle positional parameters.  When we are
+  ;; inherited into the pfo_obj system, we want to use the overrided
+  ;; set_property (particularly calc), but we don't wan to to
+  ;; call update, since that triggers to much code that is not
+  ;; initialized yet.
   self->new_data, $
      p0, $        ;; Xin or Yin
      p1, $        ;; Yin
      p2, $        ;; Yerr
-     no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
-
-  ;; Keyword parameters can override positional parameters
-  self->set_property, $
-     Xin=Xin, $	;; X-axis, usually in natural units
-     Yin=Yin, $	;; data Y-axis
-     Yerr=Yerr, $	;; 1-sigma error bars on data
+     no_copy=no_copy, $ ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+     /no_update
+  
+  ;; Keyword parameters can override positional parameters.  Make sure
+  ;; we use our local set_property routine to avoid nested
+  ;; initialization problems with other inherited routines
+  self->pfo_data_obj::set_property, $
+     Xin=Xin, $ ;; X-axis, usually in natural units
+     Yin=Yin, $ ;; data Y-axis
+     Yerr=Yerr, $       ;; 1-sigma error bars on data
      weights=weights, $ ;; weight(s) used to calculate deviates (used in preference to yerr)
      no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
 
