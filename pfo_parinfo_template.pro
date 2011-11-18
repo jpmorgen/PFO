@@ -69,9 +69,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_template.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_parinfo_template.pro,v 1.2 2011/11/18 16:13:56 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_template.pro,v $
+; Revision 1.2  2011/11/18 16:13:56  jpmorgen
+; Do a better job of building up the template when set_template is
+; provided
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -126,12 +130,43 @@ function pfo_parinfo_template, popt=popt, required_tags=required_tags, $
 
   endelse ;; object-oriented
 
-  ;; Check to see if we wanted to manually set the parinfo to
-  ;; something.  If we stick with the required_tags keyword, this
-  ;; should not be necessary
+  ;; Check to see if we wanted to manually set the parinfo template to
+  ;; to match a particular parinfo.  This is useful if we are
+  ;; importing a parinfo from an unknown source and need to get our
+  ;; template up to speed.
   if keyword_set(set_parinfo) then begin
-     ;; Make sure that our parinfo_template is only a 1-element array
-     parinfo_template_local = set_parinfo[0]
+     ;; See if we are a pfo struct-compatible parinfo
+     tns = tag_names(set_parinfo)
+     tls_idx = where(tns eq 'TOP_LEVEL_STRUCT', count)
+     if count eq 0 then begin
+        ;; Not a pfo struct-compatible parinfo.  The best we can do is
+        ;; just take the first element of the parinfo.  it might not
+        ;; have the right initializations
+        parinfo_template_local = set_parinfo[0]
+     endif else begin
+
+        ;; If we made it here, we are a pfo struct-compatible
+        ;; parinfo.  Create our top-level struct.  Also start
+        ;; parinfo_descr from scratch.  If the user wants to rerwrite
+        ;; it with a different version, they can with parinfo_descr
+        parinfo_descr_local = !values.f_NAN ;; reset for array_append
+        parinfo_template_local = pfo_struct_new(set_parinfo[0].(tls_idx), $
+                                                descr=parinfo_descr_local)
+        
+        ;; Go through our top-level tags one by one to see if they are
+        ;; in the struct__define system.
+        for it=0, N_elements(tns)-1 do begin
+           CATCH, err
+           if err ne 0 then begin
+              CATCH, /CANCEL
+              CONTINUE
+           endif ;; tag not in system
+           ;; This should build up a pfo struct-compatible parinfo template
+           pfo_struct_append, parinfo_template_local, tns[it]
+        endfor ;; each top-level tag
+     endelse ;; pfo struct-compatible parinfo or not
+
+     ;; Set our parinfo_descr by hand, if the user specified it (rare)
      if keyword_set(parinfo_descr_in) then $
        parinfo_descr_local = parinfo_descr_in
   endif ;; setting parinfo and optionally description
