@@ -56,9 +56,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_container_cw.pro,v 1.5 2011/09/23 13:08:54 jpmorgen Exp $
+; $Id: pfo_parinfo_container_cw.pro,v 1.6 2011/11/18 16:09:21 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_container_cw.pro,v $
+; Revision 1.6  2011/11/18 16:09:21  jpmorgen
+; Change to calling widget_control on tlb rather than possibly
+; non-existent parent
+;
 ; Revision 1.5  2011/09/23 13:08:54  jpmorgen
 ; Sucessfully using parinfo_edit methods
 ;
@@ -85,7 +89,7 @@ pro pfo_parinfo_container_cw_obj::repopulate
 
   ;; Turn off update in the parent so we don't unnecessarily redraw
   ;; widgets.  Try to unmap the window to see if it goes faster...nope
-  widget_control, self.parentID, update=0
+  widget_control, self.tlbID, update=0
   ;; Kill the container and all its contents.  Each of the children
   ;; should properly issue pfo_obj->unregister_refresh.  This also
   ;; creates a fresh container into which we will draw the new version
@@ -105,7 +109,7 @@ pro pfo_parinfo_container_cw_obj::repopulate
          containerID=self.containerID, _EXTRA=*self.pextra
   ;;print, 'container repopulated, but not updated in ', systime(/seconds) - t1
   ;; Redraw the parent widget
-  widget_control, self.parentID, update=1
+  widget_control, self.tlbID, update=1
 
   ;;print, 'Time for pfo_parinfo_container_cw repouplate = ', systime(/seconds) - t1 
 end
