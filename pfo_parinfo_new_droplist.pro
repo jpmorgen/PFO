@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_new_droplist.pro,v 1.1 2011/09/23 13:04:45 jpmorgen Exp $
+; $Id: pfo_parinfo_new_droplist.pro,v 1.2 2011/11/18 16:08:27 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_new_droplist.pro,v $
+; Revision 1.2  2011/11/18 16:08:27  jpmorgen
+; Switch to using pfo_obj->append_parinfo method
+;
 ; Revision 1.1  2011/09/23 13:04:45  jpmorgen
 ; Initial revision
 ;
@@ -61,32 +64,37 @@ function pfo_parinfo_new_droplist_obj::event, event
   ;; Put our droplist back the way we like it
   self->refresh
 
-  ;; Create our new function
-  parinfo = pfo_parinfo_new((*self.pfname_list)[event.index-1], pfo_obj=self.pfo_obj)
+  ;; Get ready to make a local copy of the things we need to operate,
+  ;; since the self object for this droplist is going to get killed
+  ;; when the repopulate method is issued as the new function is added
+  ;; and potentially edited
+  pfo_obj = self.pfo_obj
+  topID = pfo_widget_top(self.parentID)
 
-  ;; We don't have any way to initialize our new parinfo segment with
-  ;; command line parameters so put it in a new pfo_obj of the same
-  ;; object class as our pfo_obj and raise the widget editor from
-  ;; inside the new object
-  help, self.pfo_obj, output=s
-  ;; s = 'PFO_OBJ         OBJREF    = <ObjHeapVar1(PFO_OBJ)>'
-  ;; Chop off all but the end
-  s = strmid(s, strpos(s, '(') + 1)
-  ;; Chop off the end
-  s = strmid(s, 0, strpos(s, ')>'))
-  tpfo_obj = obj_new(s)
-  ;; _Move_ our parinfo into the tpfo_obj
-  tpfo_obj->set_property, parinfo_array=parinfo, /no_copy
-  ;; Bring up a parinfo editor with our temporary pfo_obj.  Try to
-  ;; make it a blocking widget, but this won't work unless all
-  ;; the other widgets are non-blocking.  The pfo_finit menu takes
-  ;; care of returning the initialized parinfo from tpfo_obj to
-  ;; our pfo_obj even if we are non-blocking.  The group leader should
-  ;; be the true top of the hierarchy of our original widget, just
-  ;; just the tlb of self (which ends up being a containerID)
-  tpfo_obj->parinfo_edit, /edit, group_leader=pfo_widget_top(self.tlbID), no_block=0, $
-                          /no_finit, menus=['pfo_parinfo_new_exit', 'pfo_parinfo_edit'], $
-                          menu_args={orig_pfo_obj:self.pfo_obj}
+  N_parinfo_orig = pfo_obj->parinfo_call_function(/no_update, 'N_elements')
+
+  ;; Use the pfo_obj append_parinfo method to do our work.  It has
+  ;; access to the property, like parinfo_new_args, which customize
+  ;; the formation of new parinfo segments for individual functions.
+  ;; Calling it this way will also update any displayed widgets,
+  ;; including ourselves!
+  self.pfo_obj->append_parinfo, (*self.pfname_list)[event.index-1]
+  
+  ;; Get the idx of the newly added function(s).  The new function should
+  ;; always be added to the end of the parinfo
+  idx = lindgen(pfo_obj->parinfo_call_function(/no_update, 'N_elements') $
+                 - N_parinfo_orig)
+  idx += N_parinfo_orig
+
+  ;; Edit the function.  At this point, we are a normal function
+  ;; editing case except we don't want the finit.  --> consider a
+  ;; cancel menu item that would delete the function.  Need to improve
+  ;; edit of an arbitrary set of idx so that it doesn't get
+  ;; repopulated away.
+  pfo_obj->parinfo_edit, $
+     /edit, /no_finit, status_mask=!pfo.all_status, $
+     title='PFO PARINFO NEW SUB-FUNCTION EDITOR', $
+     idx=idx, group_leader=topID
 
   ;; Swallow event
   return, retval
