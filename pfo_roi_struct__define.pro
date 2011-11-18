@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.6 2011/09/22 23:46:30 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.7 2011/11/18 16:07:44 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.7  2011/11/18 16:07:44  jpmorgen
+; Comment updates
+;
 ; Revision 1.6  2011/09/22 23:46:30  jpmorgen
 ; Get rid of FSC_field and no more segmentation faults on LINUX!
 ;
@@ -380,9 +383,14 @@ function pfo_ROI_struct__init, $
   ;; could also have called:
   ;; pfo_struct = create_struct(name='pfo_ROI_struct')
   pfo_ROI_struct = {pfo_ROI_struct}
-
-  ;; Initialize our ispec and iROI values so that new functions are
-  ;; calculated over all spectra and all ROIs by default.
+  
+  ;; Initialize our ispec and iROI values to so that without other
+  ;; customization, new functions are all mathematically linked across
+  ;; all spectra and all ROIs.  In other words, you can define just
+  ;; one continuum which will apply to all spectra in the dataset and
+  ;; (more commonly) across all ROIs in each spectrum.  The
+  ;; alternative is using mathematically independent ROIs (iROI ge 0)
+  ;; and multiple, identical functions with parameters linked to each other.
   pfo_ROI_struct.ispec = !pfo.allspec
   pfo_ROI_struct.iROI = !pfo.allROI
   pfo_ROI_struct.ROI_color = !tok.nowhere
