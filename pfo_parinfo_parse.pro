@@ -8,13 +8,13 @@
 ;
 ; CALLING SEQUENCE:  One of the following, depending on the desired action:
 
-; yaxis = pfo_parinfo_parse(/CALC, parinfo [, params=params] Xin=Xin[, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, pfo_obj=pfo_obj][, xaxis=xaxis][, ROI_Xin_idx=ROI_Xin_idx][, keyowrds to pfo_<fname> routines])
+; yaxis = pfo_parinfo_parse(/CALC, parinfo=parinfo [, params=params] Xin=Xin[, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, pfo_obj=pfo_obj][, xaxis=xaxis][, ROI_Xin_idx=ROI_Xin_idx][, keyowrds to pfo_<fname> routines])
 
-; toprint = pfo_parinfo_parse(/PRINT, parinfo[, params=params][, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, status_mask=status_mask][, pfo_obj=pfo_obj][, keyowrds to pfo_<fname> routines])
+; toprint = pfo_parinfo_parse(/PRINT, parinfo=parinfo[, params=params][, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, status_mask=status_mask][, pfo_obj=pfo_obj][, keyowrds to pfo_<fname> routines])
 
-; widget_id = pfo_parinfo_parse(/WIDGET, parinfo[, params=params][, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, pfo_obj=pfo_obj][, status_mask=status_mask][, keyowrds to pfo_<fname>__widget routines])
+; widget_id = pfo_parinfo_parse(/WIDGET, parinfo=parinfo[, params=params][, idx=idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, pfo_obj=pfo_obj][, status_mask=status_mask][, keyowrds to pfo_<fname>__widget routines])
 
-; indices = pfo_parinfo_parse(/INDICES, parinfo[, params=params][, idx=idx][, expand_idx=expand_idx][, /terminate_idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, status_mask=status_mask][, pfo_obj=pfo_obj][, keyowrds to pfo_<fname>__indices routines])
+; indices = pfo_parinfo_parse(/INDICES, parinfo=parinfo[, params=params][, idx=idx][, expand_idx=expand_idx][, /terminate_idx][, ispec=ispec][, iROI=iROI][, allspec=allspec][, allROI=allROI][, status_mask=status_mask][, pfo_obj=pfo_obj][, keyowrds to pfo_<fname>__indices routines])
 
 ; DESCRIPTION:
 
@@ -115,9 +115,9 @@
 ;       list.  Example:
 
 ;	;; Return indices of just the peak parameter(s)
-;	junk = pfo_parinfo_parse(/INDICES, parinfo, peak_idx=peak_idx)
+;	junk = pfo_parinfo_parse(/INDICES, parinfo=parinfo, peak_idx=peak_idx)
 ;	;; Expand peak parameter indices into indices for the entire function(s)
-;	peak_fn_idx = pfo_parinfo_parse(/INDICES, parinfo, expand_idx=peak_idx)
+;	peak_fn_idx = pfo_parinfo_parse(/INDICES, parinfo=parinfo, expand_idx=peak_idx)
 
 ;       terminate_idx: put termination marks (!tok.nowhere) after each
 ;       set of indices in all returned index lists.  These can be
@@ -164,9 +164,14 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.8 2011/09/23 01:59:57 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.9 2011/11/18 15:31:54 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.9  2011/11/18 15:31:54  jpmorgen
+; Change call to use parinfo as a keyword rather than a positional
+; parameter so that upstream use of _REF_EXTRA in pfo_calc_obj results
+; in smooth override of parinfo and all other keyword parameters.
+;
 ; Revision 1.8  2011/09/23 01:59:57  jpmorgen
 ; Changed to use pfo_parinfo_edit and minor things
 ;
@@ -251,7 +256,7 @@ function pfo_parinfo_parse_catch, action, toprint, indices_idx, yaxis, error, co
 end
 
 function pfo_parinfo_parse, $
-   parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
+   parinfo=parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
    status_mask=status_mask, error=error, $
    calc=calc, Xin=Xin, xaxis=xaxis, ROI_Xin_idx=ROI_Xin_idx, convol_center=convol_center, $
    print=print, $
@@ -270,7 +275,7 @@ function pfo_parinfo_parse, $
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: return_value = pfo_parinfo_parse(/CALC | /PRINT | /WIDGET | /INDICES, parinfo [, params=params][, Xin=Xin][, idx=idx]][, pfo_obj=pfo_obj][, xaxis=xaxis][, keyowrds to pfo_<fname> routines])'
+        message, 'USAGE: return_value = pfo_parinfo_parse(/CALC | /PRINT | /WIDGET | /INDICES, parinfo=parinfo [, params=params][, Xin=Xin][, idx=idx]][, pfo_obj=pfo_obj][, xaxis=xaxis][, keyowrds to pfo_<fname> routines])'
      endif
   endif ;; not debugging
 
@@ -281,13 +286,13 @@ function pfo_parinfo_parse, $
   ;; for invalid multiple actions
   action = 0
   if keyword_set(calc) then $
-    action += !pfo.calc
+     action += !pfo.calc
   if keyword_set(print) then $
-    action += !pfo.print
+     action += !pfo.print
   if keyword_set(indices) then $
-    action += !pfo.indices
+     action += !pfo.indices
   if keyword_set(widget) then $
-    action += !pfo.widget
+     action += !pfo.widget
 
   case action of
      !pfo.print : 
@@ -356,7 +361,7 @@ function pfo_parinfo_parse, $
                  return, cw_obj->tlbID() $
               else $
                  return, !tok.nowhere
-                         
+              
            endif ;; Handing off to pfo_parinfo_edit
 
            ;; If we made it here, we have a parent in which the parinfo should be displayed, but we are not sure if a
@@ -372,13 +377,13 @@ function pfo_parinfo_parse, $
            ;; else the widgets created here won't be in sink with the parinfo they are referencing.
            pfo_parinfo_container_cwID = $
               pfo_parinfo_container_cw(parentID, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
-                             status_mask=status_mask, $
-                             containerID=containerID, cw_obj=pfo_parinfo_container_cw_obj, $
-                             _EXTRA=extra)
+                                       status_mask=status_mask, $
+                                       containerID=containerID, cw_obj=pfo_parinfo_container_cw_obj, $
+                                       _EXTRA=extra)
            ;; Call ourselves recursively with our containerID.  This call is similar to the call pfo_parinfo_container_cw_obj
            ;; issues when it receives a repopulate request.  Note that the return request in this case is the list of 
-           junk = pfo_parinfo_parse(/widget, parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
-                                     status_mask=status_mask, containerID=containerID, _EXTRA=extra)
+           junk = pfo_parinfo_parse(/widget, parinfo=parinfo, params=params_in, idx=idx, ispec=ispec, iROI=iROI, pfo_obj=pfo_obj, $
+                                    status_mask=status_mask, containerID=containerID, _EXTRA=extra)
 
            ;; Now that we are done putting all of the widgets into the container we just created, do one redraw.
            widget_control, parentID, update=1
@@ -406,12 +411,15 @@ function pfo_parinfo_parse, $
         action_method = '__indices'
         ;; Return !tok.nowhere if we have no
         if N_elements(parinfo) eq 0 then $
-          return, !tok.nowhere
+           return, !tok.nowhere
      end ;; indices
 
      !pfo.calc : begin
         ;; CALCULATING
         action_method = '__calc'
+        ;; Initialize our error output
+        yaxis = !values.d_NAN
+        
         ;; Internal xaxis for calculations like dispersion relation.  Start from Xin.  Naturally raises an error if no Xin
         xaxis = Xin
 
@@ -448,32 +456,32 @@ function pfo_parinfo_parse, $
 
   ;; For efficiency sake, calculate ROI_Xaxis here if we are going to be working with ROIs that depend on Xaxis
   if action eq !pfo.calc and pfo_struct_tag_present(parinfo, 'pfo_ROI') then begin
-        ;; Check to see if we have any ROIs.  Do this "in the raw" so that we can get the 
-        ;; rest of the parameters we need for calculating the Xaxis.
-        ROI_idx = where(floor(parinfo[use_idx].pfo.ftype) eq $
-                        pfo_fnum('pfo_ROI', pfo_obj=pfo_obj), nROI_pars, $
-                        complement=no_ROI_idx, ncomplement=n_non_ROI)
-        if nROI_pars gt 0 then begin
-           ;; unwrap
-           ROI_idx = use_idx[ROI_idx]
-           ;; Check to see if any ROIs are referenced to Xaxis
-           junk = where(parinfo[ROI_idx].pfo.inaxis eq !pfo.Xaxis, nXaxis)
-           if nXaxis gt 0 then begin
-              ;; Use pfo_Xaxis to calc the Xaxis.  Make sure we
-              ;; remove ROIs from the calculation to avoid an infinite
-              ;; loop (I actually though of this before the first loop
-              ;; occured... :-)
-              ROI_Xaxis = Xin
-              if n_non_ROI gt 0 then begin
-                 ;; unwrap
-                 no_ROI_idx = use_idx[no_ROI_idx]
-                 ;; pfo_Xaxis takes care of filtering out the no_ROI_idx that don't contribute to the Xaxis
-                 ROI_Xaxis = pfo_Xaxis(parinfo, Xin=Xin, params=params, idx=no_ROI_idx, $
-                                       _EXTRA=extra)
-              endif ;; some non-ROI parameters in the parinfo
-           endif ;; some ROIs in Xaxis coordinates
-        endif ;; some ROIs
-     endif ;; calc setup of ROI_Xaxis
+     ;; Check to see if we have any ROIs.  Do this "in the raw" so that we can get the 
+     ;; rest of the parameters we need for calculating the Xaxis.
+     ROI_idx = where(floor(parinfo[use_idx].pfo.ftype) eq $
+                     pfo_fnum('pfo_ROI', pfo_obj=pfo_obj), nROI_pars, $
+                     complement=no_ROI_idx, ncomplement=n_non_ROI)
+     if nROI_pars gt 0 then begin
+        ;; unwrap
+        ROI_idx = use_idx[ROI_idx]
+        ;; Check to see if any ROIs are referenced to Xaxis
+        junk = where(parinfo[ROI_idx].pfo.inaxis eq !pfo.Xaxis, nXaxis)
+        if nXaxis gt 0 then begin
+           ;; Use pfo_Xaxis to calc the Xaxis.  Make sure we
+           ;; remove ROIs from the calculation to avoid an infinite
+           ;; loop (I actually though of this before the first loop
+           ;; occured... :-)
+           ROI_Xaxis = Xin
+           if n_non_ROI gt 0 then begin
+              ;; unwrap
+              no_ROI_idx = use_idx[no_ROI_idx]
+              ;; pfo_Xaxis takes care of filtering out the no_ROI_idx that don't contribute to the Xaxis
+              ROI_Xaxis = pfo_Xaxis(parinfo, Xin=Xin, params=params, idx=no_ROI_idx, $
+                                    _EXTRA=extra)
+           endif ;; some non-ROI parameters in the parinfo
+        endif ;; some ROIs in Xaxis coordinates
+     endif ;; some ROIs
+  endif ;; calc setup of ROI_Xaxis
 
   ;; Now untangle the various levels of ispec, iROI, fseq, axes, etc.
   ;; This is the basic interpreter, so it is common to printing and
@@ -531,6 +539,7 @@ function pfo_parinfo_parse, $
         junk = pfo_uniq(make_array(n_use, value=0B), reverse_indices=iROI_r_idx, N_uniq=N_iROI)
      endelse
 
+     ;; Loop over each iROI
      for iu_iROI=0, N_iROI-1 do begin
         ;; Catch at each loop level because of CATCH below
         if !pfo.debug le 0 then begin
@@ -546,68 +555,71 @@ function pfo_parinfo_parse, $
         ;; unwrap so that these are indices into parinfo
         iROI_idx = ispec_idx[temporary(iROI_idx)]
 
-        ;; Seach for ROI functions in our set of indices.  Note nROI -1 if no ROI functions were found * in this set of
-        ;; iROI_idx *
+        ;; Seach for ROI functions in our set of indices.  Note nROI eq 0 if no ROI functions were found * in this set of
+        ;; iROI_idx *.  This would be weird, but not impossible
         ROI_idx = pfo_fidx(parinfo, 'pfo_ROI', idx=iROI_idx, nfunct=nROI, pfo_obj=pfo_obj)
 
         ;; The iROI = !pfo.allROI is a special case which lets us have multiple ROI functions across the X-axis _with the
         ;; same iROI_.  The advantage is that we can can assign functions to iROI=!pfo.allROI and have them over all of
         ;; those ROIs at once.  Otherwise, we would need to define the function on each ROI and link the parameters
         ;; together.  Check here to make sure the user isn't trying to have more than one ROI that is not !pfo.allROI
-        if nROI gt 1 then $
-          if parinfo[ROI_idx[0]].pfo_ROI.iROI ne !pfo.allROI then $
-            message, 'ERROR: more than one ROI function associated with iROI = ' + strtrim(parinfo[ROI_idx[0]].pfo_ROI.iROI, 2)
+        if nROI gt 1 then begin
+           if parinfo[ROI_idx[0]].pfo_ROI.iROI ne !pfo.allROI then $
+              message, 'ERROR: more than one ROI function associated with iROI = ' + strtrim(parinfo[ROI_idx[0]].pfo_ROI.iROI, 2)
+        endif ;; multiple ROIs with the same iROI
 
-        ;; Get our ROI parameters in order.  We know that each ROI has the same number of parameters, so we can just sort and
-        ;; reform
-        if nROI gt 0 then begin
-           ;; This should put all of the lefts together and then rights.  IDL sort does not work consistently between
-           ;; platforms with respect to identical array values.  bsort from the IDLASTRO library always returns identical
-           ;; elements in the same order they were originally listed.  So with bsort, the first listed left ends up first,
-           ;; etc.  Reform then quickly puts the array in the format we want: each instance of the function occupies a column
-           ;; and the rows correspond to parameter numbers.  The array values themselves are indices into ROI_idx.
-           fidx_array = bsort(parinfo[ROI_idx].pfo.ftype)
-           fidx_array = reform(fidx_array, nROI, pfo_fnpars('pfo_ROI', pfo_obj=pfo_obj), /overwrite)
-        endif ;; have some ROIs
+        ;; When we are calculating, set up the indices into Xin/xaxis.
+        if action eq !pfo.calc then begin
+           if have_ROIs eq 0 then begin
+              ;; No ROIs means just use the whole Xin axis
+              pfo_idx, Xin, Xin_ROI_idx
+           endif else begin
+              ;; We have ROIs somewhere in the parinfo.  Handle the unusual case of where we don't have a ROI
+              ;; overlapping the current set of parameters marked with an iROI
+              if nROI le 0 then $
+                 CONTINUE
 
-        ;; Loop through our ROI(s).  If no ROIs were found, we either have no ROIs in the whole function, or we have the
-        ;; weird case of no ROI covering the current function(s) labeled with a particular iROI.  In either case, start the
-        ;; loop at least once.
-        for itROI=0, max([1, nROI])-1 do begin
-           ;; Catch at each loop level because of CATCH below
-           if !pfo.debug le 0 then begin
-              CATCH, err
-              if err ne 0 then begin
-                 CATCH, /CANCEL
-                 return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
-              endif ;; error
-           endif ;; not debugging
+              ;; If we made it here, we have a ROI covering our function(s)
 
-           ;; When we are calculating, set up the indices into Xin/xaxis.
-           if action eq !pfo.calc then begin
-              if have_ROIs eq 0 then begin
-                 ;; No ROIs means just use the whole Xin axis
-                 pfo_idx, Xin, Xin_ROI_idx
-              endif else begin
-                 ;; We have ROIs somewhere in the parinfo.  Handle the unusual case of where we don't have a ROI
-                 ;; overlapping the current set of parameters marked with an iROI
-                 if nROI le 0 then $
-                    CONTINUE
+              ;; Get our ROI parameters in order.  We know that each ROI has the same number of parameters, so we can just
+              ;; sort and reform
+              if nROI gt 0 then begin
+                 ;; This should put all of the lefts together and then rights.  IDL sort does not work consistently between
+                 ;; platforms with respect to identical array values.  bsort from the IDLASTRO library always returns identical
+                 ;; elements in the same order they were originally listed.  So with bsort, the first listed left ends up first,
+                 ;; etc.  Reform then quickly puts the array in the format we want: each instance of the function occupies a column
+                 ;; and the rows correspond to parameter numbers.  The array values themselves are indices into ROI_idx.
+                 ROI_fidx_array = bsort(parinfo[ROI_idx].pfo.ftype)
+                 ROI_fidx_array = reform(ROI_fidx_array, nROI, pfo_fnpars('pfo_ROI', pfo_obj=pfo_obj), /overwrite)
+              endif ;; have some ROIs
 
-                 ;; If we made it here, we have a ROI covering our function(s)
+              ;; Use pfo_ROI to get the indices into Xin/Xaxis for this ROI.  Make sure that pfo_ROI__fdefine is compiled,
+              ;; since pfo_ROI__calc is likely hiding inside of it
+              resolve_routine, 'pfo_ROI__fdefine', /no_recompile
 
-                 ;; Use pfo_ROI to get the indices into Xin/Xaxis for this ROI.  Make sure that pfo_ROI__fdefine is compiled,
-                 ;; since pfo_ROI__calc is likely hiding inside of it
-                 resolve_routine, 'pfo_ROI__fdefine', /no_recompile
-                 Xin_ROI_idx = $
-                   pfo_ROI__calc(Xin, params, parinfo=parinfo, $
-                                 idx=ROI_idx[fidx_array[itROI, *]], $
-                                 count=count, Xaxis=ROI_Xaxis, pfo_obj=pfo_obj)
+              ;; Loop through our ROIs and build up the Xin_ROI_idx.  For "normal" ROIs, this loop only operates once.  But
+              ;; there can be an arbitrary number of ROIs that are iROI = !pfo.allROI
+
+              ;; Initialize Xin_ROI_idx for pfo_array_append
+              Xin_ROI_idx = 0
+              junk = temporary(Xin_ROI_idx)
+
+              for itROI=0, nROI-1 do begin
+                 t_Xin_ROI_idx = $
+                    pfo_ROI__calc(Xin, params, parinfo=parinfo, $
+                                  idx=ROI_idx[ROI_fidx_array[itROI, *]], $
+                                  count=count, Xaxis=ROI_Xaxis, pfo_obj=pfo_obj)
                  ;; Check to see if the ROI resulted in any valid idx.  If not, skip to the next ROI
                  if count eq 0 then $
-                   CONTINUE
-              endelse ;; multi-ROI over whole X-axis
-              nXin_ROI_idx = N_elements(Xin_ROI_idx)
+                    CONTINUE
+                 ;; If we made it here, we have generated some valid points on Xin
+                 pfo_array_append, Xin_ROI_idx, t_Xin_ROI_idx
+              endfor ;; building up Xin_ROI_idx
+
+              ;; Check to see if we have any valid Xin points in our ROI(s).  If not, just skip this iROI
+              if N_elements(Xin_ROI_idx) eq 0 then $
+                 CONTINUE
+
               ;; Take care of our ROI_Xin_idx output keyword, being polite not to build it up if the user doesn't want it.
               ;; If they specified it on the command line, the first time through it is either an undefined variable or a
               ;; variable they want reinitialized
@@ -621,13 +633,33 @@ function pfo_parinfo_parse, $
                  pfo_array_append, ROI_Xin_idx, Xin_ROI_idx
                  after_first_ROI_Xin_idx = 1
               endif ;; Building up output ROI_Xin_idx
-           endif ;; calc ROI setup
+
+           endelse ;; no ROIs vs ROIs
+        endif ;; calc ROI setup
 
 
-           ;; Call the functions by sequence within each ROI
-           junk = parinfo[iROI_idx].pfo.fseq
-           junk = pfo_uniq(junk, sort(junk), reverse_indices=fseq_r_idx, N_uniq=N_fseq)
-           for iseq=0, N_fseq-1 do begin
+        ;; Call the functions by sequence within each ROI
+        junk = parinfo[iROI_idx].pfo.fseq
+        junk = pfo_uniq(junk, sort(junk), reverse_indices=fseq_r_idx, N_uniq=N_fseq)
+        for iseq=0, N_fseq-1 do begin
+           ;; Catch at each loop level because of CATCH below
+           if !pfo.debug le 0 then begin
+              CATCH, err
+              if err ne 0 then begin
+                 CATCH, /CANCEL
+                 return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
+              endif ;; error
+           endif ;; not debugging
+
+           ;; Pick out the ith set of indices that point to identical values
+           fseq_idx = fseq_r_idx[fseq_r_idx[iseq]:fseq_r_idx[iseq+1]-1]
+           ;; unwrap so that these are indices into parinfo
+           fseq_idx = iROI_idx[temporary(fseq_idx)]
+
+           ;; Decend to the next level: outaxis
+           junk = parinfo[fseq_idx].pfo.outaxis
+           junk = pfo_uniq(junk, sort(junk), reverse_indices=outaxis_r_idx, N_uniq=N_outaxis)
+           for ioutaxis=0, N_outaxis-1 do begin
               ;; Catch at each loop level because of CATCH below
               if !pfo.debug le 0 then begin
                  CATCH, err
@@ -636,16 +668,19 @@ function pfo_parinfo_parse, $
                     return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
                  endif ;; error
               endif ;; not debugging
-
               ;; Pick out the ith set of indices that point to identical values
-              fseq_idx = fseq_r_idx[fseq_r_idx[iseq]:fseq_r_idx[iseq+1]-1]
+              outaxis_idx = outaxis_r_idx[outaxis_r_idx[ioutaxis]:outaxis_r_idx[ioutaxis+1]-1]
               ;; unwrap so that these are indices into parinfo
-              fseq_idx = iROI_idx[temporary(fseq_idx)]
+              outaxis_idx = fseq_idx[temporary(outaxis_idx)]
 
-              ;; Decend to the next level: outaxis
-              junk = parinfo[fseq_idx].pfo.outaxis
-              junk = pfo_uniq(junk, sort(junk), reverse_indices=outaxis_r_idx, N_uniq=N_outaxis)
-              for ioutaxis=0, N_outaxis-1 do begin
+
+              ;; Operation
+              junk = parinfo[outaxis_idx].pfo.fop
+              junk = pfo_uniq(junk, sort(junk), reverse_indices=fop_r_idx, N_uniq=N_fop)
+              for ifop=0, N_fop-1 do begin
+                 ;; Set a flag for axis replacement, to make sure we don't have more than one in an fseq
+                 n_repl = 0
+
                  ;; Catch at each loop level because of CATCH below
                  if !pfo.debug le 0 then begin
                     CATCH, err
@@ -654,19 +689,13 @@ function pfo_parinfo_parse, $
                        return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
                     endif ;; error
                  endif ;; not debugging
-                 ;; Pick out the ith set of indices that point to identical values
-                 outaxis_idx = outaxis_r_idx[outaxis_r_idx[ioutaxis]:outaxis_r_idx[ioutaxis+1]-1]
-                 ;; unwrap so that these are indices into parinfo
-                 outaxis_idx = fseq_idx[temporary(outaxis_idx)]
+                 fop_idx = fop_r_idx[fop_r_idx[ifop]:fop_r_idx[ifop+1]-1]
+                 fop_idx = outaxis_idx[temporary(fop_idx)]
 
-
-                 ;; Operation
-                 junk = parinfo[outaxis_idx].pfo.fop
-                 junk = pfo_uniq(junk, sort(junk), reverse_indices=fop_r_idx, N_uniq=N_fop)
-                 for ifop=0, N_fop-1 do begin
-                    ;; Set a flag for axis replacement, to make sure we don't have more than one in an fseq
-                    n_repl = 0
-
+                 ;; inaxis
+                 junk = parinfo[fop_idx].pfo.inaxis
+                 junk = pfo_uniq(junk, sort(junk), reverse_indices=inaxis_r_idx, N_uniq=N_inaxis)
+                 for iinaxis=0, N_inaxis-1 do begin
                     ;; Catch at each loop level because of CATCH below
                     if !pfo.debug le 0 then begin
                        CATCH, err
@@ -675,13 +704,15 @@ function pfo_parinfo_parse, $
                           return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
                        endif ;; error
                     endif ;; not debugging
-                    fop_idx = fop_r_idx[fop_r_idx[ifop]:fop_r_idx[ifop+1]-1]
-                    fop_idx = outaxis_idx[temporary(fop_idx)]
+                    inaxis_idx = inaxis_r_idx[inaxis_r_idx[iinaxis]:inaxis_r_idx[iinaxis+1]-1]
+                    inaxis_idx = fop_idx[temporary(inaxis_idx)]
 
-                    ;; inaxis
-                    junk = parinfo[fop_idx].pfo.inaxis
-                    junk = pfo_uniq(junk, sort(junk), reverse_indices=inaxis_r_idx, N_uniq=N_inaxis)
-                    for iinaxis=0, N_inaxis-1 do begin
+                    ;; Functions: Recall that ftype is a real number, with the integer determining the function type and
+                    ;; the decimal the parameter of that function.  We want to work with the integer part, the fnum.
+                    ;; Save them for use below
+                    fnums = floor(parinfo[inaxis_idx].pfo.ftype)
+                    junk = pfo_uniq(fnums, sort(fnums), reverse_indices=fnum_r_idx, N_uniq=N_fnums)
+                    for ifnum=0, N_fnums-1 do begin
                        ;; Catch at each loop level because of CATCH below
                        if !pfo.debug le 0 then begin
                           CATCH, err
@@ -690,15 +721,21 @@ function pfo_parinfo_parse, $
                              return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
                           endif ;; error
                        endif ;; not debugging
-                       inaxis_idx = inaxis_r_idx[inaxis_r_idx[iinaxis]:inaxis_r_idx[iinaxis+1]-1]
-                       inaxis_idx = fop_idx[temporary(inaxis_idx)]
+                       fnum_idx = fnum_r_idx[fnum_r_idx[ifnum]:fnum_r_idx[ifnum+1]-1]
+                       fnum_idx = inaxis_idx[temporary(fnum_idx)]
 
-                       ;; Functions: Recall that ftype is a real number, with the integer determining the function type and
-                       ;; the decimal the parameter of that function.  We want to work with the integer part, the fnum.
-                       ;; Save them for use below
-                       fnums = floor(parinfo[inaxis_idx].pfo.ftype)
-                       junk = pfo_uniq(fnums, sort(fnums), reverse_indices=fnum_r_idx, N_uniq=N_fnums)
-                       for ifnum=0, N_fnums-1 do begin
+                       ;; Collect some information on our function.  Remember to reset fname, or else finfo will
+                       ;; complain....
+                       fnum = fnums[ifnum]
+                       fname = ''
+                       pfo_finfo, fnum=fnum, fname=fname, fnpars=fnpars, pfo_obj=pfo_obj
+
+                       ;; As advertised, the last thing used for unique identification is pfoID.  If the user is
+                       ;; careful to assign a unique pfoID to each set of parameters that represent a function, the
+                       ;; parameter list can be totally randomized and we can put it back together again here
+                       junk = parinfo[fnum_idx].pfo.pfoID
+                       junk = pfo_uniq(junk, sort(junk), reverse_indices=ID_r_idx, N_uniq=N_IDs)
+                       for iID=0, N_IDs-1 do begin
                           ;; Catch at each loop level because of CATCH below
                           if !pfo.debug le 0 then begin
                              CATCH, err
@@ -707,21 +744,41 @@ function pfo_parinfo_parse, $
                                 return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
                              endif ;; error
                           endif ;; not debugging
-                          fnum_idx = fnum_r_idx[fnum_r_idx[ifnum]:fnum_r_idx[ifnum+1]-1]
-                          fnum_idx = inaxis_idx[temporary(fnum_idx)]
+                          ID_idx = ID_r_idx[ID_r_idx[iID]:ID_r_idx[iID+1]-1]
+                          ID_idx = fnum_idx[temporary(ID_idx)]
+                          ;; Even with all this work, there still might be multiple instances of function fnum.  npar is
+                          ;; the total number of parameters of function fnum
+                          npar = N_elements(ID_idx)
 
-                          ;; Collect some information on our function.  Remember to reset fname, or else finfo will
-                          ;; complain....
-                          fnum = fnums[ifnum]
-                          fname = ''
-                          pfo_finfo, fnum=fnum, fname=fname, fnpars=fnpars, pfo_obj=pfo_obj
+                          ;; If we know the number of parameters of our function, we are able to take a decent guess at
+                          ;; putting multiple instances of a function together.  NOTE: parameters will be assembled in the
+                          ;; order in which they are listed in the original parinfo array
+                          if fnpars ne 0 then begin
+                             ;; Check to see that we have the right number of parameters
+                             if npar mod fnpars ne 0 then $
+                                message, 'ERROR: incorrect number of parameters for function type ' + fname + ': ' + strtrim(npar, 2)
+                             
 
-                          ;; As advertised, the last thing used for unique identification is pfoID.  If the user is
-                          ;; careful to assign a unique pfoID to each set of parameters that represent a function, the
-                          ;; parameter list can be totally randomized and we can put it back together again here
-                          junk = parinfo[fnum_idx].pfo.pfoID
-                          junk = pfo_uniq(junk, sort(junk), reverse_indices=ID_r_idx, N_uniq=N_IDs)
-                          for iID=0, N_IDs-1 do begin
+                             ;; This should put all of the decimal ftypes of the same kind together (see similar code in
+                             ;; ROI section, above).  The way bsort works, the each individual instance of an ftype gets
+                             ;; listed listed in the order they were originally found in the parinfo.
+                             fidx_array = bsort(parinfo[ID_idx].pfo.ftype)
+                             ;; Having stacked up all of the indices in a long line in memory, in decimal ftype order, use
+                             ;; reform to just pretend that each row corresponds to a parameter (IDL is a row major
+                             ;; language) and each column to an instance of the function
+                             fidx_array = reform(fidx_array, npar/fnpars, fnpars, /overwrite)
+                          endif else begin
+                             ;; This is the fnpars = 0 case, which signals that we don't know the number of parameters our
+                             ;; function is supposed to have.  In this case, we can only assume that all of the parameters
+                             ;; of this fnum and ID belong to one instance of the function.  Put together fidx_array in
+                             ;; the same row-major way we do for multiple instances of the same function
+                             fidx_array = transpose(indgen(npar, type=size(/type, npar)))
+                          endelse
+                          ;; The number of functions is the number of columns we have in our fidx_array
+                          nfunct = (size(/dimensions, fidx_array))[0]
+
+                          ;; Call the __<action> functions in parray one at a time.
+                          for iIDfn=long(0), nfunct-1 do begin
                              ;; Catch at each loop level because of CATCH below
                              if !pfo.debug le 0 then begin
                                 CATCH, err
@@ -730,258 +787,214 @@ function pfo_parinfo_parse, $
                                    return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
                                 endif ;; error
                              endif ;; not debugging
-                             ID_idx = ID_r_idx[ID_r_idx[iID]:ID_r_idx[iID+1]-1]
-                             ID_idx = fnum_idx[temporary(ID_idx)]
-                             ;; Even with all this work, there still might be multiple instances of function fnum.  npar is
-                             ;; the total number of parameters of function fnum
-                             npar = N_elements(ID_idx)
 
-                             ;; If we know the number of parameters of our function, we are able to take a decent guess at
-                             ;; putting multiple instances of a function together.  NOTE: parameters will be assembled in the
-                             ;; order in which they are listed in the original parinfo array
-                             if fnpars ne 0 then begin
-                                ;; Check to see that we have the right number of parameters
-                                if npar mod fnpars ne 0 then $
-                                  message, 'ERROR: incorrect number of parameters for function type ' + fname + ': ' + strtrim(npar, 2)
-                                
+                             ;; Assemble parameters for this particular instance of the function.  Reform is necessary to
+                             ;; remove vestigial dimensions
+                             fidx = reform(ID_idx[fidx_array[iIDfn, *]])
 
-                                ;; This should put all of the decimal ftypes of the same kind together (see similar code in
-                                ;; ROI section, above).  The way bsort works, the each individual instance of an ftype gets
-                                ;; listed listed in the order they were originally found in the parinfo.
-                                fidx_array = bsort(parinfo[ID_idx].pfo.ftype)
-                                ;; Having stacked up all of the indices in a long line in memory, in decimal ftype order, use
-                                ;; reform to just pretend that each row corresponds to a parameter (IDL is a row major
-                                ;; language) and each column to an instance of the function
-                                fidx_array = reform(fidx_array, npar/fnpars, fnpars, /overwrite)
-                             endif else begin
-                                ;; This is the fnpars = 0 case, which signals that we don't know the number of parameters our
-                                ;; function is supposed to have.  In this case, we can only assume that all of the parameters
-                                ;; of this fnum and ID belong to one instance of the function.  Put together fidx_array in
-                                ;; the same row-major way we do for multiple instances of the same function
-                                fidx_array = transpose(indgen(npar, type=size(/type, npar)))
-                             endelse
-                             ;; The number of functions is the number of columns we have in our fidx_array
-                             nfunct = (size(/dimensions, fidx_array))[0]
+                             ;; Check to see if we have more than one replacement function 
+                             if parinfo[fidx[0]].pfo.fop eq !pfo.repl then $
+                                n_repl += 1
+                             if n_repl gt 1 then $
+                                message, 'ERROR: more than one function with the same fseq is replacing the outaxis'
 
-                             ;; Call the __<action> functions in parray one at a time.
-                             for iIDfn=long(0), nfunct-1 do begin
-                                ;; Catch at each loop level because of CATCH below
-                                if !pfo.debug le 0 then begin
-                                   CATCH, err
-                                   if err ne 0 then begin
-                                      CATCH, /CANCEL
-                                      return, pfo_parinfo_parse_catch(action, toprint, indices_idx, yaxis, error, containerID)
-                                   endif ;; error
-                                endif ;; not debugging
-
-                                ;; Assemble parameters for this particular instance of the function.  Reform is necessary to
-                                ;; remove vestigial dimensions
-                                fidx = reform(ID_idx[fidx_array[iIDfn, *]])
-
-                                ;; Check to see if we have more than one replacement function 
-                                if parinfo[fidx[0]].pfo.fop eq !pfo.repl then $
-                                   n_repl += 1
-                                if n_repl gt 1 then $
-                                   message, 'ERROR: more than one function with the same fseq is replacing the outaxis'
-
-                                ;; Make a catch in case the local copy of pfo doesn't have this __fdefine
-                                CATCH, err
-                                if err ne 0 then begin
-                                   CATCH, /CANCEL
-                                   message, /CONTINUE, 'ERROR: file ' + fname + '__fdefine.pro not found.  Skipping this function with possibly disasterous results....'
-                                   CONTINUE
-                                endif ;; catching missing __fdefine
-
-                                ;; Create a command that calls the pfo primitive.  First, make sure that all methods for this
-                                ;; primitive are compiled.  This assumes that they are all collected into fname__fdefine.
-                                ;; The user may not have created the parinfo with pfo_parinfo_new in this session
-                                ;; --> I might need a catch here
-                                resolve_routine, fname + '__fdefine', /no_recompile
-
-                                ;; Now call fname__action.  If that doesn't exist, call pfo_null__action.  This allows
-                                ;; pfo_null to be a fallback for things like printing and widget for most simple functions.
-                                ;; CATCH makes this work, but the code reads backwards: else executes first.
-                                CATCH, err
-                                if err ne 0 then begin
-                                   CATCH, /CANCEL
-                                   funct_name = 'pfo_null' + action_method
-                                endif else begin
-                                   ;; Use IDL's routine_info to raise an error if fname__action_method is not found.
-                                   ;; Unfortunately, this bombs if the routine has yet to be compiled, hence the need to
-                                   ;; resolve_routine.  We do resolve_routine on two levels.  One assuming that all of the
-                                   ;; fname code is in fname__fdefine.pro (above) and once assuming the individual methods
-                                   ;; are separate.
-                                   funct_name = fname + action_method
-                                   resolve_routine, funct_name, /no_recompile, /either
-                                   init_params = routine_info(funct_name, /functions, /parameters)
-                                endelse ;; first time through checking for fname__action
-                                ;; Turn off catching or else when we are in debug mode, this catch will activate (no matter
-                                ;; where we are in the routine).
+                             ;; Make a catch in case the local copy of pfo doesn't have this __fdefine
+                             CATCH, err
+                             if err ne 0 then begin
                                 CATCH, /CANCEL
+                                message, /CONTINUE, 'ERROR: file ' + fname + '__fdefine.pro not found.  Skipping this function with possibly disasterous results....'
+                                CONTINUE
+                             endif ;; catching missing __fdefine
 
-                                ;; Catch errors in our primitive functions unless the user is in PFO debugging mode
-                                if !pfo.debug le 0 then begin
-                                   CATCH, err
-                                   if err ne 0 then begin
-                                      CATCH, /CANCEL
-                                      ;; For actions that result in text output, put error in text
-                                      case action of 
-                                         !pfo.print : begin
-                                            toprint = toprint + ' %PFO_PARINFO_PARSE: ERROR: Caught the following error while calling ' + funct_name + ': ' + !error_state.msg + ')'
-                                         end
-                                         !pfo.widget : begin
-                                            junk = widget_text(containerID, value='Caught the following error while calling ' + funct_name + ': ' + !error_state.msg)
-                                         end
-                                         else:
-                                      endcase ;; putting error into text output methods
-                                      ;; For all actions, print message to terminal
-                                      message, /CONTINUE, /NONAME, !error_state.msg
-                                      message, /CONTINUE, 'ERROR: caught the above error while calling ' + funct_name + '.  Ignoring this function and trying to continue'
-                                      CONTINUE
-                                   endif ;; caught error
-                                endif  ;; not debugging
+                             ;; Create a command that calls the pfo primitive.  First, make sure that all methods for this
+                             ;; primitive are compiled.  This assumes that they are all collected into fname__fdefine.
+                             ;; The user may not have created the parinfo with pfo_parinfo_new in this session
+                             ;; --> I might need a catch here
+                             resolve_routine, fname + '__fdefine', /no_recompile
 
-                                ;; CALL FUNCTION
-                                case action of 
+                             ;; Now call fname__action.  If that doesn't exist, call pfo_null__action.  This allows
+                             ;; pfo_null to be a fallback for things like printing and widget for most simple functions.
+                             ;; CATCH makes this work, but the code reads backwards: else executes first.
+                             CATCH, err
+                             if err ne 0 then begin
+                                CATCH, /CANCEL
+                                funct_name = 'pfo_null' + action_method
+                             endif else begin
+                                ;; Use IDL's routine_info to raise an error if fname__action_method is not found.
+                                ;; Unfortunately, this bombs if the routine has yet to be compiled, hence the need to
+                                ;; resolve_routine.  We do resolve_routine on two levels.  One assuming that all of the
+                                ;; fname code is in fname__fdefine.pro (above) and once assuming the individual methods
+                                ;; are separate.
+                                funct_name = fname + action_method
+                                resolve_routine, funct_name, /no_recompile, /either
+                                init_params = routine_info(funct_name, /functions, /parameters)
+                             endelse ;; first time through checking for fname__action
+                             ;; Turn off catching or else when we are in debug mode, this catch will activate (no matter
+                             ;; where we are in the routine).
+                             CATCH, /CANCEL
 
-                                   !pfo.calc : begin
-                                      ;; Make a temporary variable, x, which is the ROI-specific input axis of the function
-                                      ;; we are going to call
-                                      case parinfo[fidx[0]].pfo.inaxis of
-                                         !pfo.none    : x = !values.d_nan
-                                         !pfo.Xin     : x = Xin[Xin_ROI_idx]
-                                         !pfo.Xaxis   : x = xaxis[Xin_ROI_idx]
-                                         !pfo.Yaxis   : x = yaxis[Xin_ROI_idx]
-                                         else : message, 'ERROR: unrecognized inaxis value ' + string(inaxis)
-                                      endcase
+                             ;; Catch errors in our primitive functions unless the user is in PFO debugging mode
+                             if !pfo.debug le 0 then begin
+                                CATCH, err
+                                if err ne 0 then begin
+                                   CATCH, /CANCEL
+                                   ;; For actions that result in text output, put error in text
+                                   case action of 
+                                      !pfo.print : begin
+                                         toprint = toprint + ' %PFO_PARINFO_PARSE: ERROR: Caught the following error while calling ' + funct_name + ': ' + !error_state.msg + ')'
+                                      end
+                                      !pfo.widget : begin
+                                         junk = widget_text(containerID, value='Caught the following error while calling ' + funct_name + ': ' + !error_state.msg)
+                                      end
+                                      else:
+                                   endcase ;; putting error into text output methods
+                                   ;; For all actions, print message to terminal
+                                   message, /CONTINUE, /NONAME, !error_state.msg
+                                   message, /CONTINUE, 'ERROR: caught the above error while calling ' + funct_name + '.  Ignoring this function and trying to continue'
+                                   CONTINUE
+                                endif ;; caught error
+                             endif  ;; not debugging
 
-                                      ;; Do our X-axis transformation
-                                      if keyword_set(parinfo[fidx[0]].pfo.infunct) then $
-                                        x = call_function(parinfo[fidx[0]].pfo.infunct, x)
+                             ;; CALL FUNCTION
+                             case action of 
 
-                                      ;; Call our PFO function
-                                      fy = $
-                                         call_function( $
-                                         funct_name, $
-                                         temporary(x), params, $
-                                         parinfo=parinfo, idx=fidx, $
-                                         status_mask=status_mask, $
-                                         pfo_obj=pfo_obj, $
-                                         _EXTRA=extra)
+                                !pfo.calc : begin
+                                   ;; Make a temporary variable, x, which is the ROI-specific input axis of the function
+                                   ;; we are going to call
+                                   case parinfo[fidx[0]].pfo.inaxis of
+                                      !pfo.none    : x = !values.d_nan
+                                      !pfo.Xin     : x = Xin[Xin_ROI_idx]
+                                      !pfo.Xaxis   : x = xaxis[Xin_ROI_idx]
+                                      !pfo.Yaxis   : x = yaxis[Xin_ROI_idx]
+                                      else : message, 'ERROR: unrecognized inaxis value ' + string(inaxis)
+                                   endcase
 
-                                      ;; Do our simple tranformation on the
-                                      ;; output axis, if specified
-                                      if keyword_set(parinfo[fidx[0]].pfo.outfunct) then $
-                                         fy = call_function(parinfo[fidx[0]].pfo.outfunct, fy)
-                                      
-                                      ;; Make a temporary variable, y, which is the ROI-specific output on "outaxis" of all
-                                      ;; functions which have operated so far.
-                                      case parinfo[fidx[0]].pfo.outaxis of
-                                         !pfo.none    : y = !values.d_nan
-                                         !pfo.Xin     : message, 'ERROR: cannot write to input axis'
-                                         !pfo.Xaxis   : y = xaxis[Xin_ROI_idx]
-                                         !pfo.Yaxis   : y = yaxis[Xin_ROI_idx]
-                                         else : message, 'ERROR: unrecognized outaxis value ' + string(oaxis)
-                                      endcase
+                                   ;; Do our X-axis transformation
+                                   if keyword_set(parinfo[fidx[0]].pfo.infunct) then $
+                                      x = call_function(parinfo[fidx[0]].pfo.infunct, x)
 
-                                      ;; OPERATION: Combine the output of our function with y, the output of all previous
-                                      ;; functions operating on "outaxis"
-                                      case parinfo[fidx[0]].pfo.fop of 
-                                         !pfo.none	: ; no output
-                                         !pfo.repl	: y = temporary(fy)
-                                         !pfo.add	: y = temporary(y) + temporary(fy)
-                                         !pfo.mult	: y = temporary(y) * temporary(fy)
-                                         !pfo.convol: y = $
-                                            convol(temporary(y), temporary(fy), center=convol_center, _EXTRA=extra)
-                                         else	: message, 'ERROR: unrecognized operation ' + string(fop)
-                                      endcase ;; fop
+                                   ;; Call our PFO function
+                                   fy = $
+                                      call_function( $
+                                      funct_name, $
+                                      temporary(x), params, $
+                                      parinfo=parinfo, idx=fidx, $
+                                      status_mask=status_mask, $
+                                      pfo_obj=pfo_obj, $
+                                      _EXTRA=extra)
 
-                                      ;; Put y into the desired output axis
-                                      case parinfo[fidx[0]].pfo.outaxis of
-                                         !pfo.none	: ; no change in y
-                                         !pfo.Xin	: message, 'ERROR: cannot write to input axis'
-                                         !pfo.Xaxis	: xaxis[Xin_ROI_idx] = temporary(y)
-                                         !pfo.Yaxis	: yaxis[Xin_ROI_idx] = temporary(y)
-                                         else	: message, 'ERROR: unrecognized inaxis value ' + string(inaxis)
-                                      endcase ;; oaxis
-                                   end ;; calc
+                                   ;; Do our simple tranformation on the
+                                   ;; output axis, if specified
+                                   if keyword_set(parinfo[fidx[0]].pfo.outfunct) then $
+                                      fy = call_function(parinfo[fidx[0]].pfo.outfunct, fy)
+                                   
+                                   ;; Make a temporary variable, y, which is the ROI-specific output on "outaxis" of all
+                                   ;; functions which have operated so far.
+                                   case parinfo[fidx[0]].pfo.outaxis of
+                                      !pfo.none    : y = !values.d_nan
+                                      !pfo.Xin     : message, 'ERROR: cannot write to input axis'
+                                      !pfo.Xaxis   : y = xaxis[Xin_ROI_idx]
+                                      !pfo.Yaxis   : y = yaxis[Xin_ROI_idx]
+                                      else : message, 'ERROR: unrecognized outaxis value ' + string(oaxis)
+                                   endcase
 
-                                   !pfo.print : begin
-                                      ;; Build our our "toprint" output string
-                                      toprint += $
-                                         call_function( $
-                                         funct_name, parinfo, params=params, $
-                                         idx=fidx, $
-                                         status_mask=status_mask, $
-                                         fname=fname, first_funct=first_funct, $
-                                         pfo_obj=pfo_obj, $
-                                         _EXTRA=extra)
-                                   end
+                                   ;; OPERATION: Combine the output of our function with y, the output of all previous
+                                   ;; functions operating on "outaxis"
+                                   case parinfo[fidx[0]].pfo.fop of 
+                                      !pfo.none	: ; no output
+                                      !pfo.repl	: y = temporary(fy)
+                                      !pfo.add	: y = temporary(y) + temporary(fy)
+                                      !pfo.mult	: y = temporary(y) * temporary(fy)
+                                      !pfo.convol: y = $
+                                         convol(temporary(y), temporary(fy), center=convol_center, _EXTRA=extra)
+                                      else	: message, 'ERROR: unrecognized operation ' + string(fop)
+                                   endcase ;; fop
 
-                                   !pfo.widget : begin
-                                      ;; Create our widgets and build up our list of IDs and cw_objs
-                                      ID = $
-                                         call_function( $
-                                         funct_name, containerID, $
-                                         params=params, $
-                                         idx=fidx, $
-                                         status_mask=status_mask, $
-                                         fname=fname, first_funct=first_funct, $
-                                         pfo_obj=pfo_obj, $
-                                         cw_obj=cw_obj, $
-                                         _EXTRA=extra)
-                                      pfo_array_append, widget_IDs, ID
-                                      pfo_array_append, cw_objs, cw_obj
-                                   end
+                                   ;; Put y into the desired output axis
+                                   case parinfo[fidx[0]].pfo.outaxis of
+                                      !pfo.none	: ; no change in y
+                                      !pfo.Xin	: message, 'ERROR: cannot write to input axis'
+                                      !pfo.Xaxis	: xaxis[Xin_ROI_idx] = temporary(y)
+                                      !pfo.Yaxis	: yaxis[Xin_ROI_idx] = temporary(y)
+                                      else	: message, 'ERROR: unrecognized inaxis value ' + string(inaxis)
+                                   endcase ;; oaxis
+                                end ;; calc
 
-                                   !pfo.indices: begin
-                                      ;; Get the sorted (or otherwise ordered) idx for this function
-                                      sidx = $
-                                         call_function( $
-                                         funct_name, $
-                                         parinfo, idx=fidx, $
-                                         status_mask=status_mask, $
-                                         fname=fname, first_funct=first_funct, $
-                                         pfo_obj=pfo_obj, $
-                                         _EXTRA=extra)
+                                !pfo.print : begin
+                                   ;; Build our our "toprint" output string
+                                   toprint += $
+                                      call_function( $
+                                      funct_name, parinfo, params=params, $
+                                      idx=fidx, $
+                                      status_mask=status_mask, $
+                                      fname=fname, first_funct=first_funct, $
+                                      pfo_obj=pfo_obj, $
+                                      _EXTRA=extra)
+                                end
 
-                                      ;; Check to see if the user wants to expand an idx into all of the idx of that
-                                      ;; particular function.  If the user does not want to do that, just accumulate all of
-                                      ;; the idx (see else)
-                                      if N_elements(expand_idx) gt 0 then begin
-                                         ;; Use a flag variable to determine if one or more indices in expand_idx are found
-                                         ;; in this function.  Do it this way so we don't get multiple copies of fidx!
-                                         expand_this_funct = 0
-                                         for ie=0, N_elements(expand_idx)-1 do begin
-                                            junk = where(expand_idx[ie] eq fidx, count)
-                                            if count gt 0 then $
-                                               expand_this_funct = 1
-                                         endfor ;; checking all expand_idx against this function
-                                         if keyword_set(expand_this_funct) then $
-                                            pfo_array_append, indices_idx, sidx
-                                      endif else begin
-                                         ;; If we are not expanding a particular (set of) idx, just accumulate our set of
-                                         ;; parsed fidx in indices_idx
+                                !pfo.widget : begin
+                                   ;; Create our widgets and build up our list of IDs and cw_objs
+                                   ID = $
+                                      call_function( $
+                                      funct_name, containerID, $
+                                      params=params, $
+                                      idx=fidx, $
+                                      status_mask=status_mask, $
+                                      fname=fname, first_funct=first_funct, $
+                                      pfo_obj=pfo_obj, $
+                                      cw_obj=cw_obj, $
+                                      _EXTRA=extra)
+                                   pfo_array_append, widget_IDs, ID
+                                   pfo_array_append, cw_objs, cw_obj
+                                end
+
+                                !pfo.indices: begin
+                                   ;; Get the sorted (or otherwise ordered) idx for this function
+                                   sidx = $
+                                      call_function( $
+                                      funct_name, $
+                                      parinfo, idx=fidx, $
+                                      status_mask=status_mask, $
+                                      fname=fname, first_funct=first_funct, $
+                                      pfo_obj=pfo_obj, $
+                                      _EXTRA=extra)
+
+                                   ;; Check to see if the user wants to expand an idx into all of the idx of that
+                                   ;; particular function.  If the user does not want to do that, just accumulate all of
+                                   ;; the idx (see else)
+                                   if N_elements(expand_idx) gt 0 then begin
+                                      ;; Use a flag variable to determine if one or more indices in expand_idx are found
+                                      ;; in this function.  Do it this way so we don't get multiple copies of fidx!
+                                      expand_this_funct = 0
+                                      for ie=0, N_elements(expand_idx)-1 do begin
+                                         junk = where(expand_idx[ie] eq fidx, count)
+                                         if count gt 0 then $
+                                            expand_this_funct = 1
+                                      endfor ;; checking all expand_idx against this function
+                                      if keyword_set(expand_this_funct) then $
                                          pfo_array_append, indices_idx, sidx
-                                      endelse 
-                                      ;; In either case, put in our parsing marks, if desired.
-                                      if keyword_set(terminate_idx) then $
-                                         pfo_array_append, indices_idx, !tok.nowhere
-                                   end
+                                   endif else begin
+                                      ;; If we are not expanding a particular (set of) idx, just accumulate our set of
+                                      ;; parsed fidx in indices_idx
+                                      pfo_array_append, indices_idx, sidx
+                                   endelse 
+                                   ;; In either case, put in our parsing marks, if desired.
+                                   if keyword_set(terminate_idx) then $
+                                      pfo_array_append, indices_idx, !tok.nowhere
+                                end
 
 
-                                   else :
-                                endcase ;; action
-                                ;; Set our first_funct flag to 0, since we are done with it
-                                first_funct = 0
-                             endfor  ;; each instance of fnum with this ID (iIDfn)
-                          endfor ;; iID
-                       endfor ;; ifnum
-                    endfor ;; ifop
-                 endfor ;; ioutaxis
-              endfor ;; iinaxis
-           endfor ;; iseq
-        endfor ;; itROI (each ROI)
+                                else :
+                             endcase ;; action
+                             ;; Set our first_funct flag to 0, since we are done with it
+                             first_funct = 0
+                          endfor  ;; each instance of fnum with this ID (iIDfn)
+                       endfor ;; iID
+                    endfor ;; ifnum
+                 endfor ;; ifop
+              endfor ;; ioutaxis
+           endfor ;; iinaxis
+        endfor ;; iseq
      endfor ;; iu_iROI (each iROI)
   endfor ;; iu_ispec
 
@@ -991,7 +1004,12 @@ function pfo_parinfo_parse, $
      !pfo.print : return, toprint
      !pfo.widget : return, widget_IDs
      !pfo.indices : return, indices_idx
-     !pfo.calc : return, yaxis
+     !pfo.calc : begin
+        ;; Handle case where caller wanted ROI_Xin_idx but none were found
+        if arg_present(ROI_Xin_idx) and N_elements(ROI_Xin_idx) eq 0 then $
+           ROI_Xin_idx = !tok.nowhere
+        return, yaxis
+     end
      else :
   endcase
 
