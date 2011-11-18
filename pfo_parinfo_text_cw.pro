@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_text_cw.pro,v 1.2 2011/09/23 13:05:29 jpmorgen Exp $
+; $Id: pfo_parinfo_text_cw.pro,v 1.3 2011/11/18 15:34:13 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_text_cw.pro,v $
+; Revision 1.3  2011/11/18 15:34:13  jpmorgen
+; Changed to use pfo_obj print method
+;
 ; Revision 1.2  2011/09/23 13:05:29  jpmorgen
 ; Fixed bug
 ;
@@ -55,10 +58,8 @@ pro pfo_parinfo_text_cw_obj::get_text, $
   ;; Use pfo_parinfo_parse to get our parinfo (segment)
   ;; --> might need to have a way of capturing _EXTRA as property to
   ;; modify printing style
-  text = self.pfo_obj->parinfo_call_function( $
-         /no_update, 'pfo_parinfo_parse', /print, /full, $
-         /no_preamble, idx=*self.pidx, status_mask=!pfo.all_status, $
-         pfo_obj=self.pfo_obj, _EXTRA=extra)
+  text = self.pfo_obj->print(/full, $
+         /no_preamble, idx=*self.pidx, status_mask=!pfo.all_status, _EXTRA=extra)
 
   ;; Get our status to see if we should modify our appearance
   self.pfo_obj->parinfo_call_procedure, $

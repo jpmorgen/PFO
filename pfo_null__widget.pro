@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__widget.pro,v 1.4 2011/09/23 13:06:22 jpmorgen Exp $
+; $Id: pfo_null__widget.pro,v 1.5 2011/11/18 15:34:56 jpmorgen Exp $
 ;
 ; $Log: pfo_null__widget.pro,v $
+; Revision 1.5  2011/11/18 15:34:56  jpmorgen
+; Changed to use pfo_obj print method
+;
 ; Revision 1.4  2011/09/23 13:06:22  jpmorgen
 ; Minor change
 ;
@@ -72,6 +75,7 @@ pro pfo_null_cw_obj::populate, $
    fname=fname, $ ;; original fname of function in pfo_parinfo_parse
    first_funct=first_funct, $ ;; allows us to display some introductory material (e.g. column headings)
    edit=edit, $ ;; bring up all widgets rather than just text widget with parinfo printed into it
+   no_mode=no_mode, $ ;; don't put the mode buttons on the widget (useful when editing a new parinfo segment)
    no_finit=no_finit, $ ;; Don't display X=Xin, Y=NaN function initialization string (e.g. you are displaying a segment of parinfo)
    param_names_only=param_names_only, $ ;; print parameter names only
    brief=brief, $ ;; print the function briefly on one line (just function name and parameters)
@@ -104,6 +108,8 @@ pro pfo_null_cw_obj::populate, $
   ;; Define our column widths.
   units = !tok.inches
   mode_width = 1.5
+  if keyword_set(no_mode) then $
+     mode_width = 0
   parname_width = 0.75
   val_width = 1.
   err_width = 0.75
@@ -127,7 +133,7 @@ pro pfo_null_cw_obj::populate, $
      if keyword_set(edit) then begin
         ;; Create a row widget into which to put our column headings
         rowID = widget_base(self.tlbID, /row, /base_align_center, /frame)
-        ;; Remember to move it over by mode_width
+        ;; Remember to move it over by mode_width, if necessary
         ID = widget_base(rowID, xsize=mode_width, units=units)
         ID = widget_label(rowID, value='Param name', xsize=parname_width, units=units)
         ID = widget_label(rowID, value='Left limit', xsize=val_width, units=units)
@@ -160,8 +166,7 @@ pro pfo_null_cw_obj::populate, $
         ;; Remember to move it over by mode_width
         ID = widget_base(rowID, xsize=mode_width, units=units)
 
-        junk =  self.pfo_obj->parinfo_call_function( $
-                /no_update, 'pfo_parinfo_parse', /print, /full, $
+        junk =  self.pfo_obj->print(/full, $
                 col_head=col_head, idx=*self.pidx, _EXTRA=extra)
 
         ;; Select a fixed-width font we know is going to be there so
@@ -171,7 +176,8 @@ pro pfo_null_cw_obj::populate, $
         if !d.name eq 'WIN' then $
            font = !pfo.win_font
 
-        ID = widget_label(rowID, value=col_head, font=font)
+        ;; Seems to need an extra space to get things to line up
+        ID = widget_label(rowID, value=' '+col_head, font=font)
 
 
      endelse ;; printing into a text widget
@@ -191,7 +197,7 @@ pro pfo_null_cw_obj::populate, $
   if N_elements(junk) ne 1 then begin
      message, 'ERROR: more than one inaxis specified for ' + pfo_fname(ftype[0], pfo_obj=self.pfo_obj) + ' idx = ' + pfo_array2str(idx) + '.  If this function can really work that way, write its own __widget routine to deal with each parameter individually.'
   endif
-  junk = uniq(inaxis, sort(outaxis))
+  junk = uniq(outaxis, sort(outaxis))
   if N_elements(junk) ne 1 then begin
      message, 'ERROR: more than one outaxis specified for ' + pfo_fname(ftype[0], pfo_obj=self.pfo_obj) + ' idx = ' + pfo_array2str(idx) + '.  If this function can really work that way, write its own __widget routine to deal with each parameter individually.'
   endif
@@ -212,12 +218,19 @@ pro pfo_null_cw_obj::populate, $
   ;; active, inactive, delete and edit buttons and column two is a row
   ;; base that has the function.
 
-  fbaseID = widget_base(self.tlbID, column=2)
-  ID = pfo_parinfo_mode_cw(fbaseID, idx=*self.pidx, xsize=mode_width, units=units, $
-                           edit=edit, pfo_obj=self.pfo_obj)
+  ;; --> In WINDOWS, the dotted frames around selected buttons in the
+  ;; pfo_parinfo_mode_cw only show up when .r pfo_null__widget is
+  ;; explicitly issued at the command line, at least in 7.1.1
+
+  ;; Only put the mode buttons on if the user has not disabled them
+  ;; (e.g. when editing a new parinfo)
+  fbaseID = widget_base(self.tlbID, column=1 + (~keyword_set(no_mode)))
+  if NOT keyword_set(no_mode) then $
+     ID = pfo_parinfo_mode_cw(fbaseID, idx=*self.pidx, xsize=mode_width, units=units, $
+                              edit=edit, pfo_obj=self.pfo_obj)
 
   ;; Only allow tabbing into base containing the function widgets if
-  ;; we are in editing mode.
+  ;; we are in editing mode.  --> this didn't work in LINUX and the Windows
   col2ID = widget_base(fbaseID, /column, tab_mode=keyword_set(edit))
 
   ;; Check to see if we are in full-up edit mode, in which case we
