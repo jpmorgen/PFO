@@ -74,9 +74,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fidx.pro,v 1.3 2011/09/16 11:21:35 jpmorgen Exp $
+; $Id: pfo_fidx.pro,v 1.4 2011/11/18 16:11:38 jpmorgen Exp $
 ;
 ; $Log: pfo_fidx.pro,v $
+; Revision 1.4  2011/11/18 16:11:38  jpmorgen
+; Minor change in default outputs
+;
 ; Revision 1.3  2011/09/16 11:21:35  jpmorgen
 ; Fixed status_mask code.  Still not sure about best default value
 ;
@@ -112,7 +115,7 @@ function pfo_fidx, parinfo, fname_or_fnum, idx=idx, $
   ;; deal with things gracefully (e.g. by checking for npar)
   N_parinfo = N_elements(parinfo)
   npar = -1
-  nfunct = -1
+  nfunct = 0
   fnpars = fnpars
   if N_parinfo eq 0 then $
     return, npar
@@ -176,6 +179,7 @@ function pfo_fidx, parinfo, fname_or_fnum, idx=idx, $
   ;; we can't do much in the case where we don't know how many
   ;; parameters a function has.  Return sensible f_idx and npars but
   ;; nfunct=-1
+  nfunct = !tok.nowhere
   if fnpars eq 0 then $
     return, f_idx
 
