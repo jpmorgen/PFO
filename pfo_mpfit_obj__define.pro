@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mpfit_obj__define.pro,v 1.6 2011/09/08 19:59:36 jpmorgen Exp $
+; $Id: pfo_mpfit_obj__define.pro,v 1.7 2011/11/18 15:33:13 jpmorgen Exp $
 ;
 ; $Log: pfo_mpfit_obj__define.pro,v $
+; Revision 1.7  2011/11/18 15:33:13  jpmorgen
+; Change call to pfo_parinfo_parse, add some MPFIT keywords to property
+;
 ; Revision 1.6  2011/09/08 19:59:36  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -64,7 +67,7 @@
 ;; Wrapper so that mpfit can call the pfo_obj->deviates method
 function pfo_mpfit_obj_kernel, $
    params, $ 		;; Required positional parameter passed by MPFIT
-   Xin=Xin, $		;; from MPFIT functargs keyword (optional)
+
    pfo_obj=pfo_obj, $	;; from MPFIT functargs keyword
    idx=idx, $		;; from MPFIT functargs keyword (NOT ALLOWED -- use pfo_mode to mark parameters as inactive)
    ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
@@ -97,7 +100,7 @@ function pfo_mpfit_obj_kernel, $
   ;; avoid areas where the parinfo function becomes infinite.  The
   ;; last of these might generate some strange results, since the
   ;; effective number of datapoints may change drastically.
-  return, pfo_obj->deviates(Xin=Xin, params=params, _EXTRA=extra)
+  return, pfo_obj->deviates(params=params, _EXTRA=extra)
 end
 
 ;; MPFIT Iterproc customized for pfo
@@ -155,13 +158,13 @@ pro pfo_mpfit_obj_iterproc, $
 
   ;; Print the definitions of the functions used before the first iteration.
   if iter eq 1 then begin
-     print, pfo_parinfo_parse(parinfo, params=params, /print, /param_names_only, pfo_obj=pfo_obj)
+     print, pfo_parinfo_parse(parinfo=parinfo, params=params, /print, /param_names_only, pfo_obj=pfo_obj)
   endif
   print, '-------------------------------------------------'
   print, iter, fnorm, dof, $
          format='("Iter ",I6,"   chi-sq = ",G15.8,"          dof = ",I0)'
   print, '-------------------------------------------------'
-  print, pfo_parinfo_parse(parinfo, params=params, /print, /brief, pfo_obj=pfo_obj)
+  print, pfo_parinfo_parse(parinfo=parinfo, params=params, /print, /brief, pfo_obj=pfo_obj)
 
   if keyword_set(keyboard_iterstop) then begin
      print, ' '
@@ -241,6 +244,8 @@ function pfo_mpfit_obj::fit, $
    ITERARGS=iterargs_in, $ ;; other keyword arguments passed to iterproc
    COVAR=covar, $ ;; (output) covariance matrix for best-fit params
    BESTNORM=bestnorm, $ ;; (output) chi sq = total(deviates^2)
+   NFREE=nfree, $ ;; (output) number of free parameters
+   npegged=npegged, $ ;; (output) number of parameters pegged
    idx=idx, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
    ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
    iROI=iROI, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
@@ -362,8 +367,10 @@ function pfo_mpfit_obj::fit, $
   ptr_free, self.pmpfit_covar
   self.pmpfit_covar = ptr_new(/allocate_heap)
   self.mpfit_bestnorm = 0D
+  self.mpfit_nfree = 0
+  self.mpfit_npegged = 0
 
-  new_params = mpfit(mpfit_kernel, params, functargs=functargs, NFEV=nfev, MAXITER=maxiter, ERRMSG=mpfit_errmsg, NPRINT=nprint, QUIET=mpfit_quiet, ftol=ftol, xtol=xtol, gtol=gtol, niter=niter, status=mpfit_status, iterproc=iterproc, iterargs=iterargs, covar=covar, perror=perror, bestnorm=bestnorm, parinfo=*self.pparinfo, _EXTRA=extra)
+  new_params = mpfit(mpfit_kernel, params, functargs=functargs, NFEV=nfev, MAXITER=maxiter, ERRMSG=mpfit_errmsg, NPRINT=nprint, QUIET=mpfit_quiet, ftol=ftol, xtol=xtol, gtol=gtol, niter=niter, status=mpfit_status, iterproc=iterproc, iterargs=iterargs, covar=covar, perror=perror, bestnorm=bestnorm, nfree=nfree, npegged=npegged, parinfo=*self.pparinfo, _EXTRA=extra)
 
   ;; Save these output keywords into property, if MPFIT provides then
   if N_elements(nfev		) gt 0 then self.mpfit_nfev 	= nfev
@@ -385,7 +392,7 @@ function pfo_mpfit_obj::fit, $
      !tok.nowhere:  mpfit_msg += 'ERROR: fit does not seem to have been attempted!'
      0: mpfit_msg += mpfit_errmsg ;; (bad input to mpfit)
      1: mpfit_msg += 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2)
-     2: mpfit_msg += 'which means parameters are not changing by more than XTOL' + strtrim(xtol, 2)
+     2: mpfit_msg += 'which means parameters are not changing by more than XTOL=' + strtrim(xtol, 2)
      3: mpfit_msg += 'which means chi sq has converged to better than FTOL=' + strtrim(ftol, 2) + ' AND the parameters are not changing by more than XTOL' + strtrim(xtol, 2)
      4: mpfit_msg += 'which means the abs value of the cosine of the angle between fvec and any column of the jacobian is at most GTOL=' + strtrim(gtol, 2)
      5: mpfit_msg += 'WARNING: this means MAXITER=' + strtrim(maxiter,2) + ' was reached'
@@ -427,6 +434,9 @@ function pfo_mpfit_obj::fit, $
 
   *self.pmpfit_covar = covar
   self.mpfit_bestnorm = bestnorm
+  self.mpfit_nfree = nfree
+  self.mpfit_npegged = npegged
+
   ;; Return 1 to indicate successful fit
   return, 1
 
@@ -459,6 +469,8 @@ pro pfo_mpfit_obj::get_property, $
    mpfit_iterargs=mpfit_iterargs, $ ;; other keyword arguments passed to iterproc
    mpfit_covar=mpfit_covar, $ ;; (output) covariance matrix for best-fit params
    mpfit_bestnorm=mpfit_bestnorm, $ ;; (output) chi sq = total(deviates^2)
+   mpfit_nfree=mpfit_nfree, $ ;; (output) number of free parameters
+   mpfit_npegged=mpfit_npegged, $ ;; (output) number of parameters pegged at limits
    _REF_EXTRA=extra
 
   if arg_present(mpfit_max_status)or N_elements(mpfit_max_status) gt 0 then mpfit_max_status 	= self.mpfit_max_status
@@ -485,6 +497,8 @@ pro pfo_mpfit_obj::get_property, $
   if arg_present(mpfit_iterargs	) or N_elements(mpfit_iterargs	) gt 0 then mpfit_iterargs 	= *self.pmpfit_Iterargs
   if arg_present(mpfit_covar	) or N_elements(mpfit_covar	) gt 0 then mpfit_covar 	= *self.pmpfit_covar
   if arg_present(mpfit_bestnorm	) or N_elements(mpfit_bestnorm	) gt 0 then mpfit_bestnorm	= self.mpfit_bestnorm
+  if arg_present(mpfit_nfree	) or N_elements(mpfit_nfree	) gt 0 then mpfit_nfree	= self.mpfit_nfree
+  if arg_present(mpfit_npegged	) or N_elements(mpfit_npegged	) gt 0 then mpfit_npegged	= self.mpfit_npegged
 
   self->pfo_calc_obj::get_property, _EXTRA=extra
 
@@ -510,7 +524,10 @@ pro pfo_mpfit_obj::set_property, $
    mpfit_parinfo_widget=mpfit_parinfo_widget, $ ;; refresh parinfo widgets every niter
    mpfit_iterargs=mpfit_iterargs, $ ;; other keyword arguments passed to iterproc
    mpfit_bestnorm=mpfit_bestnorm, $ ;; (output) chi sq = total(deviates^2)
+   mpfit_nfree=mpfit_nfree, $ ;; (output) number of free parameters
+   mpfit_npegged=mpfit_npegged, $ ;; (output) number of parameters pegged at limits
    Yerr=Yerr, $ ;; override pfo_data_obj handling of Yerr in order to print message about deviates
+   keep_local=keep_local, $ ;; keep local during init
    _REF_EXTRA=extra
 
   if N_elements(mpfit_max_status) gt 0 then self.mpfit_max_status 	= mpfit_max_status
@@ -531,6 +548,8 @@ pro pfo_mpfit_obj::set_property, $
   if N_elements(mpfit_parinfo_widget) gt 0 then self.mpfit_parinfo_widget= mpfit_parinfo_widget
   if N_elements(mpfit_iterargs	) gt 0 then *self.piterargs 		= mpfit_iterargs
   if N_elements(mpfit_bestnorm	) gt 0 then self.bestnorm 		= mpfit_bestnorm
+  if N_elements(mpfit_nfree	) gt 0 then self.nfree 			= mpfit_nfree
+  if N_elements(mpfit_npegged	) gt 0 then self.npegged 		= mpfit_npegged
 
   ;; Work with Yerr=0 values in the context of our property in this object
   if N_elements(Yerr) gt 0 then begin
@@ -539,6 +558,10 @@ pro pfo_mpfit_obj::set_property, $
         message, /INFORMATIONAL, 'WARNING: Yerr=0 for ' + strtrim(count, 2) + ' out of ' + strtrim(N_elements(Yerr), 2) + ' points and the hide_infinity flag is not set.  When deviates are calculated for these points, they will be infinite and crash MPFIT.  Setting hide_infinity effectively removes these points from the data (and any function points that happen to evaluate to infinity)'
      endif ;; some zero Yerrs
   endif ;; Yerr
+
+  ;; Return now if we are called from the init method of this object
+  if keyword_set(keep_local) then $
+     return
 
   ;; Pass everything onto inherited routines
   self->pfo_calc_obj::set_property, Yerr=Yerr, _EXTRA=extra
@@ -640,13 +663,16 @@ function pfo_mpfit_obj::init, $
   self.pmpfit_Iterargs = ptr_new(/allocate_heap)
   self.pmpfit_covar = ptr_new(/allocate_heap)
 
+  ;; Call our _local_ set_property routine to convert any keywords to
+  ;; property.  Keeping it local makes sure we don't get any
+  ;; order-dependent cross-talk during initialization of multiple
+  ;; inherited objects
+  self->pfo_mpfit_obj::set_property, /keep_local, _EXTRA=extra
+
   ;; Call our superclass init methods
   ok = self->pfo_calc_obj::init(p0, p1, p2, _EXTRA=extra)
   if NOT ok then $
      return, 0
-
-  ;; Call our set_property routine to convert any keywords to property
-  self->set_property, _EXTRA=extra
 
   return, 1
 
@@ -686,6 +712,8 @@ pro pfo_mpfit_obj__define
       pmpfit_Iterargs	: ptr_new(), $ ;; pointer to other keyword arguments passed to iterproc
       pmpfit_covar	: ptr_new(), $ ;; (output) pointer to covariance matrix for best-fit params
       mpfit_bestnorm	: 0D, $ ;; (output) chi sq = total(deviates^2)
+      mpfit_nfree	: 0L, $ ;; (output) number of free parameters
+      mpfit_npegged	: 0L, $ ;; (output) number of parameters pegged at limits
       inherits pfo_calc_obj $	;; pfo_calc has data, parinfo, and plot
      }
 end
