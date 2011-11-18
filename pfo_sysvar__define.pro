@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.9 2011/09/16 13:43:50 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.10 2011/11/18 15:56:08 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -106,9 +106,9 @@ pro pfo_sysvar__define
        left	:	0,   $
        right	:	1,   $
        $ ;; tokens for pfo_link status
-       $;;inactive:	0,   $  duplicate of pfo.status
-       master	:	1, $
-       slave	:	2, $
+       $;;no_used:	0,   $  duplicate of pfo.status
+       master	:	2^0, $
+       slave	:	2^1, $
        intralink:	1, $
        interlink:	2, $
        $ ;; mpfit iterproc/stop stuff
@@ -135,10 +135,14 @@ pro pfo_sysvar__define
        $ ;; String used in pfo_struct_append when no descr is returned from pfo_struct_new
        not_documented: 'Not documented', $
        $ ;; Default labels for plotting
-       Xin_title	: 'Input X-axis units (Xin)', $
-       Xaxis_title	: 'Calculated X-axis units (Xaxis)', $
-       Yin_Xin_title	: 'Input Y-axis (Yin) units per Xin units', $
-       Yin_Xaxis_title	: 'Input Y-axis (Yin) units per Xaxis units', $
+       Xin_title	: 'Input X-axis', $
+       Xin_units	: 'Xin', $
+       Xaxis_title	: 'Calculated X-axis', $
+       Xaxis_units	: 'Xaxis', $
+       Yin_Xin_title	: 'Input Y-axis', $
+       Yin_Xin_units	: 'Yin per Xin', $
+       Yin_Xaxis_title	: 'Input Y-axis', $
+       Yin_Xaxis_units	: 'Yin per Xaxis', $
        color_table	: 38, $ ;; rainbow18
        n_colors		: 18L, $ ;; work with !d.n_colors to index colors
        oplot_parinfo_color: 6, $ ;; a nice green color
