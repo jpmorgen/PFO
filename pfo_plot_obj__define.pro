@@ -43,9 +43,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_obj__define.pro,v 1.5 2011/09/08 20:02:19 jpmorgen Exp $
+; $Id: pfo_plot_obj__define.pro,v 1.6 2011/11/18 14:47:05 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_obj__define.pro,v $
+; Revision 1.6  2011/11/18 14:47:05  jpmorgen
+; Generalized autoscaling
+;
 ; Revision 1.5  2011/09/08 20:02:19  jpmorgen
 ; Added property_set flag so that replot can be called at the
 ; appropriate time
@@ -68,6 +71,145 @@
 ;
 ;-
 
+;; Functions that return Xin, Xaxis, and Yaxis ranges.  If the range
+;; is specified on the command line, it is just popped back out
+;; again.  If the range is defined as property, that is returned.  If
+;; no range is in the property, it is calculated.  The /autoscale
+;; switch deletes property and forces case of 
+function pfo_plot_obj::Xin_range, $
+   Xin_range, $ ;; (optional) if you know this, your job is done, but it saves you from doing the check in the calling code
+   Xin=Xin ;; (optional) input axis to check.  Otherwise, use encapsulated property
+
+  ;; Check for the trivial case that we have been called but already
+  ;; know what we want
+  if N_elements(Xin_range) eq 2 then $
+     return, Xin_range
+
+  ;; Make sure input has two elements, or is not specified
+  if N_elements(Xin_range) ne 0 then $
+     message, 'ERROR: range must have 2 elements.'
+
+  ;; Handle case where our property is defined
+  if N_elements(*self.pXin_range) ne 0 then $
+     return, *self.pXin_range
+
+  ;; Autoscale on provided axis
+  if N_elements(Xin) ne 0 then $
+     return, minmax(Xin, /NAN)
+
+  ;; Check to make sure Xin is defined
+  if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
+     return, make_array(2, value=!values.d_NAN)
+
+  ;; Autoscale on encapsulated pfo_obj axis
+  return, minmax(self.plot_pfo_obj->Xin(), /NAN)
+
+end
+
+function pfo_plot_obj::Xaxis_range, $
+   Xaxis_range, $ ;; (optional) if you know this, your job is done, but it saves you from doing the check in the calling code
+   _REF_EXTRA=extra ;; (optional) args to Xaxis (e.g. Xin)
+
+  ;; Check for the trivial case that we have been called but already
+  ;; know what we want
+  if N_elements(Xaxis_range) eq 2 then $
+     return, Xaxis_range
+
+  ;; Make sure input has two elements, or is not specified
+  if N_elements(Xaxis_range) ne 0 then $
+     message, 'ERROR: range must have 2 elements.'
+
+  ;; Handle case where our property is defined
+  if N_elements(*self.pXaxis_range) ne 0 then $
+     return, *self.pXaxis_range
+
+  ;; Check to make sure Xin is defined
+  if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
+     return, make_array(2, value=!values.d_NAN)
+
+  ;; Autoscale on encapsulated pfo_obj axis
+  return, minmax(self.plot_pfo_obj->Xaxis(_EXTRA=extra), /NAN)
+
+end
+
+function pfo_plot_obj::Yaxis_range, $
+   Yaxis_range, $ ;; (optional) if you know this, your job is done, but it saves you from doing the check in the calling code
+   Yunits=Yunits, $ ;; (optional) Return Yaxis_range in units of Yin or Yin/(dXaxis/dXin)
+   Xin=Xin_in, $ ;; (optional) command-line Xin
+   Yin=Yin_in, $ ;; (optional) command-line Yin
+   _REF_EXTRA=extra ;; (optional) args to dXaxis_dXin
+
+  ;; Check for the trivial case that we have been called but already
+  ;; know what we want
+  if N_elements(Yaxis_range) eq 2 then $
+     return, Yaxis_range
+
+  ;; Make sure input has two elements, or is not specified
+  if N_elements(Yaxis_range) ne 0 then $
+     message, 'ERROR: range must have 2 elements.'
+
+  ;; Handle case where our property is defined
+  if N_elements(*self.pYaxis_range) ne 0 then $
+     return, *self.pYaxis_range
+
+  ;; Check to make sure Xin is defined
+  if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
+     return, make_array(2, value=!values.d_NAN)
+
+  ;; If we made it here, we can autoscale
+
+  ;; Create local Xin axis
+  if N_elements(Xin) ne 0 then begin
+     ;; Command line
+     Xin = Xin_in
+  endif else begin
+     ;; Data property
+     Xin = self.plot_pfo_obj->Xin()
+  endelse
+
+  ;; Create local Yin axis
+  if N_elements(Yin) ne 0 then begin
+     ;; Command line
+     Yin = Yin_in
+  endif else begin
+     ;; Some form of property
+     if N_elements(self.plot_pfo_obj->Yin()) ne 0 then begin
+        ;; Data property
+        Yin = self.plot_pfo_obj->Yin()
+     endif else begin
+        ;; No Yin, but maybe there is a function
+        if self.plot_pfo_obj->parinfo_call_function( $
+           /no_update, 'N_elements') ne 0 then begin
+           ;; There is a parinfo, so we can get a Yaxis
+           Yin = self.plot_pfo_obj->Yaxis(Xin=Xin, _EXTRA=extra)
+        endif else begin
+           ;; No data, no function, return no value
+           return, make_array(2, value=!values.d_NAN)
+        endelse
+     endelse
+  endelse
+
+  ;; Find the idx over which our Xin_range operates.  --> This depends
+  ;; on changes to Xaxis_range updating Xin_range
+  Xin_range = self->Xin_range(Xin=Xin, _EXTRA=extra)
+  good_Xin_idx = where(Xin_range[0] le Xin and $
+                       Xin le Xin_range[1], count)
+  if count eq 0 then $
+     return, make_array(2, value=!value.d_NAN)
+
+  ;; Handle Yunits
+  if N_elements(Yunits) eq 0 then Yunits = self.plot_Yunits
+ 
+  case Yunits of 
+     !pfo.Xin : return, minmax(Yin[good_Xin_idx], /NAN)
+     !pfo.Xaxis : return, minmax(Yin[good_Xin_idx], /NAN) / $
+                          self.plot_pfo_obj->dXaxis_dXin(Xin=Xin, idx=good_Xin_idx, _REF_EXTRA)
+     else: message, 'ERROR: invalid Yunits value: ' + strtrim(Yunits, 2) + ' expecting !pfo.Xin or !pfo.Xaxis'
+
+  endcase
+end
+
+
 pro pfo_plot_obj::plot, $
    pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating information to be plotted.  If not specified, pfo_obj=self (assume this object has been inherited in the pfo_obj
    parinfo=parinfo_in, $ ;; parinfo to use in place of encapsulated parinfo (unusual)
@@ -89,14 +231,22 @@ pro pfo_plot_obj::plot, $
    Xunits=Xunits, $ ;; determines if X-axis reads in Xin or Xaxis
    Yunits=Yunits, $ ;; When X-axis reads in Xaxis, determines if Yaxis reads in Yin or Yin/(dXaxis/dXin)
    Xin_title   = Xin_title, $   ;; title for X-axis plots when in Xin mode (e.g. channels)      
+   Xin_units   = Xin_units, $   ;; units for X-axis plots when in Xin mode (e.g. channels)      
    Xaxis_title = Xaxis_title, $ ;; title for X-axis plots when in Xaxis mode (e.g. keV)         
+   Xaxis_units = Xaxis_units, $ ;; title for X-axis plots when in Xaxis mode (e.g. keV)         
    Yin_Xin_title= Yin_Xin_title, $  ;; title for Y-axis plots when Yunits=!pfo.Xin regardless of Xunits value (e.g. counts/channel)
+   Yin_Xin_units= Yin_Xin_units, $  ;; title for Y-axis plots when Yunits=!pfo.Xin regardless of Xunits value (e.g. counts/channel)
    Yin_Xaxis_title= Yin_Xaxis_title, $ ;; title for X-axis plots when Xunits=!pfo.Xaxis and Yunits=!pfo.Xaxis (e.g. counts/keV)
+   Yin_Xaxis_units= Yin_Xaxis_units, $ ;; title for X-axis plots when Xunits=!pfo.Xaxis and Yunits=!pfo.Xaxis (e.g. counts/keV)
    plot_xlog=plot_xlog, $	;; main window and deviates reads in log X
    plot_ylog=plot_ylog, $ ;; plot of main window reads in log Y.  --> Deviates always linear
    oplot_call_list=oplot_call_list, $ ;; a list of procedures which will overplot information on the main plot window
    calc_args=calc_args, $ ;; arguments to self->[XY]axis(), etc. which eventually get passed down to __calc "methods" of pfo functions
+   plot_error=plot_error, $ ;; (output) error code, set to non-zero value if plot not completely successful
    _REF_EXTRA=extra ;; EXTRA args passed to oplot routines
+
+  ;; Assume we will have a sucessful plot and adjust accordingly
+  plot_error = 0
 
   ;; Save off system variables that we will be messing with 
   background = !p.background
@@ -138,6 +288,8 @@ pro pfo_plot_obj::plot, $
            device, /close
            self.plot_PS_fname = ''
         endif ;; PS processing
+        ;; Set error output
+        plot_error = 1
         return
      endif ;; catch
   endif ;; not debugging
@@ -155,6 +307,8 @@ pro pfo_plot_obj::plot, $
   ;; We need an Xin axis to do any plotting
   if N_elements(pfo_obj->Xin()) eq 0 then begin
      message, /INFORMATIONAL, 'NOTE: Xin not defined.  Cannot plot data.'
+     ;; Set error output -- more serious than getting part way through
+     plot_error = 2
      return
   endif
   ;; Save Xin to a local variable for convenience
@@ -193,6 +347,8 @@ pro pfo_plot_obj::plot, $
      endif else begin
         Xin_range = minmax(pfo_obj->Xin(), /NAN)
      endelse 
+;;     ;; Store this in our property
+;;     *self.pXin_range = Xin_range
   endif
   if N_elements(Xaxis_range) eq 0 then begin
      if N_elements(*self.pXaxis_range) ne 0 then begin
@@ -202,6 +358,8 @@ pro pfo_plot_obj::plot, $
         if N_elements(Xaxis) eq 0 then $
            Xaxis = pfo_obj->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
         Xaxis_range = minmax(Xaxis, /NAN)
+;;        ;; Store this in our property
+;;        *self.pXaxis_range = Xaxis_range
      endelse 
   endif
   if N_elements(Yaxis_range) eq 0 then begin
@@ -226,19 +384,26 @@ pro pfo_plot_obj::plot, $
            ;; Check to see if we have any Yin
            if N_elements(pfo_obj->Yin()) ne 0 then begin
               ;; Prefer data for Yaxis_range...
+              ;; --> not considering Yunits
               Yaxis_range = minmax((pfo_obj->Yin())[good_Xin_idx], /NAN)
            endif else begin
               ;; ... but if we have no data, use the function values
               Yaxis_range = minmax((pfo_obj->Yaxis())[good_Xin_idx], /NAN)
            endelse ;; Yin or no Yin
         endelse ;; Valid points in Xin_range
+;;        ;; Save our autoscaled Yaxis_range into the property
+;;        *self.pYaxis_range = Yaxis_range
      endelse ;; No Yaxis_range property
   endif ;; No Yaxis_range on command line
 
   if N_elements(Xin_title) eq 0 then Xin_title = self.plot_Xin_title
+  if N_elements(Xin_units) eq 0 then Xin_units = self.plot_Xin_units
   if N_elements(Xaxis_title) eq 0 then Xaxis_title = self.plot_Xaxis_title
+  if N_elements(Xaxis_units) eq 0 then Xaxis_units = self.plot_Xaxis_units
   if N_elements(Yin_Xin_title) eq 0 then Yin_Xin_title = self.plot_Yin_Xin_title
+  if N_elements(Yin_Xin_units) eq 0 then Yin_Xin_units = self.plot_Yin_Xin_units
   if N_elements(Yin_Xaxis_title) eq 0 then Yin_Xaxis_title = self.plot_Yin_Xaxis_title
+  if N_elements(Yin_Xaxis_units) eq 0 then Yin_Xaxis_units = self.plot_Yin_Xaxis_units
   if N_elements(xlog) eq 0 then xlog = self.plot_xlog
   if N_elements(ylog) eq 0 then ylog = self.plot_ylog
   if N_elements(oplot_call_list) eq 0 then oplot_call_list = *self.poplot_call_list
@@ -293,18 +458,42 @@ pro pfo_plot_obj::plot, $
   case Xunits of 
      !pfo.Xin: begin
         xtitle = Xin_title
+        if xtitle eq '' then $
+           xtitle = Xin_units $
+        else $
+           xtitle += ' (' + Xin_units + ')'
         xaxis  = pfo_obj->Xin()
-        xrange = Xin_range 
+        xrange = self->Xin_range(Xrange)
         ytitle = Yin_Xin_title
+        if ytitle eq '' then $
+           ytitle = Yin_Xin_units $
+        else $
+           ytitle += ' (' + Yin_Xin_units + ')'
      end
      !pfo.Xaxis: begin
         xtitle = Xaxis_title
+        if xtitle eq '' then $
+           Xaxis_title = Xaxis_units $
+        else $
+           xtitle += ' (' + Xaxis_units + ')'
         xaxis  = pfo_obj->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
-        xrange = Xaxis_range 
+        xrange = Xaxis_range ->Xaxis_range(Xaxis_range)
         case Yunits of
-           !pfo.Xin: ytitle = Yin_Xin_title
-           !pfo.Xaxis: ytitle = Yin_Xaxis_title
-           else: message, 'ERROR: invalid Yunits value: ' + strtrim(Xunits, 2) + ' expecting !pfo.Xin or !pfo.Xaxis'
+           !pfo.Xin: begin
+              ytitle = Yin_Xin_title
+              if ytitle eq '' then $
+                 ytitle = Yin_Xin_units $
+              else $
+                 ytitle += ' (' + Yin_Xin_units + ')'
+           end
+           !pfo.Xaxis: begin
+              ytitle = Yin_Xaxis_title
+              if ytitle eq '' then $
+                 ytitle = Yin_Xaxis_units $
+              else $
+                 ytitle += ' (' + Yin_Xaxis_units + ')'
+           end
+           else: message, 'ERROR: invalid Yunits value: ' + strtrim(Yunits, 2) + ' expecting !pfo.Xin or !pfo.Xaxis'
         endcase
      end
      else: message, 'ERROR: invalid Xunits value: ' + strtrim(Xunits, 2) + ' expecting !pfo.Xin or !pfo.Xaxis'
@@ -315,7 +504,8 @@ pro pfo_plot_obj::plot, $
   main_xtitle = xtitle
   main_xstyle = !tok.exact
 
-  ;; Do the deviates, if desired
+  
+  ;; Do the deviates, if desired and possible
   if NOT keyword_set(no_deviates) then begin
      ;; Since we are doing deviates, we know where the main window
      ;; has to be and how the xtitle should look (none)
@@ -323,10 +513,21 @@ pro pfo_plot_obj::plot, $
      main_xtitle = ''
      main_xstyle = !tok.exact+!tok.no_axes
 
-     ;; Grab our deviates, which may already be cached and find the
-     ;; yrange value for the active ROIs
+     ;; Grab our deviates, which may already be cached
      deviates = pfo_obj->deviates(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
-     yrange = minmax(deviates[pfo_obj->ROI_Xin_idx(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)], /nan)
+     ;; Find the yrange value for the active ROIs (if any)
+     ROI_Xin_idx = pfo_obj->ROI_Xin_idx(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
+     ;; If there are no active ROIs, we will get an error indexing
+     ;; deviates with ROI_Xin_idx if we are not careful
+     if ROI_Xin_idx[0] eq !tok.nowhere then $
+        pfo_idx, deviates, ROI_Xin_idx
+     
+     ;; Get our range from the deviates of the active ROIs
+     yrange = minmax(deviates[ROI_Xin_idx], /nan)
+     ;; Check for the case that we have no valid deviates
+     junk = where(finite(yrange), count)
+     if count ne 2 then $
+        yrange = [-1, 1]
 
      resid_position = [0.1,0.08, 0.98, 0.25]
      plot, [0], $
@@ -432,10 +633,10 @@ pro pfo_plot_obj::plot, $
      self->invalidate_cache
   endif
 
-
 end
 
 pro pfo_plot_obj::get_property, $
+   plot_pfo_obj=plot_pfo_obj, $
    window_index	= window_index      , $
    plot_xsize	= plot_xsize       , $
    plot_ysize	= plot_ysize       , $
@@ -452,13 +653,21 @@ pro pfo_plot_obj::get_property, $
    plot_xlog	      	= plot_xlog      , $      
    plot_ylog	      	= plot_ylog      , $      
    plot_Xin_title	= plot_Xin_title      , $      
+   plot_Xin_units	= plot_Xin_units      , $      
    plot_Xaxis_title  = plot_Xaxis_title    , $
+   plot_Xaxis_units  = plot_Xaxis_units    , $
    plot_Yin_Xin_title= plot_Yin_Xin_title  , $
+   plot_Yin_Xin_units= plot_Yin_Xin_units  , $
    plot_Yin_Xaxis_title= plot_Yin_Xaxis_title, $
+   plot_Yin_Xaxis_units= plot_Yin_Xaxis_units, $
    plot_ispec      	= plot_ispec     , $
    plot_iROI	      	= plot_iROI      , $      
-   oplot_call_list  	= oplot_call_list
+   oplot_call_list  	= oplot_call_list, $
+   plot_Xin_autoscale	= plot_Xin_autoscale, $
+   plot_Xaxis_autoscale	= plot_Xaxis_autoscale, $
+   plot_Yaxis_autoscale	= plot_Yaxis_autoscale
 
+  if arg_present(plot_pfo_obj      ) or N_elements(plot_pfo_obj      ) gt 0 then plot_pfo_obj      = self.plot_pfo_obj      
   if arg_present(window_index      ) or N_elements(window_index      ) gt 0 then window_index      = self.plot_window_index      
   if arg_present(plot_xsize       ) or N_elements(plot_xsize       ) gt 0 then plot_xsize       = self.plot_xsize       
   if arg_present(plot_ysize       ) or N_elements(plot_ysize       ) gt 0 then plot_ysize       = self.plot_ysize       
@@ -467,17 +676,43 @@ pro pfo_plot_obj::get_property, $
   if arg_present(plot_PS_charsize ) or N_elements(plot_PS_charsize ) gt 0 then plot_PS_charsize = self.plot_PS_charsize 
   if arg_present(plot_TT_font_name) or N_elements(plot_TT_font_name) gt 0 then plot_TT_font_name= self.plot_TT_font_name
   if arg_present(plot_win_charsize) or N_elements(plot_win_charsize) gt 0 then plot_win_charsize= self.plot_win_charsize
-  if arg_present(plot_Xin_range   ) or N_elements(plot_Xin_range   ) gt 0 then plot_Xin_range   = *self.pXin_range        
-  if arg_present(plot_Xaxis_range ) or N_elements(plot_Xaxis_range ) gt 0 then plot_Xaxis_range = *self.pXaxis_range      
-  if arg_present(plot_Yaxis_range ) or N_elements(plot_Yaxis_range ) gt 0 then plot_Yaxis_range = *self.pYaxis_range      
+
+  ;; For ranges, encapsulated values are undefined if we are in
+  ;; autoscale mode, so use the methods to return the right value
+  if arg_present(plot_Xin_range   ) or N_elements(plot_Xin_range   ) gt 0 then begin
+     plot_Xin_range = self->Xin_range()
+  endif
+  if arg_present(plot_Xaxis_range   ) or N_elements(plot_Xaxis_range   ) gt 0 then begin
+     plot_Xaxis_range = self->Xaxis_range()
+  endif
+  if arg_present(plot_Yaxis_range   ) or N_elements(plot_Yaxis_range   ) gt 0 then begin
+     plot_Yaxis_range = self->Yaxis_range()
+  endif
+
+  ;; Handle autoscale stuff here.  We are autoscaling if there is 
+  if arg_present(plot_Xin_autoscale   ) or N_elements(plot_Xin_autoscale   ) gt 0 then begin
+     plot_Xin_autoscale = N_elements(*self.pXin_range) eq 0
+  endif
+  if arg_present(plot_Xaxis_autoscale   ) or N_elements(plot_Xaxis_autoscale   ) gt 0 then begin
+     plot_Xaxis_autoscale = N_elements(*self.pXaxis_range) eq 0
+  endif
+  if arg_present(plot_Yaxis_autoscale   ) or N_elements(plot_Yaxis_autoscale   ) gt 0 then begin
+     plot_Yaxis_autoscale = N_elements(*self.pYaxis_range) eq 0
+  endif
+
+
   if arg_present(plot_Xunits      ) or N_elements(plot_Xunits      ) gt 0 then plot_Xunits      = self.plot_Xunits      
   if arg_present(plot_Yunits      ) or N_elements(plot_Yunits      ) gt 0 then plot_Yunits      = self.plot_Yunits      
   if arg_present(plot_xlog	  ) or N_elements(plot_xlog	   ) gt 0 then plot_xlog	= self.plot_xlog	       
   if arg_present(plot_ylog	  ) or N_elements(plot_ylog	   ) gt 0 then plot_ylog	= self.plot_ylog	       
   if arg_present(plot_Xin_title	  ) or N_elements(plot_Xin_title   ) gt 0 then plot_Xin_title	= self.plot_Xin_title	       
+  if arg_present(plot_Xin_units	  ) or N_elements(plot_Xin_units   ) gt 0 then plot_Xin_units	= self.plot_Xin_units	       
   if arg_present(plot_Xaxis_title ) or N_elements(plot_Xaxis_title ) gt 0 then plot_Xaxis_title = self.plot_Xaxis_title      
-  if arg_present(plot_Yin_Xin_titl) or N_elements(plot_Yin_Xin_title) gt 0 then plot_Yin_Xin_title = self.plot_Yin_Xin_title    
+  if arg_present(plot_Xaxis_units ) or N_elements(plot_Xaxis_units ) gt 0 then plot_Xaxis_units = self.plot_Xaxis_units      
+  if arg_present(plot_Yin_Xin_title) or N_elements(plot_Yin_Xin_title) gt 0 then plot_Yin_Xin_title = self.plot_Yin_Xin_title    
+  if arg_present(plot_Yin_Xin_units) or N_elements(plot_Yin_Xin_units) gt 0 then plot_Yin_Xin_units = self.plot_Yin_Xin_units    
   if arg_present(plot_Yin_Xaxis_title) or N_elements(plot_Yin_Xaxis_title) gt 0 then plot_Yin_Xaxis_title= self.plot_Yin_Xaxis_title  
+  if arg_present(plot_Yin_Xaxis_units) or N_elements(plot_Yin_Xaxis_units) gt 0 then plot_Yin_Xaxis_units= self.plot_Yin_Xaxis_units  
   if arg_present(plot_ispec       ) or N_elements(plot_ispec       ) gt 0 then plot_ispec       = *self.pplot_ispec       
   if arg_present(plot_iROI	  ) or N_elements(plot_iROI	   ) gt 0 then plot_iROI	= *self.pplot_iROI	       
   if arg_present(oplot_call_list  ) or N_elements(oplot_call_list  ) gt 0 then oplot_call_list  = *self.poplot_call_list  
@@ -485,6 +720,7 @@ pro pfo_plot_obj::get_property, $
 end
 
 pro pfo_plot_obj::set_property, $
+   plot_pfo_obj=plot_pfo_obj, $
    window_index	= window_index      , $
    plot_xsize	= plot_xsize       , $
    plot_ysize	= plot_ysize       , $
@@ -501,16 +737,27 @@ pro pfo_plot_obj::set_property, $
    plot_xlog	      	= plot_xlog      , $      
    plot_ylog	      	= plot_ylog      , $      
    plot_Xin_title	= plot_Xin_title      , $      
+   plot_Xin_units	= plot_Xin_units      , $      
    plot_Xaxis_title  = plot_Xaxis_title    , $
+   plot_Xaxis_units  = plot_Xaxis_units    , $
    plot_Yin_Xin_title= plot_Yin_Xin_title  , $
+   plot_Yin_Xin_units= plot_Yin_Xin_units  , $
    plot_Yin_Xaxis_title= plot_Yin_Xaxis_title, $
+   plot_Yin_Xaxis_units= plot_Yin_Xaxis_units, $
    plot_ispec      	= plot_ispec     , $
    plot_iROI	      	= plot_iROI      , $      
    oplot_call_list  	= oplot_call_list, $
-   property_set=property_set ;; returns 0 if no property was set, 1 if property was set
+   plot_Xin_autoscale	= plot_Xin_autoscale, $
+   plot_Xaxis_autoscale	= plot_Xaxis_autoscale, $
+   plot_Yaxis_autoscale	= plot_Yaxis_autoscale, $
+   property_set=property_set ;; returns 0 if no property was set, 1 if property was set $
 
   property_set = 0
 
+  if N_elements(plot_pfo_obj      ) gt 0 then begin
+     self.plot_pfo_obj       = plot_pfo_obj      
+     property_set = 1
+  endif
   if N_elements(window_index      ) gt 0 then begin
      self.plot_window_index       = window_index      
      property_set = 1
@@ -543,14 +790,20 @@ pro pfo_plot_obj::set_property, $
      self.plot_win_charsize = plot_win_charsize
      property_set = 1
   endif
+
+  ;; Syncronize Xin_range and Xaxis_range and have Xin_range take
+  ;; precident over Xaxis range if we happen to specify both keywords
+  if N_elements(plot_Xaxis_range ) gt 0 then begin
+     *self.pXaxis_range     = plot_Xaxis_range    
+     *self.pXin_range = self.plot_pfo_obj->convert_coord(*self.pXaxis_range, /from_Xaxis, /to_Xin)
+     property_set = 1
+  endif
   if N_elements(plot_Xin_range   ) gt 0 then begin
      *self.pXin_range       = plot_Xin_range        
+     *self.pXaxis_range = self.plot_pfo_obj->convert_coord(*self.pXin_range, /from_Xin, /to_Xaxis)
      property_set = 1
   endif
-  if N_elements(plot_Xaxis_range ) gt 0 then begin
-     *self.pXaxis_range     = plot_Xaxis_range      
-     property_set = 1
-  endif
+
   if N_elements(plot_Yaxis_range ) gt 0 then begin
      *self.pYaxis_range     = plot_Yaxis_range      
      property_set = 1
@@ -575,16 +828,36 @@ pro pfo_plot_obj::set_property, $
      self.plot_Xin_title	    = plot_Xin_title	       
      property_set = 1
   endif
+  if N_elements(plot_Xin_units   ) gt 0 then begin
+     self.plot_Xin_units	    = plot_Xin_units
+     property_set = 1
+  endif
   if N_elements(plot_Xaxis_title ) gt 0 then begin
      self.plot_Xaxis_title       = plot_Xaxis_title      
+     property_set = 1
+  endif
+  if N_elements(plot_Xaxis_units ) gt 0 then begin
+     self.plot_Xaxis_units       = plot_Xaxis_units      
      property_set = 1
   endif
   if N_elements(plot_Yin_Xin_title) gt 0 then begin
      self.plot_Yin_Xin_title    = plot_Yin_Xin_title    
      property_set = 1
   endif
+  if N_elements(plot_Yin_Xin_units) gt 0 then begin
+     self.plot_Yin_Xin_units    = plot_Yin_Xin_units    
+     property_set = 1
+  endif
+  if N_elements(plot_Yin_Xaxis_units) gt 0 then begin
+     self.plot_Yin_Xaxis_units= plot_Yin_Xaxis_units  
+     property_set = 1
+  endif
   if N_elements(plot_Yin_Xaxis_title) gt 0 then begin
      self.plot_Yin_Xaxis_title= plot_Yin_Xaxis_title  
+     property_set = 1
+  endif
+  if N_elements(plot_Yin_Xaxis_units) gt 0 then begin
+     self.plot_Yin_Xaxis_units= plot_Yin_Xaxis_units  
      property_set = 1
   endif
   if N_elements(plot_ispec       ) gt 0 then begin
@@ -597,6 +870,71 @@ pro pfo_plot_obj::set_property, $
   endif
   if N_elements(oplot_call_list  ) gt 0 then begin
      *self.poplot_call_list = oplot_call_list  
+     property_set = 1
+  endif
+
+  ;; Xin autoscale
+  if N_elements(plot_Xin_autoscale  ) gt 0 then begin
+     if plot_Xin_autoscale eq 0 then begin
+        ;; Turn autoscale off by setting range property to current
+        ;; autoscale range
+        Xin_range = self->Xin_range()
+        ;; Make sure range is valid
+        good_idx = where(finite(Xin_range), count)
+        if count eq 2 then begin
+           ;; Use our local set_property to syncronize Xin and Xaxis
+           self->pfo_plot_obj::set_property, plot_Xin_range=Xin_range
+        endif
+     endif else begin
+        ;; Turn autoscale on by making sure X-axis range properties
+        ;; are undefined
+        if N_elements(*self.pXin_range) ne 0 then $
+           junk = temporary(*self.pXin_range)
+        if N_elements(*self.pXaxis_range) ne 0 then $
+           junk = temporary(*self.pXaxis_range)
+     endelse
+     property_set = 1
+  endif
+
+  ;; Xaxis autoscale
+  if N_elements(plot_Xaxis_autoscale  ) gt 0 then begin
+     if plot_Xaxis_autoscale eq 0 then begin
+        ;; Turn autoscale off by setting range property to current
+        ;; autoscale range
+        Xaxis_range = self->Xaxis_range()
+        ;; Make sure range is valid
+        good_idx = where(finite(Xaxis_range), count)
+        if count eq 2 then begin
+           ;; Use our local set_property to syncronize Xaxis and Xaxis
+           self->pfo_plot_obj::set_property, plot_Xaxis_range=Xaxis_range
+        endif
+     endif else begin
+        ;; Turn autoscale on by making sure X-axis range properties
+        ;; are undefined
+        if N_elements(*self.pXin_range) ne 0 then $
+           junk = temporary(*self.pXin_range)
+        if N_elements(*self.pXaxis_range) ne 0 then $
+           junk = temporary(*self.pXaxis_range)
+     endelse
+     property_set = 1
+  endif
+
+  ;; Yaxis autoscale
+  if N_elements(plot_Yaxis_autoscale  ) gt 0 then begin
+     if plot_Yaxis_autoscale eq 0 then begin
+        ;; Turn autoscale off by setting range property to current
+        ;; autoscale range
+        Yaxis_range = self->Yaxis_range()
+        ;; Make sure range is valid
+        good_idx = where(finite(Yaxis_range), count)
+        if count eq 2 then $
+           *self.pYaxis_range     = plot_Yaxis_range      
+     endif else begin
+        ;; Turn autoscale on by making sure X-axis range properties
+        ;; are undefined
+        if N_elements(*self.pYaxis_range) ne 0 then $
+           junk = temporary(*self.pYaxis_range)
+     endelse
      property_set = 1
   endif
 
@@ -641,8 +979,11 @@ pro pfo_plot_obj::cleanup
 
 end
 
-;; There is a lot of plot property.  Be lazy and assume there will be
-;; no wierd cross-talk with other inits
+;; There is a lot of plot property.  Don't bother listing the
+;; property explicitly.  Only pass it onto the local set_property
+;; routine.  This works because we don't (at the moment) inherit
+;; any other objects.  Otherwise, set_property would call their
+;; set_property routines and weird crosstalk could ensue
 function pfo_plot_obj::init, $
    _REF_EXTRA=extra
 
@@ -685,9 +1026,13 @@ function pfo_plot_obj::init, $
   self.plot_TT_font_name = 'Times*24'
 
   self.plot_Xin_title       = !pfo.Xin_title      
+  self.plot_Xin_units       = !pfo.Xin_units      
   self.plot_Xaxis_title     = !pfo.Xaxis_title    
+  self.plot_Xaxis_units     = !pfo.Xaxis_units    
   self.plot_Yin_Xin_title   = !pfo.Yin_Xin_title  
+  self.plot_Yin_Xin_units   = !pfo.Yin_Xin_units  
   self.plot_Yin_Xaxis_title = !pfo.Yin_Xaxis_title
+  self.plot_Yin_Xaxis_units = !pfo.Yin_Xaxis_units
 
   ;; Turn our null reference pointers into undefined variables
   self.pXin_range	= ptr_new(/allocate_heap) 
@@ -699,8 +1044,17 @@ function pfo_plot_obj::init, $
   ;; Initialize our oplot_call_list to a reasonable set of things
   self.poplot_call_list = ptr_new(['pfo_oplot_data', 'pfo_oplot_parinfo'])
 
-  ;; Call our set_property routine to convert any keywords to property
-  self->set_property, _EXTRA=extra
+  ;; Initialize plot_pfo_obj to ourself, under the assumption that we
+  ;; have been inherited into the pfo_obj.  If this is not true, it is
+  ;; up to the caller to provide the proper plot_pfo_obj or set it
+  ;; with set_property
+  self.plot_pfo_obj = self
+
+  ;; Call our _local_ set_property routine to convert any keywords to
+  ;; property.  Keeping it local makes sure we don't get any
+  ;; order-dependent cross-talk during initialization of multiple
+  ;; inherited objects
+  self->pfo_plot_obj::set_property, _EXTRA=extra
 
   return, 1
 
@@ -716,6 +1070,7 @@ pro pfo_plot_obj__define
   objectClass = $
      {pfo_plot_obj, $
       ppfo_plot_obj_descr: ptr_new(), $  ;; Pointer to description structure
+      plot_pfo_obj	: obj_new(), $ ;; pfo_obj that is used by default for plots
       plot_window_index	: 0, $ ;; window number into which plot will be 
       plot_xsize	: 0, $ ;; X-dimension of plot window (pixels)
       plot_ysize	: 0, $ ;; Y-dimension of plot window (pixels
@@ -731,10 +1086,14 @@ pro pfo_plot_obj__define
       plot_Yunits	: 0B, $ ;; When X-axis reads in Xaxis, determines if Yaxis reads in Yin or Yin/(dXaxis/dXin)
       plot_xlog		: 0B, $ ;; xlog keyword to plot
       plot_ylog		: 0B, $ ;; ylog keyword to plot (main window only)
-      plot_Xin_title		: '', $ ;; title for X-axis plots when in Xin mode (e.g. channels)
-      plot_Xaxis_title	: '', $ ;; title for X-axis plots when in Xaxis mode (e.g. keV)
-      plot_Yin_Xin_title	: '', $ ;; title for Y-axis plots when Yunits=!pfo.Xin regardless of Xunits value (e.g. counts/channel)
-      plot_Yin_Xaxis_title	: '', $ ;; title for X-axis plots when Xunits=!pfo.Xaxis and Yunits=!pfo.Xaxis (e.g. counts/keV)
+      plot_Xin_title	: '', $ ;; title for X-axis plots when in Xin mode (e.g. dispersion or pulse height)
+      plot_Xin_units	: '', $ ;; units for X-axis plots when in Xin mode (e.g. pixels or channels)
+      plot_Xaxis_title	: '', $ ;; title for X-axis plots when in Xaxis mode (e.g. dispersion or energy)
+      plot_Xaxis_units	: '', $ ;; units for X-axis plots when in Xaxis mode (e.g. wavelength or keV)
+      plot_Yin_Xin_title	: '', $ ;; title for Y-axis plots when Yunits=!pfo.Xin regardless of Xunits value (e.g. usually blank)
+      plot_Yin_Xin_units	: '', $ ;; units for Y-axis plots when Yunits=!pfo.Xin regardless of Xunits value (e.g. electrons/pixel or counts/channel)
+      plot_Yin_Xaxis_title	: '', $ ;; title for X-axis plots when Xunits=!pfo.Xaxis and Yunits=!pfo.Xaxis (usually blank)
+      plot_Yin_Xaxis_units	: '', $ ;; units for X-axis plots when Xunits=!pfo.Xaxis and Yunits=!pfo.Xaxis (e.g. Rayleighs/A or counts/keV)
       pplot_ispec	: ptr_new(), $ ;; pointer to (list of) ispecs to plot
       pplot_iROI	: ptr_new(), $ ;; pointer to (list of) iROIs to plot
       poplot_call_list	: ptr_new(), $ ;; a list of procedures which will overplot information on the main plot window
