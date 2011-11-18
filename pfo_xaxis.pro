@@ -44,9 +44,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_xaxis.pro,v 1.4 2011/09/08 20:08:01 jpmorgen Exp $
+; $Id: pfo_xaxis.pro,v 1.5 2011/11/18 15:35:20 jpmorgen Exp $
 ;
 ; $Log: pfo_xaxis.pro,v $
+; Revision 1.5  2011/11/18 15:35:20  jpmorgen
+; Change call to pfo_parinfo_parse to use parinfo as a keyword.
+;
 ; Revision 1.4  2011/09/08 20:08:01  jpmorgen
 ; Fix bug
 ;
@@ -93,7 +96,7 @@ function pfo_Xaxis, parinfo, Xin=Xin, idx=idx, _REF_EXTRA=extra
   ;; the command line, but other than that, rely on _EXTRA to pass all
   ;; other arguments through (including ispec, iROI, /allspec,
   ;; /allROI, etc.
-  junk = pfo_parinfo_parse(/calc, parinfo, idx=Xaxis_idx, $
+  junk = pfo_parinfo_parse(/calc, parinfo=parinfo, idx=Xaxis_idx, $
                            Xin=Xin, Xaxis=Xaxis, _EXTRA=extra)
   return, Xaxis
 
