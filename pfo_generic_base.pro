@@ -50,9 +50,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_generic_base.pro,v 1.3 2011/09/16 13:42:32 jpmorgen Exp $
+; $Id: pfo_generic_base.pro,v 1.4 2011/11/18 15:59:04 jpmorgen Exp $
 ;
 ; $Log: pfo_generic_base.pro,v $
+; Revision 1.4  2011/11/18 15:59:04  jpmorgen
+; Added no_scroll option
+;
 ; Revision 1.3  2011/09/16 13:42:32  jpmorgen
 ; Moved tlb resize event handler to cw_obj, cleaned up cw_obj widget
 ; hierarchy stuff
@@ -80,13 +83,14 @@ function pfo_generic_base_obj::init, $
    title=title, $	;; title string
    x_scroll_size=x_scroll_size, $ ;; size of scrolling area (widget sizes appropriately)
    y_scroll_size=y_scroll_size, $ ;; size of scrolling area (widget sizes appropriately)
+   no_scroll=no_scroll, $ ;; don't put default scroll bars on
    $;;scr_xsize=scr_xsize, $
    $;;scr_ysize=scr_ysize, $
    pfo_obj=pfo_obj, $
    $ ;; For nicer display, set realize=0 and issue the command widget_control, /realize, ID in the 
    $ ;; calling code after the widget is filled
    realize=realize, $ 
-   _REF_EXTRA=extra ;; All other input parameters are passed to underlying routines via _REF_EXTRA
+   _REF_EXTRA=extra ;; All other input parameters are passed to underlying routines via _REF_EXTRA.  These can override values specified in, e.g. pfo_cw_obj::init
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -103,20 +107,23 @@ function pfo_generic_base_obj::init, $
   if N_elements(title) eq 0 then $
      title = 'PFO GENERIC BASE'
 
-  ;; Default scroll sizes
-  if N_elements(x_scroll_size) eq 0 then x_scroll_size = 640
-  if N_elements(y_scroll_size) eq 0 then y_scroll_size = 512
-  ;; if N_elements(scr_xsize) eq 0 then scr_xsize = 640
-  ;; if N_elements(scr_ysize) eq 0 then scr_ysize = 512
+  ;; Default to automatically put on scroll bars
+  if NOT keyword_set(no_scroll) then begin
+     ;; Default scroll sizes
+     if N_elements(x_scroll_size) eq 0 then x_scroll_size = 640
+     if N_elements(y_scroll_size) eq 0 then y_scroll_size = 512
+     ;; if N_elements(scr_xsize) eq 0 then scr_xsize = 640
+     ;; if N_elements(scr_ysize) eq 0 then scr_ysize = 512
 
-  ;; Make sure scroll sizes aren't bigger than the screen.
-  ;; Note: this creates and kills 2 widgets
-  screen = get_screen_size() * 0.9
-  x_scroll_size = screen[0] < x_scroll_size
-  y_scroll_size = screen[1] < y_scroll_size
+     ;; Make sure scroll sizes aren't bigger than the screen.
+     ;; Note: this creates and kills 2 widgets
+     screen = get_screen_size() * 0.9
+     x_scroll_size = screen[0] < x_scroll_size
+     y_scroll_size = screen[1] < y_scroll_size
 
-  ;;scr_xsize = screen[0] < scr_xsize
-  ;;scr_ysize = screen[1] < scr_ysize
+     ;;scr_xsize = screen[0] < scr_xsize
+     ;;scr_ysize = screen[1] < scr_ysize
+  endif ;; Putting on scroll bars
 
   ;; Call our inherited init routines.  This creates a top-level base
   ;; with a menu bar and makes sure that uvalue can be set to
