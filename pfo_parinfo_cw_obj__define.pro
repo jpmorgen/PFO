@@ -28,7 +28,7 @@
 ;
 ; SIDE EFFECTS:
 ;
-; RESTRICTIONS:  Uses coyote library linked_list__define
+; RESTRICTIONS:  Uses coyote library linkedlist__define
 ;
 ; PROCEDURE:
 ;
@@ -36,9 +36,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_cw_obj__define.pro,v 1.4 2011/09/16 11:16:02 jpmorgen Exp $
+; $Id: pfo_parinfo_cw_obj__define.pro,v 1.5 2011/11/18 15:57:25 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_cw_obj__define.pro,v $
+; Revision 1.5  2011/11/18 15:57:25  jpmorgen
+; Minor comment update
+;
 ; Revision 1.4  2011/09/16 11:16:02  jpmorgen
 ; Played with status_mask stuff.  Still not sure if I like it
 ;
@@ -134,7 +137,7 @@ end
 ;; Cleanup method
 pro pfo_parinfo_cw_obj::cleanup
   ;; Take ourselves off of the repopulate list.  This does not cause
-  ;; problems if we weren't registereed in the first place.
+  ;; problems if we weren't registered in the first place.
   self.pfo_obj->unregister_repop, self
   ;; Free our heap variables
   ptr_free, self.pidx

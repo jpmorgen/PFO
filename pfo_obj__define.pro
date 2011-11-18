@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj__define.pro,v 1.6 2011/11/18 15:52:50 jpmorgen Exp $
+; $Id: pfo_obj__define.pro,v 1.7 2011/11/18 16:01:17 jpmorgen Exp $
 ;
 ; $Log: pfo_obj__define.pro,v $
+; Revision 1.7  2011/11/18 16:01:17  jpmorgen
+; Minor comment update
+;
 ; Revision 1.6  2011/11/18 15:52:50  jpmorgen
 ; Edit method now uses pfo_fit
 ;
@@ -59,7 +62,7 @@
 ;-
 
 
-;; Edit method brings up pfo_fit_widget
+;; Edit method brings up pfo_fit
 pro pfo_obj::edit, $
    _REF_EXTRA=extra
   pfo_fit, pfo_obj=self, _EXTRA=extra

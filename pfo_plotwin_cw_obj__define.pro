@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plotwin_cw_obj__define.pro,v 1.1 2011/11/11 15:49:12 jpmorgen Exp $
+; $Id: pfo_plotwin_cw_obj__define.pro,v 1.2 2011/11/18 15:54:38 jpmorgen Exp $
 ;
 ; $Log: pfo_plotwin_cw_obj__define.pro,v $
+; Revision 1.2  2011/11/18 15:54:38  jpmorgen
+; Minor comment update
+;
 ; Revision 1.1  2011/11/11 15:49:12  jpmorgen
 ; Initial revision
 ;
@@ -102,7 +105,9 @@ function pfo_plotwin_cw_obj::init, $
   ;; Use our local set_property method to store property and register
   ;; our event handler(s).  Use local method in case we are inherited
   self->pfo_plotwin_cw_obj::set_property, _EXTRA=extra
-
+  
+  ;; If we made it here, we have successfully set up our object, it is
+  ;; up to our inheriting routines to do the rest
   return, 1
 
 end
