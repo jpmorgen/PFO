@@ -64,9 +64,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_roi.pro,v 1.3 2011/09/08 20:15:21 jpmorgen Exp $
+; $Id: pfo_oplot_roi.pro,v 1.4 2011/11/18 16:10:59 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_roi.pro,v $
+; Revision 1.4  2011/11/18 16:10:59  jpmorgen
+; Fix minor bug
+;
 ; Revision 1.3  2011/09/08 20:15:21  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -121,8 +124,10 @@ pro pfo_oplot_ROI, $
   ;; The avoid color list would work better if we had an object that
   ;; registered the color property of each oplot 
   if N_elements(oplot_ROI_avoid_color) eq 0 then oplot_ROI_avoid_color = !pfo.oplot_parinfo_color
-  ;; Add to that the iROI color we use here
+  ;; Add to that the allROI color we use here
   pfo_array_append, oplot_ROI_avoid_color, oplot_ROI_allROI_color
+  ;; And 0 does not make a good color
+  pfo_array_append, oplot_ROI_avoid_color, 0
 
   ;; Get our default yaxis
   Yaxis  = pfo_obj->Yin()
@@ -201,6 +206,10 @@ pro pfo_oplot_ROI, $
                   /no_update, 'pfo_ROI_Xin_idx', Xin=Xin, params=params, idx=idx, $
                   ispec=tispec[is], iROI=tiROI[iR], $
                   pfo_obj=pfo_obj, _EXTRA=calc_args)
+
+        ;; Handle case where there are no points in the ROI
+        if N_elements(Xin_idx) eq 1 and Xin_idx[0] eq !tok.nowhere then $
+           CONTINUE
 
         oplot, xaxis[Xin_idx], yaxis[Xin_idx], color=color, psym=oplot_data_psym, $
                thick=thick, _EXTRA=oplot_ROI_extra
