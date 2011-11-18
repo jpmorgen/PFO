@@ -63,9 +63,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_update.pro,v 1.3 2011/09/08 20:18:40 jpmorgen Exp $
+; $Id: pfo_parinfo_update.pro,v 1.4 2011/11/18 16:14:29 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_update.pro,v $
+; Revision 1.4  2011/11/18 16:14:29  jpmorgen
+; Minor comment update
+;
 ; Revision 1.3  2011/09/08 20:18:40  jpmorgen
 ; Added completed_updates system to help with interdependencies
 ;
@@ -103,8 +106,10 @@ pro pfo_parinfo_update, $
   if N_elements(parinfo) eq 0 then $
     return
 
-  ;; Make sure our template has the right tags.
-  junk = pfo_parinfo_template(required_tags=required_tags, _EXTRA=extra)
+  ;; Make sure our template has the right tags.  This makes sure that
+  ;; it has the tags that correspond to this parinfo.  It also adds
+  ;; any additional required_tags
+  junk = pfo_parinfo_template(set=parinfo, required_tags=required_tags, _EXTRA=extra)
 
   ;; Use struct_append to add the tags to the parinfo
   if keyword_set(required_tags) then $
