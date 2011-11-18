@@ -61,9 +61,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_xin_idx.pro,v 1.3 2011/09/01 22:26:26 jpmorgen Exp $
+; $Id: pfo_roi_xin_idx.pro,v 1.4 2011/11/18 15:36:37 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_xin_idx.pro,v $
+; Revision 1.4  2011/11/18 15:36:37  jpmorgen
+; Change call to pfo_parinfo_parse to use parinfo as a keyword.  Be more
+; careful with active/inactive status of ROIs
+;
 ; Revision 1.3  2011/09/01 22:26:26  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -102,14 +106,23 @@ function pfo_ROI_Xin_idx, $
   ;; Make sure idx into parinfo exists
   pfo_idx, parinfo, idx
 
-  ;; Look for pfo_ROI functions
-  ROI_idx = pfo_fidx(parinfo, 'pfo_ROI', idx=idx, nfunct=nfunct, pfo_obj=pfo_obj)
+  ;; Look for any pfo_ROI functions of any status
+  ROI_idx = pfo_fidx(parinfo, 'pfo_ROI', idx=idx, nfunct=nfunct, $
+                     status_mask=!pfo.all_status, pfo_obj=pfo_obj)
   ;; If there are none, our job is done, just return the entire idx
   ;; into Xin
   if nfunct eq 0 then $
      return, Xin_idx
 
-  ;; If we made it here, we have some pfo_ROI functions to work with
+  ;; Now look just for active ROIs
+  ROI_idx = pfo_fidx(parinfo, 'pfo_ROI', idx=ROI_idx, nfunct=nfunct, $
+                     status_mask=!pfo.active, pfo_obj=pfo_obj)
+  ;; If there are none, our job is done, but in this case  return
+  ;; !tok.nowhere to signal that we don't have any valid ROI points
+  if nfunct eq 0 then $
+     return, !tok.nowhere
+
+  ;; If we made it here, we have some active pfo_ROI functions to work with
 
   ;; Limit our ROI function(s) to the ones that the user wants
   ROI_idx = pfo_ROI_idx(parinfo, idx=ROI_idx, ispec=ispec, iROI=iROI, count=count)
@@ -140,7 +153,7 @@ function pfo_ROI_Xin_idx, $
   ;; wanted.  We puffed them out with Xaxis_idx.  With /allspec and
   ;; /allROI, we make sure that the Xaxis_idx don't get
   ;; inappropriately taken back out again.
-  junk = pfo_parinfo_parse(/calc, parinfo, Xin=Xin, idx=ROI_idx, $
+  junk = pfo_parinfo_parse(/calc, parinfo=parinfo, Xin=Xin, idx=ROI_idx, $
                            /allspec, /allROI, ROI_Xin_idx=ROI_Xin_idx, $
                            pfo_obj=pfo_obj, _EXTRA=extra)
 
