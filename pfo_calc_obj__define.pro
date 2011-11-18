@@ -14,20 +14,17 @@
 ; Xin), Yaxis and deviates between the Yaxis and data Y-axis (Yin).
 
 ; WARNING: fundamentally, calculations are intended to be made on the
-; encapsulated property of this object.  If keywords overriding this
+; encapsulated property of this object.  When keywords overriding this
 ; property are given, such as Xin, Yin, parinfo, and params (see
-; parinfo_cache_ok for full list), the externally supplied quantities
-; are temporarily moved into the object and then moved back out again
-; with the calculation finishes successfully.  This move is done in a
-; somewhat sly manner by pfo_calc_obj::parinfo_cache_ok.  Some efforts
-; have been made to CATCH errors in such a way that the external and
-; internal property always get swapped back, but these efforts might
-; not be perfect.  If is always better to do the swap of internal and
-; external quantities such as parinfo, Xin, Yin, etc. with the
-; appropriate methods BEFORE these routines are called.  This has the
-; side-benefit of making use of the caching features for the
-; externally supplied information.  See pfo_plot_obj::plot for an
-; example of this in the case of parinfo.
+; parinfo_cache_ok for full list), IDL's _REF_EXTRA mechanism is used
+; to allow these externally supplied values to temporarily override
+; the encapsulated property.  The system has not been fully debugged
+; in this mode: internal property might still be used in some of the
+; calculations.  A better approach is to swap internal and external
+; quantities, such as parinfo, Xin, Yin, Yerr, etc. BEFORE these
+; routines are called.  This has the side-benefit of making use of the
+; caching features for the externally supplied information.  See
+; pfo_plot_obj::plot for an example of this in the case of parinfo.
 
 ;
 ; INPUTS:
@@ -54,9 +51,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_calc_obj__define.pro,v 1.4 2011/09/08 19:59:27 jpmorgen Exp $
+; $Id: pfo_calc_obj__define.pro,v 1.5 2011/11/18 15:29:32 jpmorgen Exp $
 ;
 ; $Log: pfo_calc_obj__define.pro,v $
+; Revision 1.5  2011/11/18 15:29:32  jpmorgen
+; Improve deviates code, documentation, get rid of property swapping in
+; light of discovery about how _REF_EXTRA overrides keywords
+;
 ; Revision 1.4  2011/09/08 19:59:27  jpmorgen
 ; Cleaned up/created update of widgets at pfo_parinfo_obj level
 ;
@@ -114,33 +115,6 @@ pro pfo_calc_obj::refresh, $
 
 end
 
-;; 
-;; function pfo_calc_obj::widget, $
-;;    _REF_EXTRA=extra
-;; 
-;;   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
-;;   if !pfo.debug le 0 then begin
-;;      CATCH, err
-;;      if err ne 0 then begin
-;;         CATCH, /CANCEL
-;;         message, /NONAME, !error_state.msg, /CONTINUE
-;;         message, 'ERROR: caught the above error.  Widget not properly initialized ', /CONTINUE
-;;         return, !tok.nowhere
-;;      endif
-;;   endif ;; not debugging
-;; 
-;;   tlbID = pfo_generic_base(title='PFO PLOTWIN', containerID=containerID, $
-;;                         mbarID=mbarID, /tlb_size_events, pfo_obj=self)
-;;   ID = pfo_plotwin_cw(containerID, window_index=window_index, pfo_obj=self)
-;;   self->plot, window_index=window_index
-;; 
-;;   
-;;   return, tlbID
-;; 
-;; 
-;; end
-
-
 ;; Invalidate cached values when we have some change to fundamental
 ;; property
 pro pfo_calc_obj::invalidate_cache
@@ -158,10 +132,7 @@ end
 
 ;; This is a helper routine for the Yaxis, Xaxis, etc. methods that
 ;; checks keyword arguments to see if anything that would invalidate
-;; the cache is being used.  WARNING: when Xin, Yin, parinfo, params,
-;; or customized idx are defined, this MUST BE CALLED TWICE.  The
-;; first time it is called, it swaps the external parinfo for the
-;; encapsulated parinfo, the second time it swaps them back.
+;; the cache is being used.
 function pfo_calc_obj::parinfo_cache_ok, $
    Xin=Xin, $ ;; could be different than encapsulated Xin.  See WARNING above
    Yin=Yin, $ ;; like Xin, but only used in deviates
@@ -175,33 +146,7 @@ function pfo_calc_obj::parinfo_cache_ok, $
    ROI_Xin_idx=ROI_Xin_idx, $ ;; return parameter we know won't affect our cache, like xaxis
    _EXTRA=extra ;; any extra parameters may change the way the function is calculated, so it is not safe to cache
 
-  ;; Swap external Xin with cache Xin
-  if N_elements(Xin) ne 0 then begin
-     temp = temporary(Xin)
-     Xin = temporary(*self.pXin)
-     *self.pXin = temporary(temp)
-     invalidate_cache = 1
-  endif
-  ;; Swap external Yin with cache Yin
-  if N_elements(Yin) ne 0 then begin
-     temp = temporary(Yin)
-     Yin = temporary(*self.pYin)
-     *self.pYin = temporary(temp)
-     invalidate_cache = 1
-  endif
-  ;; Swap external parinfo with cache parinfo
-  if N_elements(parinfo) ne 0 then begin
-     temp = temporary(parinfo)
-     parinfo = temporary(*self.pparinfo)
-     *self.pparinfo = temporary(temp)
-     invalidate_cache = 1
-  endif
-  if keyword_set(invalidate_cache) then $
-     self->invalidate_cache
-
-  ;; Return our boolean value.  NOTE, it is important that the
-  ;; *self.pparinfo swap with parinfo happen before this so that the
-  ;; provided idx and parinfo are consistent.
+  ;; Return our boolean value.
   return, (N_elements(Xin) + $		;; Keywords that would invalidate cache
            N_elements(Yin) + $
            N_elements(parinfo) + $
@@ -249,8 +194,9 @@ function pfo_calc_obj::Yaxis, $
   ;; Call pfo_parinfo_parse.  Also grab all of the other quantities
   ;; that are calculated "for free."  This only costs a little extra
   ;; space for ROI_Xin_idx, which is only build up in
-  ;; pfo_parinfo_parse when requested.
-  Yaxis = pfo_parinfo_parse(/calc, *self.pparinfo, Xin=*self.pXin, $
+  ;; pfo_parinfo_parse when requested.  NOTE: if Xin is passed via
+  ;; _REF_EXTRA, it overrides the Xin passed here here.
+  Yaxis = pfo_parinfo_parse(/calc, parinfo=*self.pparinfo, Xin=*self.pXin, $
                             xaxis=xaxis, ROI_Xin_idx=ROI_Xin_idx, pfo_obj=self, $
                             error=error, _EXTRA=extra)
 
@@ -258,8 +204,6 @@ function pfo_calc_obj::Yaxis, $
   ;; been calculated so far.  Other quantities derived from these
   ;; (e.g. deviates, dXaxis_dXin) are cached when the user first asks
   ;; for them.  Xaxis and ROI_Xin_idx are also return quantities.
-  ;; NOTE: parinfo_cache_ok puts externally supplied Xin and parinfo
-  ;; back into their keywords
   if self->parinfo_cache_ok(error=error, no_cache=no_cache, no_copy=no_copy, _EXTRA=extra) then begin
      *self.pXaxis = Xaxis
      *self.pYaxis = Yaxis
@@ -282,9 +226,8 @@ function pfo_calc_obj::Xaxis, $
    _REF_EXTRA=extra
 
   ;; Check to see if we can just use our cache.  NOTE:
-  ;; parinfo_cache_ok exchanges pfo_obj's Xin and parinfo with any
-  ;; externally Xin and parinfo values so that all calculation is done
-  ;; from encapsulated data
+  ;; parinfo_cache_ok exchanges pfo_obj's parinfo with any external
+  ;; parinfo so that all calculation is done from encapsulated data
   if N_elements(*self.pXaxis) ne 0 and $
      self->parinfo_cache_ok(_EXTRA=extra) then begin
      ;; If we made it here, we can work with the cache
@@ -296,7 +239,8 @@ function pfo_calc_obj::Xaxis, $
      return, *self.pXaxis
   endif ;; Using cache value
 
-  ;; If we made it here, we need to do a fresh calculation
+  ;; If we made it here, we need to do a fresh calculation.  NOTE: if
+  ;; Xin is passed via _REF_EXTRA, it overrides Xin here.
   
   ;; Call pfo_Xaxis.
   Xaxis = pfo_Xaxis(*self.pparinfo, Xin=*self.pXin, pfo_obj=self, $
@@ -324,9 +268,8 @@ function pfo_calc_obj::ROI_Xin_idx, $
    _REF_EXTRA=extra
 
   ;; Check to see if we can just use our cache.  NOTE:
-  ;; parinfo_cache_ok exchanges pfo_obj's Xin and parinfo with any
-  ;; externally Xin and parinfo values so that all calculation is done
-  ;; from encapsulated data
+  ;; parinfo_cache_ok exchanges pfo_obj's parinfo with any external
+  ;; parinfo so that all calculation is done from encapsulated data
   if N_elements(*self.pROI_Xin_idx) ne 0 and $
      self->parinfo_cache_ok(_EXTRA=extra) then begin
      ;; If we made it here, we can work with the cache
@@ -338,7 +281,8 @@ function pfo_calc_obj::ROI_Xin_idx, $
      return, *self.pROI_Xin_idx
   endif ;; Using cache value
 
-  ;; If we made it here, we need to do a fresh calculation
+  ;; If we made it here, we need to do a fresh calculation.  NOTE: if
+  ;; Xin is passed via _REF_EXTRA, it overrides Xin here.
   
   ROI_Xin_idx = pfo_ROI_Xin_idx(*self.pparinfo, Xin=*self.pXin, pfo_obj=self, $
                                 error=error, _EXTRA=extra)
@@ -357,25 +301,23 @@ end
 ;; described by parinfo and the data encapsulated in Yin.  This
 ;; function calculates the deviates.  If the calculation is done
 ;; directly from encapsulated property, the result is cached for fast
-;; access.  NOTE: by default, NaN and Infinity points are excised from
-;; the deviates before they are returned.  This confuses plotting
-;; routines which are syncronized with the Xaxis
+;; access.
 function pfo_calc_obj::deviates, $
    error=error, $ ;; return error if there was a problem in pfo_parinfo_parse, also, don't cache
-   parinfo=parinfo, $ 	;; We need to capture externally supplied parinfo and Xin to make sure they aren't swapped
-   Xin=Xin, $ 		;; with property too many times in parinfo_cache_ok due to our call to self->Yaxis()
+   Yin=Yin, $         ;; Allow user to supply one-time Yerr
+   Yerr=Yerr, $         ;; Allow user to supply one-time Yerr
+   weights=weights, $   ;; Allow user to supply one-time weights
    no_copy=no_copy, $ ;; Moves deviates value out of object to save memory, but it does cost computation the next time around
    no_cache=no_cache, $ ;; Equivalent meaning to no_copy
-   hide_infinity=hide_infinity, $ ;; Delete instances of infinity from the deviates.  Changes length of vector, so results can't be cached
-   hide_NaN=hide_NaN, $ ;; Delete instances of NaN from the deviates.  Changes length of vector, so results can't be cached
+   hide_infinity=hide_infinity, $ ;; Delete instances of infinity from the deviates.  Changes length of vector, so results can't be cached, but handy for MPFIT
+   hide_NaN=hide_NaN, $ ;; Delete instances of NaN from the deviates.  Changes length of vector, so results can't be cached, but handy for MPFIT
   _REF_EXTRA=extra
   
-  ;; Check to see if we can work from a cache.  NOTE: parinfo_cache_ok
-  ;; exchanges pfo_obj's Xin and parinfo with any externally Xin and
-  ;; parinfo values so that all calculation is done from encapsulated
-  ;; data
+  ;; Check to see if we can just use our cache.  NOTE:
+  ;; parinfo_cache_ok exchanges pfo_obj's parinfo with any external
+  ;; parinfo so that all calculation is done from encapsulated data
   if N_elements(*self.pdeviates) ne 0 and $
-     self->parinfo_cache_ok(parinfo=parinfo, Xin=Xin, _EXTRA=extra) then begin
+     self->parinfo_cache_ok(_EXTRA=extra) then begin
      if keyword_set(no_copy) or keyword_set(no_cache) then begin
         ;; This quick one-time transfer invalidates our cache
         return, temporary(*self.pdeviates)
@@ -385,46 +327,65 @@ function pfo_calc_obj::deviates, $
   endif ;; working from cache
 
   ;; If we made it here, we need to calculate the deviates.
-  ;; Handle the different cases of deviates a la MPFITFUN
+  ;; Build up deviates using the best information available and
+  ;; managing memory carefully.
 
-  ;; Start with the case that we have no Yerr or weights.  The best
-  ;; deviate we can muster in this case is just the residual, with
-  ;; equal weighting to everything.  NOTE: our call to Yaxis() should
-  ;; not exchange parinfo and Xin, since we have already done that
-  ;; once, above.
-  deviates = *self.pYin - self->Yaxis(error=error, _EXTRA=extra)
+  ;; Start assuming we have no property or input from which to
+  ;; calculate deviates
+  deviates = !values.d_NAN
+  ;; Prefer command-line Yin over property (if available)
+  if N_elements(Yin) ne 0 then $
+     deviates = Yin $
+  else $
+     if N_elements(*self.pYin) ne 0 then $
+        deviates = *self.pYin
 
-  ;; If we have weights, use them
-  if N_elements(*self.pweights) gt 0 then begin
-     deviates = temporary(deviates) * *self.pweights
+  ;; Calculate the residual
+  deviates = temporary(deviates) - self->Yaxis(error=error, _EXTRA=extra)
+
+  ;; Check to see if we have weights
+  if N_elements(weights) gt 0 then begin
+     ;; Command line weights
+     deviates = temporary(deviates) * weights
   endif else begin
-     ;; We have no weights, check to see if we have Yerr
-     if N_elements(*self.pYerr) gt 0 then begin
-        deviates = temporary(deviates) / *self.pYerr
-     endif ;; Calculating deviates with Yerr
-  endelse ;; Deviates with weights or Yerr 
+     if N_elements(*self.pweights) gt 0 then begin
+        ;; Encapsulated weights
+        deviates = temporary(deviates) * *self.pweights
+     endif else begin
+        ;; We have no weights, check to see if we have Yerr
+        if N_elements(Yerr) gt 0 then begin
+           ;; Command line Yerr
+           deviates = temporary(deviates) / Yerr
+        endif else begin
+           if N_elements(*self.pYerr) gt 0 then begin
+              ;; Encapsulated Yerr
+              deviates = temporary(deviates) / *self.pYerr
+           endif ;; Deviates with encapsulted Yerr
+        endelse ;; command line vs. encapsulated Yerr
+     endelse ;; weights vs Yerr
+  endelse ;; Command line weights vs everything else
 
-  ;; Get rid of infinities (default)
+  ;; Get rid of infinities
   if keyword_set(hide_infinity) then begin
      good_idx = where(finite(deviates, /infinity) eq 0, count)
      if count eq 0 then $
-        message, 'ERROR: no good points to fit'
+        message, 'ERROR: no good points'
      ;; unwrap
      deviates = deviates[good_idx]
   endif
-  ;; Get rid of NaNs (default)
+  ;; Get rid of NaNs
   if keyword_set(hide_NaN) then begin
      good_idx = where(finite(deviates, /NAN) eq 0, count)
      if count eq 0 then $
-        message, 'ERROR: no good points to fit'
+        message, 'ERROR: no good points'
      ;; unwrap
      deviates = deviates[good_idx]
   endif
 
   ;; Now handle our cache.  NOTE: parinfo_cache_ok puts externally
-  ;; supplied Xin, parinfo, etc. back into their keywords
+  ;; supplied parinfo back into its keyword
   if keyword_set(hide_infinity) + keyword_set(hide_NAN) eq 0 $
-     and self->parinfo_cache_ok(error=error, no_cache=no_cache, no_copy=no_copy, parinfo=parinfo, Xin=Xin, _EXTRA=extra) then begin
+     and self->parinfo_cache_ok(error=error, no_cache=no_cache, no_copy=no_copy, _EXTRA=extra) then begin
      *self.pdeviates = deviates
   endif ;; caching
 
@@ -435,18 +396,16 @@ end
 ;; dXaxis/dXin allows Yaxis to read in Xaxis units
 function pfo_calc_obj::dXaxis_dXin, $
    error=error, $ ;; return error if there was a problem in pfo_parinfo_parse, also, don't cache
-   parinfo=parinfo, $   ;; We need to capture externally supplied parinfo and Xin to make sure they aren't swapped
    Xin=Xin, $           ;; with property too many times in parinfo_cache_ok due to our call to self->Xaxis()
    no_copy=no_copy, $ ;; Moves dXaxis_dXin value out of object to save memory, but it does cost computation the next time around
    no_cache=no_cache, $    ;; Equivalent meaning to no_copy
   _REF_EXTRA=extra
   
   ;; Check to see if we can work from a cache.  NOTE: parinfo_cache_ok
-  ;; exchanges pfo_obj's Xin and parinfo with any externally Xin and
-  ;; parinfo values so that all calculation is done from encapsulated
-  ;; data
+  ;; exchanges pfo_obj's parinfo with any external parinfo so that all
+  ;; calculation is done from encapsulated data
   if N_elements(*self.pdXaxis_dXin) ne 0 and $
-     self->parinfo_cache_ok(parinfo=parinfo, Xin=Xin, _EXTRA=extra) then begin
+     self->parinfo_cache_ok(Xin=Xin, _EXTRA=extra) then begin
      if keyword_set(no_copy) or keyword_set(no_cache) then begin
         ;; This quick one-time transfer invalidates our cache
         return, temporary(*self.pdXaxis_dXin)
@@ -456,32 +415,244 @@ function pfo_calc_obj::dXaxis_dXin, $
   endif ;; working from cache
   
   ;; If we made it here, we need to calculate dXaxis/dXin.  Catch any
-  ;; errors
+  ;; errors and return 1, to be gentle on our calling code
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'ERROR: caught the above error.  Not calculating derivative, returning 1', /CONTINUE
-        ;; Return our input parinfo and Xin keywords, if necessary
-        junk = self->parinfo_cache_ok(parinfo=parinfo, Xin=Xin, _EXTRA=extra)
+        message, 'WARNING: caught the above error.  Not calculating derivative, returning 1.  Use pfo_debug to track down error.', /CONTINUE
         return, 1d
      endif
   endif ;; not debugging
 
   ;; Do calculations in such a way as to minimize the number of copies
-  ;; of Xin.  NOTE: our call to Xaxis() should not exchange parinfo
-  ;; and Xin, since we have already done that once, above.
-  dXaxis_dXin = deriv(*self.pXin, self->Xaxis(error=error, _EXTRA=extra))
+  ;; of Xin.
+  if N_elements(Xin) ne 0 then $
+     dXaxis_dXin = deriv(Xin, self->Xaxis(Xin=Xin, error=error, _EXTRA=extra)) $
+  else $
+     dXaxis_dXin = deriv(*self.pXin, self->Xaxis(error=error, _EXTRA=extra))
 
   ;; Now handle our cache
   if keyword_set(error) + keyword_set(no_copy) + keyword_set(no_cache) eq 0 $
-     and self->parinfo_cache_ok(parinfo=parinfo, Xin=Xin, _EXTRA=extra) then begin
+     and self->parinfo_cache_ok(Xin=Xin, _EXTRA=extra) then begin
      *self.pdXaxis_dXin = dXaxis_dXin
   endif ;; caching
   
   return, dXaxis_dXin
+
+end
+
+;; Helper function for convert_coord method
+
+;; The basic idea is to always find the Xin value corresponding to the
+;; Xin, Xaxis or Yaxis value stored as "value" in our COMMON block.
+;; The COMMON block variable from_axis tells us which axis "value"
+;; comes from.
+function pfo_convert_coord_funct, Xin
+  ;; Common blocks are a pain (in my opinion).  We initilized idx to
+  ;; 'none' to make sure idx did not persist between calls to this
+  ;; routine and to avoid generating idx for no good reason.  The
+  ;; following code makes a local copy of idx if idx is set to
+  ;; something other than a string or makes lidx an undefined variable
+  ;; and passes that to the underlying routines.
+  COMMON pfo_convert_coord, value, from_axis, pfo_obj, idx
+
+  on_error, 0
+  lidx = 0
+  junk = temporary(lidx)
+  if N_elements(idx) ne 0 and size(/type, idx) ne !tok.string then $
+     lidx = idx
+  case from_axis of 
+     !pfo.Xin : return, value - Xin
+     !pfo.Xaxis : return, value - pfo_obj->Xaxis(Xin=Xin, idx=lidx)
+     !pfo.Yaxis : return, value - pfo_obj->Yaxis(Xin=Xin, idx=lidx)
+  endcase
+end
+
+;; General PFO coordinate conversion.  If we aren't doing a forward
+;; transformation (e.g. Xin to Xaxis or Yaxis), uses IDL's NEWTON
+;; function to do conversions from Yaxis or Xaxis to Xin and then go
+;; forward to the desired output axis.
+function pfo_calc_obj::convert_coord, $
+   value_in, $ ;; Input value or vector
+   parinfo=parinfo, $ ;; (optional) parinfo encapsulated in pfo_obj is generally preferred
+   idx=idx_in, $ ;; subset of parinfo
+   initial_guess=initial_guess_in, $ ;; optional, but recommended for multi-valued functions
+   from_Xin=from_Xin, $ ;; selectors to determine what axis value sits on and where it is going
+   from_Xaxis=from_Xaxis, $
+   from_Yaxis=from_Yaxis, $
+   to_Xin=to_Xin, $
+   to_Xaxis=to_Xaxis, $
+   to_Yaxis=to_Yaxis, $
+   Xin=Xin, $ 		;; output Xin axis value "for free"
+   Xaxis=Xaxis, $ 	;; output Xaxis value "for free"
+   max_initial_guess_search=max_initial_guess_search, $ ;; max number of searchers made for initial guess, if none provided
+   initial_guess_increment=initial_guess_increment, $ ;; increment to Xin applied to find a working initial guess, if none provided.  Search is made in both positive and negative directions
+   _REF_EXTRA=extra ;; args to/from NEWTON (check=check is a useful one for global/local minimum)
+
+  ;; Yes, common blocks are yucky, but IDL's NEWTON requires it.
+  ;; Note value is a single value of the function, value_in might be
+  ;; multiple values
+  COMMON pfo_convert_coord, value, from_axis, pfo_obj, idx
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.', /CONTINUE
+        message, 'USAGE: result=pfo_calc_obj::convert_coord(value, parinfo=parinfo, idx=idx, /from_Xin, /from_Xaxis, /from_Yaxis, /to_Xin, /to_Xaxis, /to_Yaxis, Xin=Xin, Xaxis=Xaxis, max_initial_guess_search=max_initial_guess_search, initial_guess_increment=initial_guess_increment'
+     endif
+  endif ;; not debugging
+
+  ;; Quietly return NaN if we have no input
+  npts = N_elements(value_in)
+  if npts eq 0 then $
+     return, !values.d_NAN
+
+  ;; Set up our from_axis COMMON block variable with a token.  Beware the
+  ;; persistence of COMMON block variables.  Fortunately, not in type.
+  idx = 'none'
+  from_axis = 0
+  if keyword_set(from_Xin) then $
+    from_axis = !pfo.Xin 
+  if keyword_set(from_Xaxis) then $
+    from_axis = !pfo.Xaxis 
+  if keyword_set(from_Yaxis) then $
+    from_axis = !pfo.Yaxis
+  if NOT keyword_set(from_axis) then $
+    message, 'ERROR: one of /from_Xin, /from_Xaxis, /from_Yaxis must be specified'
+
+  ;; Set up to_axis variable with an axis token
+  if keyword_set(to_Xin) then $
+    to_axis = !pfo.Xin 
+  if keyword_set(to_Xaxis) then $
+    to_axis = !pfo.Xaxis 
+  if keyword_set(to_Yaxis) then $
+    to_axis = !pfo.Yaxis
+  if NOT keyword_set(to_axis) then $
+    message, 'ERROR: one of /to_Xin, /to_Xaxis, /to_Yaxis must be specified'
+
+  pfo_obj = self
+
+  ;; Check to see if we have a valid parinfo.  If not, quietly return
+  ;; our input value
+  if N_elements(*self.pparinfo) eq 0 and N_elements(parinfo) eq 0 then $
+     return, value_in
+
+  ;; Check other command line parameters
+  if N_elements(idx_in) ne 0 then $
+     idx = idx_in
+
+  if N_elements(max_initial_guess_search) eq 0 then $
+    max_initial_guess_search = 50
+  if N_elements(initial_guess_increment) eq 0 then $
+    initial_guess_increment = 10
+
+  ;; Check the dimensionality of initial guess
+  nig = N_elements(initial_guess_in) 
+  if nig ne 0 then $
+     if nig ne 1 or nig ne npts then $
+        message, 'ERROR: initial_guess must have 0, 1 or the same number of elements as value.'
+
+  CATCH, /CANCEL
+  ;; End of command line checking
+
+  
+  ;; Check for the trivial case where we are calculating from Xin.  In
+  ;; this case, we don't need NEWTON
+  if from_axis eq !pfo.Xin then $
+     return, value_in
+
+
+  ;; We will use IDL's NEWTON to find Xin for each point
+  Xin = make_array(npts, value=!values.d_NAN)
+
+  ;; Build in the capability to search around a little bit for the
+  ;; initial guess.
+  initial_guess_search = 0      ; counter for number of times we have tried
+
+  if N_elements(initial_guess_in) ne 0 then $
+     initial_guess = initial_guess_in
+
+  ;; Initial guess is required, so if the user hasn't
+  ;; supplied one, try to make one up.
+  if N_elements(initial_guess) eq 0 then begin
+     nig = 1
+     ;; This might take several iterations.  Start from 0, since we
+     ;; have no other idea
+     initial_guess = 0d
+     initial_guess_direction = 1 ; direction we are searching in
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        ;; Presumably our error is in NEWTON, meaning this initial
+        ;; guess didn't work.  Check to see if we have searched too
+        ;; many times in both directions
+        if initial_guess_search ge max_initial_guess_search and $
+           initial_guess_direction lt 0 then begin
+           message, /NONAME, !error_state.msg, /CONTINUE
+           message, 'ERROR: caught the above error.', /CONTINUE
+           message, 'ERROR: more than ' + strtrim(max_initial_guess_search, 2) + ' attempted and NEWTON still seems to be unable to find a solution.  Please supply an initial guess.  Retunring NaN(s)', /CONTINUE
+           return, make_array(npts, value=!values.d_NAN)
+        endif ;; error in fx_root
+
+        ;; Check to see if we have searched too many times in the
+        ;; positive direction
+        if initial_guess_search ge max_initial_guess_search and $
+           initial_guess_direction gt 0 then begin
+           ;; reset our counter
+           initial_guess_search = 0
+           ;; Start off our guess going in the negative direction
+           initial_guess = 0d
+           ;; Make sure we continue in the negative direction
+           initial_guess_direction = -1
+        endif
+
+        ;; Move our initial guess over
+        initial_guess += initial_guess_direction*initial_guess_increment
+
+     endif ;; Caught an error, presumably from NEWTON
+     ;; Increment our counter
+     initial_guess_search += 1
+  endif ;; no initial guess supplied
+
+  ;; If the user has specified an initial guess, report errors as
+  ;; they happen
+  if NOT keyword_set(initial_guess_search) then begin
+     ;; Catch errors the first time they happen
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg
+        message, 'ERROR: caught the above error.  Returning NaN(s)', /CONTINUE
+        return, make_array(npts, value=!values.d_NAN)
+     endif ;; error, presumably in NEWTON
+  endif ;; not searching for an initial guess
+
+  ;; Find our Xin value(s) that correspond to value
+  for i=0,npts-1 do begin
+     ;; Save this value in the COMMON block value variable
+     value = value_in[i]
+     ;; Get the proper initial guess
+     if nig eq 1 then $
+        ig = initial_guess $
+     else $
+        ig = initial_guess[i]
+     Xin[i] = newton(ig, $
+                     'pfo_convert_coord_funct', /double, $
+                     _EXTRA=extra)
+  endfor ;; each point in Xin
+
+  ;; Return values
+  case to_axis of 
+     !pfo.Xin:   return, Xin ;; this should have been done above
+     !pfo.Xaxis : return, self->Xaxis(Xin=Xin, idx=idx_in)
+     !pfo.Yaxis : return, self->Yaxis(Xin=Xin, idx=idx_in)
+  endcase
 
 end
 
@@ -540,6 +711,8 @@ pro pfo_calc_obj::set_property, $
      _EXTRA=extra
   ;; Don't run update just yet 
   self->pfo_parinfo_obj::set_property, parinfo_array=parinfo_array, /no_update, _EXTRA=extra
+  ;; Important to have parinfo stuff updated before plot stuff, since
+  ;; plot stuff depends on parinfo.
   self->pfo_plot_obj::set_property, property_set=property_set, _EXTRA=extra
 
   ;; Do our update if major property has changed
@@ -549,9 +722,11 @@ pro pfo_calc_obj::set_property, $
   endif ;; updating because of change of property
 
   ;; If we made it here, nothing major has changed, but the plot
-  ;; window(s) might need to be refreshed.
-  if keyword_set(property_set) then $
+  ;; window(s) and associated widgets might need to be refreshed.
+  if keyword_set(property_set) then begin
      self->replot
+     self->pfo_obj_cw_obj::refresh
+  endif
 
 end
 
@@ -649,9 +824,9 @@ function pfo_calc_obj::init, $
   ;; bubble back up to a higher-level routine
   ok = self->pfo_plot_obj::init(_EXTRA=extra)
   if NOT ok then return, 0
-  ok = self->pfo_parinfo_obj::init(_EXTRA=extra)
-  if NOT ok then return, 0
   ok = self->pfo_data_obj::init(p0, p1, p2, _EXTRA=extra)
+  if NOT ok then return, 0
+  ok = self->pfo_parinfo_obj::init(_EXTRA=extra)
   if NOT ok then return, 0
 
   return, 1
