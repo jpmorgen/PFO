@@ -91,9 +91,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cw_obj__define.pro,v 1.5 2011/09/22 23:50:17 jpmorgen Exp $
+; $Id: pfo_cw_obj__define.pro,v 1.6 2011/11/18 15:54:04 jpmorgen Exp $
 ;
 ; $Log: pfo_cw_obj__define.pro,v $
+; Revision 1.6  2011/11/18 15:54:04  jpmorgen
+; Added widget_base_args keyword.
+;
 ; Revision 1.5  2011/09/22 23:50:17  jpmorgen
 ; Add menus, generic resize
 ;
@@ -119,6 +122,10 @@ end
 
 function pfo_cw_obj::tlbID
   return, self.tlbID
+end
+
+function pfo_cw_obj::childID
+  return, self.childID
 end
 
 function pfo_cw_obj::mbarID
@@ -410,14 +417,18 @@ end
 function pfo_cw_obj::init, $
    parentID, $ 		;; Parent widget ID.  If not specified, or !tok.nowhere, a top-level base is created
    pfo_obj=pfo_obj, $	;; Encapsulates parinfo that will be displayed (optional)
-   first_child=first_child , $ ;; create a first child in which the self object is stored.  This clears room for a user-defined uvalue at the tlb.  Most pfo widgets don't need this kind of first child to work properly and they work more slowly if there is one
+   first_child=first_child, $ ;; create a first child in which the self object is stored.  This clears room for a user-defined uvalue at the tlb.  Most pfo widgets don't need this kind of first child to work properly and they work more slowly if there is one
+   child_args=child_args, $ ;; Any additional args to widget_base for creation of first child widget
    mbar=mbar, $		;; If present and widget will be a top-level base, is the widgetID of the menu bar (see IDL widget_base documentation)
    menu=menu, $		;; /menu indicates widget will be the top menu button suitable for insertion into an mbar
    title=title, $	;; title string (for top-level base widgets and tab widgets)
    tab_mode=tab_mode, $ ;; by default, tab_mode=1, so tabbing works
    help=help, $		;; Help string for this cw
-   _EXTRA=extra 	;; Capture extra keywords in the *self.pextra property.  
-  $			;; Note, these also include any _EXTRA to widget_base, at least for now
+   $ ;; widget_base_args and _EXTRA.  These are _combined_ and passed to widget_base.  However, they are stored separately
+   $ ;; as property, which allows a calling routine finer control over what is in *self.pextra, should internal routines
+   $ ;; need to be run again (e.g. in a repopulate method)
+   widget_base_args=widget_base_args_in, $ ;; (optional) _EXTRA args _only_ for widget_base
+   _EXTRA=extra 	;; These are combined with widget_base_args (if any) and also stored in *self.pextra for convenience
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -449,7 +460,9 @@ function pfo_cw_obj::init, $
      ;; Copy the pfo_obj object reference into own property.  This
      ;; allows our methods to call pfo_obj methods.  This isn't quite
      ;; the same as inheriting all of the stuff in the pfo_obj, but it
-     ;; is the next best thing.
+     ;; is the next best thing.  Also note that copying costs almost $
+     ;; ;; nothing since the actual pfo_obj is little more than a
+     ;; memory address
      self.pfo_obj = pfo_obj
   endelse
 
@@ -474,13 +487,21 @@ function pfo_cw_obj::init, $
 
   ;; Make our conception of the tlb of this widget as simple as
   ;; possible.  If the user wants the tlb to look different, any valid
-  ;; keywords to widget_base can be passed via _EXTRA.  --> I might
-  ;; eventually want to have a separate widget_base_args so as to not
-  ;; confuse this with the _EXTRA that are encapsulated above, but for
-  ;; now, it is convenient to lump them all together.
+  ;; keywords to widget_base can be passed via _EXTRA, or better yet,
+  ;; widget_base_args.
 
   ;; Default is no mbar
   self.mbarID = !tok.nowhere
+
+  ;; Handle our widget_base_args politely.  Always include the
+  ;; _EXTRA=extra args (if present)
+  if N_elements(extra) ne 0 then $
+     widget_base_args = extra
+  if N_elements(widget_base_args_in) ne 0 then begin
+     ;; Let IDL raise an error if there are duplicate tags, since this
+     ;; is a programming-level issue
+     pfo_struct_append, widget_base_args, widget_base_args_in
+  endif
 
   ;; Here is the code that figures out what kind of tlb to create: a
   ;; genuine tlb (with or without a menu bar), a tlb that has a parent
@@ -495,11 +516,11 @@ function pfo_cw_obj::init, $
      ;; See if we want a menu bar
      if arg_present(mbar) or N_elements(mbar) ne 0 then begin
         self.tlbID = $
-           widget_base(title=title, mbar=mbar, _EXTRA=extra)
+           widget_base(title=title, mbar=mbar, _EXTRA=widget_base_args)
         self.mbarID = mbar
      endif else begin
         ;; Just a plain base with no menu bar
-        self.tlbID = widget_base(title=title, _EXTRA=extra)
+        self.tlbID = widget_base(title=title, _EXTRA=widget_base_args)
      endelse ;; mbar or not
   endif else begin
      ;; Check to see if we are creating a regular compound widget or
@@ -507,10 +528,10 @@ function pfo_cw_obj::init, $
      if keyword_set(menu) then begin
         ;; This will raise an error if self.parentID is not an mbar
         ;; widgetID.        
-        self.tlbID = widget_button(self.parentID, _EXTRA=extra)
+        self.tlbID = widget_button(self.parentID, _EXTRA=widget_base_args)
      endif else begin
         ;; Regular compound widget case
-        self.tlbID = widget_base(self.parentID, _EXTRA=extra)
+        self.tlbID = widget_base(self.parentID, _EXTRA=widget_base_args)
      endelse
   endelse
 
@@ -537,10 +558,13 @@ function pfo_cw_obj::init, $
      ;; children of the first child so that the events are sure to be
      ;; handled by the pfo_cw_event_func.  If you don't get the
      ;; parentage right, hopefully the call to xmanager for the very
-     ;; most tlb has event_handler='pfo_cw_event_pro'
+     ;; most tlb has event_handler='pfo_cw_event_pro'  NOTE: if you
+     ;; have a tlb with a menu bar, the mbar is the first child from
+     ;; the perspective of widget_info(/child)
      self.childID = widget_base(self.tlbID, $
                                 event_func='pfo_cw_event_func', $
-                                uvalue=self, kill_notify='pfo_cw_kill')
+                                uvalue=self, kill_notify='pfo_cw_kill', $
+                                _EXTRA=child_args)
 
   endif else begin
      ;; By default, we streamline things by leaving out the first
@@ -567,15 +591,18 @@ function pfo_cw_obj::init, $
 
   ;; Save our _EXTRA arguments as a courtesy to the inheriting object.
   ;; This allows the resulting cw_obj to recreate the conditions under
-  ;; which it was invoked for proper redisplay.  NOTE: these in
-  ;; principle could conflict with the _EXTRA being passed to the call
-  ;; to widget_base, below.
+  ;; which it was invoked for proper redisplay.  Because redisplay may
+  ;; not require recreation of the widget_base created here (e.g. if a
+  ;; container is being used), the widget_base_args keyword is
+  ;; provided (see above).  This helps avoid strange behavior like
+  ;; nested scrollbars.
   self.pextra = ptr_new(/allocate_heap)
   if N_elements(extra) ne 0 then $
      *self.pextra = extra
 
-  ;; If we made it here, we have successfully set up our container.
-  ;; It is up to the inheriting routines to do the rest.
+  ;; If we made it here, we have successfully set up our tlb and,
+  ;; optionally, first child.  It is up to the inheriting routines to
+  ;; do the rest.
   return, 1
 
 end
