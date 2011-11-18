@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj__define.pro,v 1.5 2011/09/22 23:48:55 jpmorgen Exp $
+; $Id: pfo_obj__define.pro,v 1.6 2011/11/18 15:52:50 jpmorgen Exp $
 ;
 ; $Log: pfo_obj__define.pro,v $
+; Revision 1.6  2011/11/18 15:52:50  jpmorgen
+; Edit method now uses pfo_fit
+;
 ; Revision 1.5  2011/09/22 23:48:55  jpmorgen
 ; Add edit method.  Start of integrated pfo_fit widget interface!
 ;
@@ -59,7 +62,7 @@
 ;; Edit method brings up pfo_fit_widget
 pro pfo_obj::edit, $
    _REF_EXTRA=extra
-  pfo_fit_widget, pfo_obj=self, _EXTRA=extra
+  pfo_fit, pfo_obj=self, _EXTRA=extra
 end
 
 ;; Each inherited class should have a descr method.
