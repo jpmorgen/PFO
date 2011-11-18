@@ -2,37 +2,43 @@
 ; NAME: pfo_fit
 ;
 ; PURPOSE: 
-;	fit a function described by a parinfo array to data described
-;	in x, y, and yerr using mpfitfun.  Function is described by
-;	parainfo.  Results are  returned in parinfo.value and
-;	parinfo.error.  Scaler outputs of MPFIT are captured in the
-;	mpfit_info output keyword.  All other keywords are passed to
-;	and from mpfitfun/mpfit via the _EXTRA=extra mechanism
+;   Provide the primary graphical user interface (GUI) to the
+;   Parameter Function Object (PFO) system
 ;
-; CATEGORY: Parameter Function Object (PFO)
+; CATEGORY: PFO
 ;
 ; CALLING SEQUENCE:
-;	pfo_fit, x, y, yerr, parinfo, no_status=no_status, [keyword args to mpfitfun])
+;   pfo_fit[[pfo_obj_class][, Xin], Yin[, Yerr]] [, pfo_obj=pfo_obj]
+;   [keyword args to underlying routines])
 ;
 ; INPUTS:
-;	x: x-axis values
-;	y: y-axis values
-;	yerr: error estimates for y --> should be generalized for
-;	better compatability with MPFIT in case there are no yerrs
-;	parinfo: parinfo array that describes the function
 ;
 ; OPTIONAL INPUTS:
-;
+;   pfo_obj_class: class name of pfo_obj to use instead of generic
+;   pfo_obj (e.g. gpaw_obj)
+
+;   Xin, Yin, Yerr: If just one is specified, it is assumed to be
+;   Yin.  If two, Xin, Yin.  Yerr, if not specified, is set to sqrt(Yin)
+
 ; KEYWORD PARAMETERS:
-;	no_status: don't print out the interpretation of the
-;	mpfitfun return status keyword
-;
-;	mpfit_info: all scaler outputs of MPFIT/MPFITFUN.  Mostly
-;	diagnostic stuff
+;   pfo_obj: a pre-existing pfo_obj to display, or an undefined
+;   variable into which to return the pfo_obj created and modified by
+;   pfo_fit.  In either case, the caller should be prepared to issue
+;   the obj_destroy command on pfo_obj at the apropriate time to avoid
+;   memory leaks.  --> The pfo_obj is documented elsewhere
+
+;   Other keyword arguments are explained in the code.  NOTE: not all
+;   keywords are explicitly mentioned at each level.  For example,
+;   there aren't a lot of keywords listed for pfo_fit, but
+;   because the _EXTRA mechanism is used to pass keywords onto
+;   pfo_fit_obj::init, any keyword valid for that routine is a valid
+;   keyword for pfo_fit.  Similary pfo_fit_obj calls pfo_cw_obj::init,
+;   which itself has a list of keywords.  pfo_cw_obj::init calls IDL
+;   routines like widget_base which receive the _EXTRA command.   -->
+;   see PFO documentation for more details.
+
 ;
 ; OUTPUTS:
-;	parinfo.value and parinfo.error are set to the values
-;	determined by mpfitfun unless mpfitfun returns an error
 ;
 ; OPTIONAL OUTPUTS:
 ;
@@ -47,22 +53,20 @@
 ; PROCEDURE:
 ;
 ; EXAMPLE:
-;	Note in the following example, the /quiet keyword is passed to
-;	mpfitfun so that iteration information is not printed.  The
-;	mpfitfun status is printed unless /no_status is specified.
-;	good_idx = where(yerr ne 0)
-;	pfo_fit, x[good_idx], y[good_idx], yerr[good_idx], parinfo, /quiet
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 2.1 2011/11/03 01:47:22 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 2.2 2011/11/18 14:46:06 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 2.2  2011/11/18 14:46:06  jpmorgen
+; Improve widget
+;
 ; Revision 2.1  2011/11/03 01:47:22  jpmorgen
-; About to replace with pfo_fit_widget
+; About to replace with pfo_fit
 ;
 ; Revision 2.0  2011/09/22 23:54:49  jpmorgen
-; Using pfo_obj and pfo_fit_widget
+; Using pfo_obj and pfo_fit
 ;
 ; Revision 1.4  2011/09/22 17:45:01  jpmorgen
 ; Preparing to adapt to PFO of 2011
@@ -74,29 +78,227 @@
 ; Change error reporting a little
 ;
 ;-
+
+;; Resize event.
+function pfo_fit_obj::resize, event
+
+  ;; Prepare to swallow the event
+  retval = !tok.nowhere
+
+  ;; Check to see if type of event is valid.  Resize events are of
+  ;; type WIDGET_BASE
+  sn = tag_names(event, /structure_name)
+  if sn ne 'WIDGET_BASE' then begin
+     message, 'WARNING: received an event of type "' + sn + '" which I do not know how to deal with.  Swallowing event.', /CONTINUE
+     return, retval
+  endif
+
+  ;; Check to make sure we are only being used as the resize event
+  ;; handler for the tlb created here
+  if event.ID ne self.tlbID then $
+     message, 'ERROR: this event handler should only be used by the pfo_fit tlb'
+
+  ;; Copy event.[xy] into local variables
+  xsize = event.x
+  ysize = event.y
+
+  ;; In LINUX, at least with twm, the twm top decorations are included
+  ;; in the reported event size.  This is not as advertised in IDL.
+  ;; Fix it at this level.
+  if !d.name eq 'X' then $
+     ysize -= 33
+
+  ;; Adjust the [xy]size, making sure that we have a minimum width
+  ;; so axis lables show
+  ;;plot_xsize = 640 > xsize*self.plot_xfrac
+  plot_xsize = xsize*self.plot_xfrac
+  ;;ysize = 512 > ysize
+  self.plotwin_obj->resize, xsize=plot_xsize, ysize=ysize
+
+  ;; Adjust the scrolling base that contains the parinfo editor
+  scr_xsize = xsize*(1-self.plot_xfrac) > self.control_size[0]
+  scr_ysize = ysize - self.control_size[1]
+  widget_control, self.parinfo_baseID, $
+                  scr_xsize=scr_xsize, $
+                  scr_ysize=scr_ysize
+
+  return, retval
+
+end
+
+;; Cleanup method
+pro pfo_fit_obj::cleanup
+  ;; Call our inherited cleaup routines
+  self->pfo_cw_obj::cleanup
+  ;; Nothing local to do
+end
+
+;; Init method
+function pfo_fit_obj::init, $
+   p0, $ ;; either the name of the object to create or one of the data vectors
+   p1, $ ;; one of the data vectors ([x], y, [yerr])
+   p2, $
+   p3, $
+   pfo_obj=pfo_obj, $ ;; optional input or output
+   returning_pfo_obj=returning_pfo_obj, $ ;; flag to indicate pfo_fit caller wants pfo_obj that is initialized here returned
+   title=title, $	;; title string
+   menus=menus, $	;; list of menus to be used with pfo_menubar (default: 'pfo_generic')
+   menu_args=menu_args, $ ;; optional keyword argument(s) to the *_menu widget functions
+   xsize=xsize, $ ;; x size of widget
+   ysize=ysize, $ ;; y size of widget
+   _REF_EXTRA=extra
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.  Object not properly initialized ', /CONTINUE
+        return, 0
+     endif
+  endif ;; not debugging
+
+  ;; Create pfo_obj, if necessary.
+  if NOT obj_valid(pfo_obj) then begin
+     ;; Create our pfo_obj
+     pfo_obj = pfo_obj_new(p0, p1, p2, p3, _EXTRA=extra)
+     ;; Created_pfo flag ensures pfo_obj is deleted.  If we want
+     ;; pfo_obj as an output, don't delete it
+     self.created_pfo_obj = ~returning_pfo_obj
+  endif ;; creating pfo_obj
+
+  ;; Default title
+  if N_elements(title) eq 0 then $
+     title = 'PFO FIT'
+
+  ;; Find a comfortable size for our widget
+  ;; Get screen size
+  device, get_screen_size=screen
+
+  if N_elements(xsize) eq 0 then $
+     xsize = 1500 < (screen[0] * 0.8)
+  if N_elements(ysize) eq 0 then $
+     ysize = 512 < (screen[1] * 0.8)
+  self.plot_xfrac = .42
+
+
+  ;; Call our inherited init routines.  This creates a top-level base
+  ;; with a menu bar and makes sure that the resize event can be
+  ;; handled.  It also puts pfo_obj into self or creates it if none
+  ;; was specified
+  ok = self->pfo_cw_obj::init( $
+       pfo_obj=pfo_obj, $
+       title=title, $
+       /mbar, $ ;; Give ourselves a menu bar
+       /first_child, $ ;; hide cw_obj in a first child uvalue instead of tlb uvalue
+       /tlb_size_events, $ ;; have IDL generate resize events
+       uvalue={method: 'resize', obj:self}, $ ;; catch resize events (/first_child needed to let this work)
+       help='Select Menu -> exit to exit widget', $ ;; --> this needs to get better with the help up pfo_string2array, and possibly the pfo_finfo system
+       realize=0, $
+       _EXTRA=extra)
+  if NOT ok then begin
+     message, 'WARNING: pfo_cw_obj::init returned error.  Object not properly initilized'
+     return, 0
+  endif
+
+  ;; Set up the default menus for the parinfo editor
+  if N_elements(menus) eq 0 then $
+     menus = ['pfo_generic', 'pfo_parinfo_edit', 'pfo_fit']
+  ;; Insert the menu bar menus into the menu bar.  Help is always the
+  ;; last menu
+  self->mbar, menus, menu_args=menu_args
+
+  ;; Create a container into which we will put our plot window and
+  ;; pfo_parinfo_container_cw
+  self->create_container, column=2
+
+  ;; We need to syncronize the xsize and ysize of the pfo_plot_obj
+  ;; property in the pfo_obj (or wherever the pfo_plot_obj ends up
+  ;; residing) with the xsize and ysize of our draw widget.  Kind of
+  ;; inconvenient to have to do it that way, but that is the
+  ;; breaks....  
+  self.pfo_obj->set_property, $
+     plot_xsize=xsize*self.plot_xfrac, $
+     plot_ysize=ysize, $
+     $ ;; Set up the default oplot list
+     oplot_call_list=['pfo_oplot_data', 'pfo_oplot_ROI', 'pfo_oplot_parinfo'], $
+     /enable_undo
+
+  ;; Put our plot window in the first column.  Make sure the draw
+  ;; widget is the same size as the plot object thinks
+  ID = pfo_plotwin( $
+       self.containerID, $
+       pfo_obj=self.pfo_obj, $
+       xsize=xsize*self.plot_xfrac, $
+       ysize=ysize, $
+       /keyboard_events, group_leader=self.tlbID, $ ;; --> have ctrl-d exit the widget for quick debugging
+       cw_obj=cw_obj)
+  self.plotwin_obj = cw_obj
+
+  ;; Make a container for the second column
+  col2ID = widget_base(self.containerID, /column)
+  ;; Make a container for things like the cursor and plotting controls
+  controlID = widget_base(col2ID, /column)
+  ;; Make the column heading widgets
+  ID = pfo_cursor_colhead_cw(controlID, label_width=0.5, pfo_obj=self.pfo_obj, plotwin_obj=self.plotwin_obj)
+  ;; Cursor
+  ID = pfo_cursor_cw(controlID, label_width=0.5, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj)
+  ;; Range control
+  ID = pfo_range_cw(controlID, label_width=0.5, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj, /no_colheads)
+
+  ;; Figure out how big the control section is so we can size the
+  ;; parinfo editor accordingly
+  geom = widget_info(controlID, /geometry)
+  self.control_size = [geom.xsize, geom.ysize]
+
+  ;; Create a base with scrollbars in the bottom part of the second
+  ;; column into which we will put our parinfo editor
+  x_scroll_size = xsize*(1-self.plot_xfrac) > self.control_size[0]
+  y_scroll_size = ysize - self.control_size[1]
+  self.parinfo_baseID = $
+     widget_base(col2ID, $
+                 x_scroll_size=x_scroll_size, $
+                 y_scroll_size=y_scroll_size)
+
+  ;; Put our parinfo display widget in the second column
+  self.pfo_obj->parinfo_edit, status_mask=!pfo.all_status, $
+                              parentID=self.parinfo_baseID
+
+  return, 1
+end
+
+;; Widget controlling object class definition
+pro pfo_fit_obj__define
+  objectClass = $
+     {pfo_fit_obj, $
+      plot_xfrac	: 0., $ ;; fraction of total widget X-dimension reserved for plot
+      control_size	: [0., 0.], $ ;; size of base containing cursor/plot controls
+      plotwin_obj	: obj_new(), $ ;; cw_obj of plotwin
+      parinfo_baseID	: 0L, $ ;; widgetID of scroll bar-enabled base that contains parinfo editor
+      inherits pfo_cw_obj}
+end
+
 pro pfo_fit, $
    p0, $ ;; either the name of the object to create or one of the data vectors
    p1, $ ;; one of the data vectors ([x], y, [yerr])
    p2, $
    p3, $
-   parinfo=parinfo, $ ;; optional input or output
    pfo_obj=pfo_obj, $ ;; optional input or output
-   $ ;; By defailt, the widget is non-blocking (other events and the IDL command line are processed).
+   $ ;; By default, widget is realized, but you may which to avoid that for some reason
+   mbarID=mbarID, $ ;; (output) ID of the menubar widget
+   containerID=containerID, $ ;; (output) optional parent widget of any subsequent children of this base
+   cw_obj=cw_obj, $ ;; (output) the object that runs this cw
+   realize=realize_in, $ ;;  be polite to calling code
+   $ ;; By default, the widget is non-blocking (other events and the IDL command line are processed).
    $ ;; You may wish to set no_block=0 to force user to finish with the widget before other things happen.  
-   $ ;; When pfo_obj is created on the fly, no_block is always set to 0
    no_block=no_block_in, $ ;;  be polite to calling code
-   _REF_EXTRA=extra ;; passed to underlying routines
+   _REF_EXTRA=extra
 
-  ;; Make sure custom system variables are read in.  These provide,
-  ;; among other things, tokens for referring to numeric values.  They
-  ;; are therefore a little like INCLUDE statements in C
-  init = {pfo_sysvar}
+  ;; Make sure our system variables are defined for all of the
+  ;; routines in this file
   init = {tok_sysvar}
-
-  ;; For debugging purposes, make sure we are running in
-  ;; object-oriented mode only, politely saving off old state of flag
-  oobjects_only = !pfo.objects_only
-  !pfo.objects_only = 1
+  init = {pfo_sysvar}
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
@@ -105,83 +307,60 @@ pro pfo_fit, $
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        ;; Remember to restore old state of objects_only
-        !pfo.objects_only = oobjects_only
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'USAGE: pfo_fit...'
+        message, /CONTINUE, 'ERROR: caught the above error.  Returning with what I have so far.'
+        return
      endif
   endif ;; not debugging
 
-  ;; Handle no_block in a polite way to the caller, since we may mess
-  ;; with it.  Default to a non-blocking widget and check extensively
-  ;; to see if we need to block
-  no_block = 1
-  if N_elements(no_block_in) ne 0 then $
-     no_block = no_block_in
+  ;; Create our widget controlling object.
+  cw_obj = obj_new('pfo_fit_obj', p0, p1, p2, p3, $
+                   pfo_obj=pfo_obj, $
+                   returning_pfo_obj=arg_present(pfo_obj), $
+                   _EXTRA=extra)
 
-  ;; Force no_block if the user wants parinfo filled by widget
-  if arg_present(parinfo) then begin
-     if keyword_set(no_block) then begin
-        no_block = 0
-        message, /INFORMATIONAL, 'NOTE: return of parinfo is expected based on the presence of an undefined parinfo keyword in the call.  Forcing no_block=0 so that the parinfo created in the widget can be returned.  Use pfo_quiet to supress message or handle the transmission of parinfos via pfo_obj.'
-     endif ;; forcing no_block = 0
-  endif ;; parinfo expected back
+  if obj_valid(cw_obj) then begin
+     ;; Successful cw_obj creation
+     ;; Get our tlb
+     cwID = cw_obj->tlbID()
+     ;; Get our containerID, in case caller wants to put more stuff in
+     containerID = cw_obj->containerID()
+     ;; Get our mbarID in case caller wants to add more menus (better
+     ;; to do with menus keyword, so help ends up in the right order)
+     mbarID = cw_obj->mbarID()
 
-  ;; Check to see if we have an existing parinfo and raise a
-  ;; warning if it looks like things are going to get out of sync
-  if N_elements(parinfo) ne 0 and keyword_set(no_block) then $
-     message, /INFORMATIONAL, 'WARNING: input parinfo specified, but no_block=1.  This means the widget will return immediately and changes to parinfo in the widget will not be reflected in the calling parinfo.  If you just expect parinfo to be an input variable, this is OK.  Use pfo_quiet to supress message or handle the transmission of parinfos via pfo_obj.'
+     ;; Default is to realize the widget, to make sure it displays.  You
+     ;; may wish to wait to do that with a "widget_control, ID, /realize"
+     ;; where ID is the return value of the function that invokes this
+     ;; object.  Handle realize in a polite way to the caller
+     if N_elements(realize_in) ne 0 then $
+        realize = realize_in
+     if N_elements(realize) eq 0 then $
+        realize = 1
+     if keyword_set(realize) then begin
+        ;; Realize the widget
+        widget_control, realize=realize, cwID
+        ;; Issue the replot method (which would realize the
+        ;; widget_draw window anyway) now that we have a window in
+        ;; which to do the plot
+        pfo_obj->replot
+        ;; Issue the refresh method
+        pfo_obj->refresh
+     endif ;; realizing
 
-  ;; Create a pfo_obj if needed
-  if NOT obj_valid(pfo_obj) then begin
-     ;; Do some blocking checking with pfo_obj
-     if arg_present(pfo_obj) or (N_elements(pfo_obj) ne 0) then begin
-        ;; The user has specified pfo_obj, which means that they can
-        ;; extract information from it, so it is safe to return.
-        ;; Print a message in both cases of no_block
-        message, /INFORMATIONAL, 'NOTE: an uninitialized pfo_obj was supplied by the caller.  Creating the pfo_obj and preparing to return it to the caller.  Remember to issue the command "obj_destroy, pfo_obj" when you are done with it.  Use pfo_quiet to supress message.'
-        if keyword_set(no_block) then begin
-              message, /INFORMATIONAL, 'NOTE: no_block=1, so I am going to return immediately.  The pfo_obj will be available for command-line use in parallel with the widget.  Use pfo_quiet to supress message.'
-        endif else begin
-              message, /INFORMATIONAL, 'NOTE: no_block=0.  I will try to raise a blocking widget to wait for all the changes initiated by the widget to be collected in the pfo_obj.  This may not work if the caller is itself a blocking widget (IDL can only handle one blocking widget at a time).  Use pfo_quiet to supress message.'
-           endelse ;; messages regarding blocking
-     endif else begin
-        ;; We need to create a pfo_obj, but we won't be returning it.
-        message, /INFORMATIONAL, 'NOTE: we need to create a object called "pfo_obj" to help do our widget work.  To prevent memory leaks, this object must be destroyed when you exit the widget ("obj_destroy, pfo_obj").  In order to issue this command from within this routine, the widget is going to try to "block" and not let anything else happen in IDL until you exit (no command line prompt, no other widget, etc.).  There may be trouble raising a blocking if another blocking widget is running.  In this case, you may need to capture the output of this widget in the pfo_obj keyword.  Use pfo_quiet to supress message.'
-        no_block = 0
-     endelse ;; pfo_obj present vs. absent on command line
+     ;; Handle no_block in a polite way to the caller, since we may
+     ;; change it
+     if N_elements(no_block_in) ne 0 then $
+        no_block = no_block_in
+     ;; Default is to raise a non-blocking widget
+     if N_elements(no_block) eq 0 then $
+        no_block = 1
+     ;; This is a true tlb, so we need to call xmanager and pass it an
+     ;; event handler that is a procedure.  The only events it will
+     ;; handle are tlb resize events.  But never fear, it does it with
+     ;; the cw_obj object-oriented event handling system.
+     xmanager, 'pfo_fit', cwID, event_handler='pfo_cw_event_pro', no_block=no_block
 
-     ;; Create our pfo_obj
-     pfo_obj = pfo_obj_new(p0, p1, p2, p3, parinfo_array=parinfo, _EXTRA=extra)
-     created_pfo_obj = 1
-
-  endif else begin
-
-     ;; We have a valid pfo_obj.  In this case p0 should not be our
-     ;; pfo_obj class name, so it is safe to use new_data
-     pfo_obj->new_data, p0, p1, p2
-     ;; Pass our parinfo (if specified) and any other args to set_property
-     pfo_obj->set_property, parinfo_array=parinfo, _EXTRA=extra
-  endelse
-
-  ;; This is the meat of our code.  It brings up the pfo_fit widget
-  pfo_obj->edit, no_block=no_block, _EXTRA=extra
-
-  ;; Check to see if the user wanted the parinfo
-  if (arg_present(parinfo) or N_elements(parinfo) ne 0) then begin
-     ;; Check to see if the user was going to keep pfo_obj around.  If
-     ;; not, just move the parinfo out (if there is one)
-     N_parinfo = pfo_obj->parinfo_call_function(/no_update, 'N_elements')
-     if N_parinfo ne 0 then $
-        parinfo = pfo_obj->parinfo(no_copy=(keyword_set(created_pfo_obj) and NOT arg_present(pfo_obj)))
-  endif
-
-  ;; If we created our own pfo_obj, get rid of it_obj to prevent
-  ;; memory leaks, unless the user really wants it
-  if keyword_set(created_pfo_obj) and NOT arg_present(pfo_obj) then $
-        obj_destroy, pfo_obj
-
-  ;; Remember to restore old state of objects_only
-  !pfo.objects_only = oobjects_only
+  endif ;; valid cw_obj
 
 end
