@@ -16,6 +16,47 @@
 ; file is important.  Brief documentation on each "method" is provided
 ; in the code.  The parameter/keyword lists are also annotated.
 
+;; Segmented polynomial scheme
+
+;; This is an attempt at a generic definition for a polynomial
+;; function made up of segments useful for e.g. making piecewise fits
+;; to data.  There are three types of information that need to be
+;; conveyed: the boundary points between segments, the reference
+;; values for the polynomial expansion of each segment (e.g. might be
+;; the central X value of each segment) and the polynomial
+;; coefficients themselves.  Follwing the decimal ftype model, the
+;; boundary X values are marked with ftype=n.1, n.2, etc.  Reference
+;; pixels are indicated with ftype=n.01, n.02, etc. and the
+;; coefficients with n.00001, n.00002, etc.  Note that the polynomial
+;; labeling therefore starts with 1 and can be no higher than 9.
+;; Polynomial coefficients start with 0 and in principle could be as
+;; large as desired, but since they are stored in a single precision
+;; floating point variable, can be no more than 99.  Because I have to
+;; round things to get the digits right, the 9th polynomial can't be
+;; more than 4th order.  If you don't specify a n.1 boundary value, it
+;; is assumed to be the leftmost point on the pfo.inaxis axis.
+;; Similarly, if you don't specify any reference values (n.0x), they
+;; are assumed to be the leftmost point of that segment.  If you
+;; specify a reference value (e.g. n.01), then subsequently
+;; unspecified reference values are set to that value.  This is meant
+;; to be convenient in the case where you have one reference pixel
+;; about which all the polynomial expansions are done.
+
+;; Note that if you want more than one instance of pfo_poly (e.g. if
+;; you want to use the infunct/outfunct strings on individual
+;; segments), you will need to define separate pfo_poly functions and
+;; use the pfo.pfoID tag to keep them from all running into one another.
+;; Also note that by default, there is no right-hand bound on the
+;; calculation of a pfo_poly segment.  If you need to to have more
+;; than one instance of pfo_poly, start a second segment, 0th order,
+;; with a value that does not contribute to the output axis.
+
+;; For convenience in creating a complex pfo_poly, you can use the
+;; poly_order, poly_num, poly_bound, poly_ref, and poly_value
+;; keywords.  These keywords accept vectors which allow you to define
+;; the whole pfo_poly at once and output values when using the
+;; __indices method.
+
 ;
 ; INPUTS:
 ;
@@ -41,9 +82,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_poly__fdefine.pro,v 1.3 2011/09/15 20:45:53 jpmorgen Exp $
+; $Id: pfo_poly__fdefine.pro,v 1.4 2011/11/18 16:06:46 jpmorgen Exp $
 ;
 ; $Log: pfo_poly__fdefine.pro,v $
+; Revision 1.4  2011/11/18 16:06:46  jpmorgen
+; Add documentation from old pfo_poly, improve widget so that the order
+; of a single polynomial can be changed
+;
 ; Revision 1.3  2011/09/15 20:45:53  jpmorgen
 ; Fixed bug in order of function definitions
 ;
@@ -59,20 +104,21 @@
 ;; In the case of pfo_poly, we can specify the /indices flag and get
 ;; indices back.  We do it this way, since that is how the code was
 ;; originally written.  Note that in the /indices case, the return
-;; value is the set of indices parsed in the order that tey are
+;; value is the set of indices parsed in the order that they are
 ;; interpreted, in other words, suitable for printing or widget display
 function pfo_poly__calc, $
-   Xin, $       ;; Input X axis in natural units 
+   Xin, $       ;; Input X axis in natural units 1
    params, $    ;; parameters (entire array)
    parinfo=parinfo, $ ;; parinfo array (whole array)
    idx=idx, $    ;; idx into parinfo of parinfo segment defining this function
    pfo_obj=pfo_obj, $ ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
-   indices=indices, $ ;; flag to trigger indices calculation instead of regular calculation
+   indices=indices, $ ;; flag to trigger indices calculation instead of regular calculation: should only be used by __indices method
    terminate_idx=terminate_idx, $ ;; append !tok.nowhere to each index variable after we are done
    poly_bound=poly_bound, $ ;; return value for indices: left boundary value
    poly_ref=poly_ref, $ ;; return value for indices: reference value
    poly_value=poly_value, $ ;; return value for indices: coefs
    poly_order=poly_order, $ ;; return value for indices: polynomial orders
+   poly_nums=poly_nums, $ ;; return value for indices: polynomial numbers (tenths place in ftype)
    _REF_EXTRA=extra ;; passed to underlying routines
 
   ;; Use shared routines to do basic error checking.  These error
@@ -81,7 +127,7 @@ function pfo_poly__calc, $
   ;; Common error checking and initialization code
   pfo_calc_check, Xin, params, parinfo=parinfo, idx=idx, pfo_obj=pfo_obj
 
-  ;; This is code that is mostly borrowed from the original pfo_ploy
+  ;; This is code that is mostly borrowed from the original pfo_poly
   ftypes = pfo_frac(parinfo[idx].pfo.ftype)
   pbnums = fix(round(ftypes * 100.  )/10.) ;; Boundaries
   pbidx = where(0 lt pbnums and pbnums lt 10, npb)
@@ -105,7 +151,7 @@ function pfo_poly__calc, $
   if npoly eq 0 then $
      message, 'ERROR: no 0th order coefficients'
 
-  pnums = round(cftypes[cidx[c0idx]])
+  poly_nums = round(cftypes[cidx[c0idx]])
   c0idx = idx[cidx[c0idx]]
 
   ;; Initialize output and a flag for calculating.  print_idx is handled using array_append.
@@ -141,18 +187,18 @@ function pfo_poly__calc, $
      upper = max(Xin) + delta
      count = 0
      if ipn lt npoly-1 then $
-        pbidx = where(pbnums eq pnums[ipn+1], count)
+        pbidx = where(pbnums eq poly_nums[ipn+1], count)
      if count gt 0 then begin
         ;; unwrap
         pbidx = idx[pbidx]
         upper = parinfo[pbidx[0]].value
      endif
      ;; Now for our lower boundary
-     pbidx = where(pbnums eq pnums[ipn], count)
+     pbidx = where(pbnums eq poly_nums[ipn], count)
      if count gt 0 then begin
         ;; We have user-specified boundaries
         if count gt 1 then $
-           message, 'ERROR: more than one poly_bound for polynomial ' + strtrim(pnums[ipn], 2)
+           message, 'ERROR: more than one poly_bound for polynomial ' + strtrim(poly_nums[ipn], 2)
         ;; unwrap
         pbidx = idx[pbidx]
         lower = params[pbidx]
@@ -181,10 +227,10 @@ function pfo_poly__calc, $
         CONTINUE
 
      ;; POLY_REFS
-     pridx = where(prnums eq pnums[ipn], count)
+     pridx = where(prnums eq poly_nums[ipn], count)
      if count gt 0 then begin
         if count gt 1 then $
-           message, 'ERROR: more than one poly_ref for polynomial ' + string(pnums[ipn])
+           message, 'ERROR: more than one poly_ref for polynomial ' + string(poly_nums[ipn])
         ;; unwrap
         pridx = idx[pridx]
         ;; Only modify ref if the parameter is not NAN
@@ -200,14 +246,11 @@ function pfo_poly__calc, $
      endif ;; poly_refs
 
      ;; COEFFICIENTS
-     cidx = where(rcftypes eq pnums[ipn], order)
+     cidx = where(rcftypes eq poly_nums[ipn], order)
      order -= 1
      scidx = sort(cftypes[cidx])
      cidx = idx[cidx[scidx]]
 
-     if keyword_set(print) or keyword_set(widget) then begin
-        print_idx = array_append(cidx, print_idx)
-     endif
      if keyword_set(indices) then begin
         pfo_array_append, ret_idx, cidx
         pfo_array_append, poly_order, order
@@ -231,6 +274,7 @@ function pfo_poly__calc, $
         pfo_array_append, poly_bound, !tok.nowhere
         pfo_array_append, poly_ref  , !tok.nowhere
         pfo_array_append, poly_value, !tok.nowhere
+        pfo_array_append, poly_nums,  !tok.nowhere
      endif
      ;; pfo_parinfo_parse takes care of termination of the function indices
      return, ret_idx
@@ -258,14 +302,42 @@ function pfo_poly__widget, $
    parentID, $ ;; Parent widget ID (positional parameter)
    idx=idx, $ ;; input indices of pfo_poly (not necessarily in proper order)
    pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating parinfo
+   edit=edit, $ ;; bring up all widgets rather than just text widget with parinfo printed into it
    _REF_EXTRA=extra ;; All other input parameters
 
   ;; Get the order of parameters from __indices
   ordered_idx = pfo_obj->parinfo_call_function( $
-                /no_update, 'pfo_poly__indices', idx=idx, pfo_obj=pfo_obj, _EXTRA=extra)
+                /no_update, 'pfo_poly__indices', idx=idx, pfo_obj=pfo_obj, $
+                poly_bound=poly_bound, $ ;; left boundary value
+                poly_ref=poly_ref, $ ;; reference value
+                poly_value=poly_value, $ ;; coefs
+                poly_order=poly_order, $ ;; polynomial orders
+                poly_nums=poly_nums, $ ;; poly numbers (10ths place of ftype)
+                /terminate_idx, $ ;; append !tok.nowhere to each index variable after we are done
+                _EXTRA=extra)
 
-  return, pfo_null__widget(parentID, idx=ordered_idx, $
-                           pfo_obj=pfo_obj, _EXTRA=extra)
+  ;; Create a container widget
+  containerID = widget_base(parentID, /column)
+
+  ;; Cycle through each segment.  We know each segment has a
+  ;; poly_order, but don't forget that the poly_order array is
+  ;; terminated with -1.
+  for iseg=0,N_elements(poly_order)-2 do begin
+     coef_idx = pfo_idx_parse(poly_value, iseg)
+     ;; Display the polynomial coefs
+     ID = pfo_null__widget(containerID, idx=coef_idx, $
+                           edit=edit, pfo_obj=pfo_obj, _EXTRA=extra)
+     ;; Display the polynomial order if we are in edit mode
+     if keyword_set(edit) then $
+        ID = pfo_poly_order_cw(parentID, order=poly_order[iseg], idx=coef_idx, $
+                               pfo_obj=pfo_obj, _EXTRA=extra)
+     
+  endfor ;; each polynomial
+
+  ;; Return the container widget ID
+  return, containerID
+  ;;return, pfo_null__widget(parentID, idx=ordered_idx, $
+  ;;                         pfo_obj=pfo_obj, _EXTRA=extra)
   
 end
 
@@ -285,6 +357,7 @@ end
 function pfo_poly__init, $
    value=value, $	;; catch value to make sure no conflict with other keywords
    ftype=ftype, $	;; catch ftype to make sure no conflict in pfo_struct_setget_tag
+   parinfo=eparinfo, $	;; pass existing parinfo to avoid collision of pfoIDs
    pfo_obj=pfo_obj, $	;; pfo_obj for parinfo_template
    _REF_EXTRA=extra, $	;; _REF_EXTRA passed to pfo_struct_setget_tag
    poly_bound=poly_bound, $ ;; [array of] left boundaries, one per polynomial
@@ -493,6 +566,19 @@ function pfo_poly__init, $
   ;; dispersions/gains, so make them default to replacing the output
   ;; axis
   parinfo.pfo.fop = !pfo.repl
+
+  ;; pfoID
+
+  ;; pfo_polys have an unknown number of parameters, so it is not
+  ;; possible to separate out multiple instances of the function
+  ;; without some kind of unique identifier.  pfoID provides this
+  ;; identifier.  Make sure we choose a unique one if we are given the
+  ;; opportunity to.
+  epoly_idx = pfo_fidx(eparinfo, 'pfo_poly', status_mask=!pfo.all_status, $
+                       pfo_obj=pfo_obj, npar=enpar)
+  if enpar gt 0 then $ 
+     parinfo.pfo.pfoID = max(eparinfo[epoly_idx].pfo.pfoID) + 1
+     
 
 
 
