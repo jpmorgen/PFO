@@ -34,9 +34,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj__define.pro,v 1.7 2011/09/23 13:08:18 jpmorgen Exp $
+; $Id: pfo_parinfo_obj__define.pro,v 1.8 2011/11/18 15:48:07 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj__define.pro,v $
+; Revision 1.8  2011/11/18 15:48:07  jpmorgen
+; Change call to pfo_parinfo_parse to use parinfo as a keyword.  Parinfo
+; method can return parinfo[idx].  append_parinfo and delete_parinfo improved
+;
 ; Revision 1.7  2011/09/23 13:08:18  jpmorgen
 ; Add edit, parinfo_edit methods and minor changes
 ;
@@ -80,7 +84,7 @@ function pfo_parinfo_obj::print, $
   endif
 
   ;; This is the meat of our code
-  retval = pfo_parinfo_parse(/print, *self.pparinfo, pfo_obj=self, /full, _EXTRA=extra)
+  retval = pfo_parinfo_parse(/print, parinfo=*self.pparinfo, pfo_obj=self, /full, _EXTRA=extra)
 
   ;; pfo_parinfo_parse should return gently even if there is an error
   ;; (at least in pfo_debug, 0), so we should get here and replace our
@@ -107,7 +111,7 @@ function pfo_parinfo_obj::widget, $
   endif
 
   ;; This is the meat of our code
-  retval = pfo_parinfo_parse(/widget, *self.pparinfo, pfo_obj=self, _EXTRA=extra)
+  retval = pfo_parinfo_parse(/widget, parinfo=*self.pparinfo, pfo_obj=self, _EXTRA=extra)
 
   ;; pfo_parinfo_parse should return gently even if there is an error
   ;; (at least in pfo_debug, 0), so we should get here and replace our
@@ -132,7 +136,7 @@ end
 ;; The edit method points to parinfo_edit at this level.  The edit
 ;; method will be overridden by inheriting objects to reflect the
 ;; complexity of the object
-pro pfo_parinfo_obj::edit, $ $
+pro pfo_parinfo_obj::edit, $
    _REF_EXTRA=extra
   self->parinfo_edit, _EXTRA=extra
 end
@@ -148,7 +152,7 @@ function pfo_parinfo_obj::indices, $
   endif
 
   ;; This is the meat of our code
-  retval = pfo_parinfo_parse(/indices, *self.pparinfo, pfo_obj=self, _EXTRA=extra)
+  retval = pfo_parinfo_parse(/indices, parinfo=*self.pparinfo, pfo_obj=self, _EXTRA=extra)
 
   ;; pfo_parinfo_parse should return gently even if there is an error
   ;; (at least in pfo_debug, 0), so we should get here and replace our
@@ -164,10 +168,23 @@ end
 
 
 function pfo_parinfo_obj::parinfo, $
-   no_copy=no_copy ;; Dangerous!  This guts the pfo_parinfo_obj of parinfo, so any additional calls to this object that require knowledge of parinfo will fail!
+   no_copy=no_copy, $ ;; Dangerous!  This guts the pfo_parinfo_obj of parinfo, so any additional calls to this object that require knowledge of parinfo will fail!
+   idx=idx ;; idx of specific parinfo elements to extract.  Useful for routines outside the pfo_obj
 
-  self->get_property, parinfo_array=parinfo, no_copy=no_copy
-  return, parinfo
+  if N_elements(idx) eq 0 then begin
+     self->get_property, parinfo_array=parinfo, no_copy=no_copy
+     return, parinfo
+  endif ;; return whole parinfo
+
+  ;; If we made it here, we are extracting select parinfo elements
+
+  ;; Check for presence of keyword we can't handle.  Might be
+  ;; silly to do this
+  if keyword_set(no_copy) then $
+     message, 'ERROR: no_copy keyword set, but parinfo[idx] must be copied.'
+
+  return, (*self.pparinfo)[idx]
+
 
 end
 
@@ -413,7 +430,9 @@ pro pfo_parinfo_obj::save_undo, $
   if N_elements(undo) ne 0 then begin
      self.parinfo_undo_obj->add, undo
   endif else begin
-     self.parinfo_undo_obj->add, *self.pparinfo
+     ;; Only call the linkedlist add method if there is something to add.
+     if N_elements(*self.pparinfo) ne 0 then $
+        self.parinfo_undo_obj->add, *self.pparinfo
   endelse
 
   ;; Doing something and saving it on the undo list implies that we
@@ -425,13 +444,19 @@ pro pfo_parinfo_obj::save_undo, $
 end
 
 ;; Prepare_update should be run before any changes are made to the
-;; parinfo so that a proper undo can be saved.  If widgets are being
-;; displayed, prepare_update also makes sure that the pfo_unique tag
-;; is in the parinfo so that the proper decision can be made in ::
-;; update as to whether the widgets can be refreshed in place or the
-;; container widgets need to be repopulated.
+;; parinfo so that a proper undo can be saved.  Prepare_update is
+;; usually run from within higher level methods
+;; (e.g. parinfo_call_procedure), but can be called "by hand" for
+;; multi-step modifications to the parinfo.  If widgets are being
+;; displayed, prepare_update makes sure that the pfo_unique tag is in
+;; the parinfo so that the proper decision can be made in ::update as
+;; to whether the widgets can be refreshed in place or the container
+;; widgets need to be repopulated.  The undo is usually passed as an
+;; undefined variable and set to the current parinfo, which is
+;; validated by a quick call to pfo_parinfo_parse(/indices).  If undo
+;; is defined, only pfo_unique tag code is executed.
 pro pfo_parinfo_obj::prepare_update, $
-   undo, $ ;; (optional input) previous state of parinfo before calling routine tweaked the encapsulated parinfo
+   undo, $ ;; optional [input/]output.  Validated current parinfo with pfo_unique tag if widgets are being displayed (see above)
    _REF_EXTRA=extra
 
   ;; Handle the case where we haven't been given an undo
@@ -444,19 +469,22 @@ pro pfo_parinfo_obj::prepare_update, $
      ;; If we made it here, we have a parinfo.  Do a basic check to make
      ;; sure that it is valid.
 
-     CATCH, err
-     if err ne 0 then begin
-        CATCH, /CANCEL
-        ;; Report on the console.  Note that adding to the message beefs
-        ;; up !error_state.msg for the widget display case
-        message, /NONAME, !error_state.msg + '  Undo will be undefined.', /CONTINUE
-        ;; If we have _any_ displayed widgets associated with this
-        ;; pfo_obj, report with a widget too
-        if N_elements(*self.pcw_obj_list) gt 0 then $
-           junk = dialog_message(!error_state.msg)
-        ;; return, leaving undo undefined
-        return
-     endif ;; error parsing existing parinfo
+     ;; Handle pfo_debug level.  CATCH errors if debug level is 1 or less
+     if !pfo.debug le 1 then begin
+        CATCH, err
+        if err ne 0 then begin
+           CATCH, /CANCEL
+           ;; Report on the console.  Note that adding to the message beefs
+           ;; up !error_state.msg for the widget display case
+           message, /NONAME, !error_state.msg + '  Undo will be undefined.', /CONTINUE
+           ;; If we have _any_ displayed widgets associated with this
+           ;; pfo_obj, report with a widget too
+           if N_elements(*self.pcw_obj_list) gt 0 then $
+              junk = dialog_message(!error_state.msg)
+           ;; return, leaving undo undefined
+           return
+        endif ;; error parsing existing parinfo
+     endif ;; not debugging
 
      ;; Turn debugging on so that we can catch and report our
      ;; pfo_parinfo_parse error
@@ -466,7 +494,7 @@ pro pfo_parinfo_obj::prepare_update, $
      ;; Make sure that all of the parinfo can parse, since we will
      ;; probably be parsing it in the widget stuff
      junk = pfo_parinfo_parse(/indices, status_mask=!pfo.all_status, $
-                              *self.pparinfo, pfo_obj=self, _extra=extra)
+                              parinfo=*self.pparinfo, pfo_obj=self, _extra=extra)
 
      ;; If we made it here, pfo_parinfo_parse worked OK.  Put our debug
      ;; level back to where it was.
@@ -535,11 +563,11 @@ pro pfo_parinfo_obj::update, $
   ;; -1 if undo is undefined.  Make sure that all of the parinfo can
   ;; parse, since we will be parsing it in the widget stuff
   orig_indices = pfo_parinfo_parse(/indices, status_mask=!pfo.all_status, $
-                                   undo, pfo_obj=self, _EXTRA=extra)
+                                   parinfo=undo, pfo_obj=self, _EXTRA=extra)
   ;; Find the new order of our indices.  This is the most likely place
   ;; to get an error, since the user might have created a problem
   new_indices = pfo_parinfo_parse(/indices, status_mask=!pfo.all_status, $
-                                  *self.pparinfo, pfo_obj=self, _EXTRA=extra)
+                                  parinfo=*self.pparinfo, pfo_obj=self, _EXTRA=extra)
 
   ;; If we made it here, all of our update "methods" ran OK.  Put our debug
   ;; level back to where it was.
@@ -610,19 +638,75 @@ pro pfo_parinfo_obj::update, $
 end
 
 ;; Delete the parinfo
-pro pfo_parinfo_obj::delete_parinfo
-  ;; Save the existing parinfo, if undo is enabled
+pro pfo_parinfo_obj::delete_parinfo, $
+   no_update=no_update ;; (NOT RECOMMENDED) Don't call update method (or save the undo): caller will update by hand later.   
+
+  ;; Always save the existing parinfo, if undo is enabled
   self->save_undo
   ;; Delete the parinfo from memory
   ptr_free, self.pparinfo
   ;; Reallocate an undefined variable
   self.pparinfo = ptr_new(/allocate_heap)
-  self->update
+  if NOT keyword_set(no_update) then $
+     self->update, undo, save_undo=save_undo
+end
+
+pro pfo_parinfo_obj::append_parinfo, $
+   fname, $ 		;; string containing name of sub-function to create and append
+   parinfo=parinfo, $	;; pre-formed parinfo strand to append
+   no_copy=no_copy, $	;; DANGEROUS but saves memory by deleting caller's parinfo from memory after it is appended to *self.pparinfo
+   save_undo=save_undo, $ ;; save our undo if the append was successful
+   no_update=no_update, $ ;; (NOT RECOMMENDED) Don't call update method (or save the undo): caller will update by hand later.
+   _EXTRA=extra
+
+  ;; Quietly return if we have nothing to do
+  if N_elements(fname) + N_elements(parinfo) eq 0 then $
+     return
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.  Retuning with what I have done so far.', /CONTINUE
+        return
+     endif
+  endif ;; not debugging
+
+  if NOT keyword_set(no_update) then $
+     self->prepare_update, undo
+
+  ;; Create our new parinfo from fname and append it (if fname specified)
+  if N_elements(fname) gt 0 then begin
+     ;; Append our parinfo_new_args property to extra so the call to
+     ;; the __init method of our new function has all the args we want
+     pfo_struct_append, extra, *self.pparinfo_new_args
+     pfo_array_append, *self.pparinfo, $
+                       pfo_parinfo_new(fname, $
+                                       parinfo=*self.pparinfo, $
+                                       pfo_obj=self, $
+                                       _EXTRA=extra)
+  endif ;; creating and appending parinfo from fname
+
+  ;; Append pre-defined parinfo (if any)
+  if N_elements(parinfo) ne 0 then begin
+     if keyword_set(no_copy) then $
+        pfo_array_append, *self.pparinfo, temporary(parinfo) $
+     else $
+        pfo_array_append, *self.pparinfo, parinfo
+  endif ;; appending pre-defined parinfo
+
+  if NOT keyword_set(no_update) then $
+     self->update, undo, save_undo=save_undo
+     
+
 end
 
 pro pfo_parinfo_obj::get_property, $
    parinfo_array=parinfo, $
    parinfo_template=parinfo_template, $
+   parinfo_new_args=parinfo_new_args, $
    parinfo_descr=parinfo_descr, $
    pfo_fstruct_array=pfo_fstruct_array, $
    pfo_fstruct_descr=pfo_fstruct_descr, $
@@ -646,6 +730,15 @@ pro pfo_parinfo_obj::get_property, $
      else $
        parinfo_template = *self.pparinfo_template
   endif ;; parinfo_template
+
+  ;; parinfo_new_args
+  if (arg_present(parinfo_new_args) or N_elements(parinfo_new_args)) ne 0 and $
+    N_elements(*self.pparinfo_new_args) ne 0 then begin
+     if keyword_set(no_copy) then $
+       parinfo_new_args = temporary(*self.pparinfo_new_args) $
+     else $
+       parinfo_new_args = *self.pparinfo_new_args
+  endif ;; parinfo_new_args
 
   ;; parinfo_descr
   if (arg_present(parinfo_descr) or N_elements(parinfo_descr) ne 0) and $
@@ -681,6 +774,7 @@ end ;; get_property
 pro pfo_parinfo_obj::set_property, $
    parinfo_array=parinfo, $
    parinfo_template=parinfo_template, $
+   parinfo_new_args=parinfo_new_args, $
    parinfo_descr=parinfo_descr, $
    pfo_fstruct_array=pfo_fstruct_array, $
    pfo_fstruct_descr=pfo_fstruct_descr, $
@@ -718,6 +812,14 @@ pro pfo_parinfo_obj::set_property, $
      else $
        *self.pparinfo_template = parinfo_template
   endif ;; parinfo_template
+
+  ;; parinfo_new_args
+  if N_elements(parinfo_new_args) gt 0 then begin
+     if keyword_set(no_copy) then $
+       *self.pparinfo_new_args = temporary(parinfo_new_args) $
+     else $
+       *self.pparinfo_new_args = parinfo_new_args
+  endif ;; parinfo_new_args
 
   ;; parinfo_descr
   if N_elements(parinfo_descr) gt 0 then begin
@@ -783,6 +885,7 @@ pro pfo_parinfo_obj::cleanup
   ptr_free, self.ppfo_parinfo_obj_descr
   ptr_free, self.pparinfo	
   ptr_free, self.pparinfo_template
+  ptr_free, self.pparinfo_new_args
   ptr_free, self.pparinfo_descr
   ptr_free, self.ppfo_fstruct_array
   ptr_free, self.ppfo_fstruct_descr
@@ -818,7 +921,7 @@ function pfo_parinfo_obj::init, $
      = ptr_new( $
      {README	: 'pfo_parinfo_obj stores the parinfo and associated information used by the PFO system', $
       SUPERCLASSES: 'pfo_parinfo_obj_cw_obj', $
-      METHODS	: 'print, widget, indices, parinfo, edit, parinfo_edit, parinfo_call_procedure, parinfo_call_function, redo, undo, save_undo, prepare_update, update, delete_parinfo'} $
+      METHODS	: 'print, widget, indices, parinfo, edit, parinfo_edit, parinfo_call_procedure, parinfo_call_function, redo, undo, save_undo, prepare_update, update, delete_parinfo, append_parinfo'} $
               )
   ;; Grab a decent guess at what our property is from the list of
   ;; keywords in our get_property method
@@ -832,25 +935,38 @@ function pfo_parinfo_obj::init, $
   ;; Turn our null reference pointers into undefined variables
   self.pparinfo = ptr_new(/allocate_heap)
   self.pparinfo_template = ptr_new(/allocate_heap)
+  self.pparinfo_new_args = ptr_new(/allocate_heap)
   self.pparinfo_descr = ptr_new(/allocate_heap)
   self.ppfo_fstruct_array = ptr_new(/allocate_heap)
   self.ppfo_fstruct_descr = ptr_new(/allocate_heap)
 
-  ;; Initilize default values (nothing to do for now)
+  ;; Initilize default values
 
-  ;; Call our set_property routine to convert any keywords to property
-  self->set_property, $
+  ;; Make a polynomial automatically appear whenever a ROI is created
+  *self.pparinfo_new_args = {auto_ROI_flist:'pfo_poly'}
+
+  ;; Call our superclass init methods.  Order is important, since
+  ;; there are null pointers that need to be set to undefined
+  ;; variables
+  ok = self->pfo_parinfo_obj_cw_obj::init(_EXTRA=extra)
+  if NOT ok then return, 0
+
+  ;; Call our _local_ set_property routine to convert any keywords to
+  ;; property.  Keeping it local makes sure we don't get any
+  ;; order-dependent cross-talk during initialization of multiple
+  ;; inherited objects
+  self->pfo_parinfo_obj::set_property, $
      parinfo_array=parinfo_array, $
      parinfo_template=parinfo_template, $
      parinfo_descr=parinfo_descr, $
      pfo_fstruct_array=pfo_fstruct_array, $
      pfo_fstruct_descr=pfo_fstruct_descr, $
      enable_undo=enable_undo, $
-     no_copy=no_copy ;; Dangerous!  This makes the variables passed as keywords undefined in the calling routine.
+     no_copy=no_copy, $
+     /no_update ;; Make sure we don't trigger code that we are not ready for
 
-  ;; Call our superclass init methods
-  ok = self->pfo_parinfo_obj_cw_obj::init(_EXTRA=extra)
-  if NOT ok then return, 0
+  ;; Call pfo_parinfo_update to take care of struct__update stuff
+  pfo_parinfo_update, *self.pparinfo, pfo_obj=self, _EXTRA=extra
 
   ;; If we made it here, our object should be initialized properly
   return, 1
@@ -869,6 +985,7 @@ pro pfo_parinfo_obj__define
      ppfo_parinfo_obj_descr:ptr_new(), $ ;; Pointer to description structure
      pparinfo	:	ptr_new(), $ ;; Pointer to parinfo array (function definition)
      pparinfo_template: ptr_new(), $ ;; Pointer to template for creating new parinfo records
+     pparinfo_new_args:	ptr_new(), $ ;; Pointer to struct containing arguments to pfo_parinfo_new (e.g. {min_iROI:0})
      pparinfo_descr:	ptr_new(), $ ;; Pointer to structure that documents the parinfo structure
      ppfo_fstruct_array:ptr_new(), $ ;; Pointer to fstruct_array, which associates function names in parinfo to fnums (integer part of parinfo.pfo.ftype).  Also has number of parameters in function and function definition
      ppfo_fstruct_descr:ptr_new(), $ ;; Pointer to documentation of fstruct_array
