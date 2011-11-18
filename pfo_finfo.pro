@@ -77,9 +77,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_finfo.pro,v 1.2 2011/08/02 18:27:51 jpmorgen Exp $
+; $Id: pfo_finfo.pro,v 1.3 2011/11/18 16:16:48 jpmorgen Exp $
 ;
 ; $Log: pfo_finfo.pro,v $
+; Revision 1.3  2011/11/18 16:16:48  jpmorgen
+; Modify error behavior
+;
 ; Revision 1.2  2011/08/02 18:27:51  jpmorgen
 ; Release to Tom
 ; Take out /no_copy stuff, enable pfo_obj to extract fstruct_array in
@@ -100,6 +103,10 @@ pro pfo_finfo, $
 
   init = {pfo_sysvar}
   init = {tok_sysvar}
+
+  ;; Errors should be pretty well documented.  Return to calling code
+  ;; when a problem occurs
+  ON_ERROR, !tok.return
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
   if !pfo.debug le 0 then begin
