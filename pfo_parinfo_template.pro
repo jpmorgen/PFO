@@ -69,9 +69,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_template.pro,v 1.2 2011/11/18 16:13:56 jpmorgen Exp $
+; $Id: pfo_parinfo_template.pro,v 1.3 2011/11/21 15:28:11 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_template.pro,v $
+; Revision 1.3  2011/11/21 15:28:11  jpmorgen
+; Bug fix that prevented parinfo_descr from accumulating
+;
 ; Revision 1.2  2011/11/18 16:13:56  jpmorgen
 ; Do a better job of building up the template when set_template is
 ; provided
@@ -162,7 +165,7 @@ function pfo_parinfo_template, popt=popt, required_tags=required_tags, $
               CONTINUE
            endif ;; tag not in system
            ;; This should build up a pfo struct-compatible parinfo template
-           pfo_struct_append, parinfo_template_local, tns[it]
+           pfo_struct_append, parinfo_template_local, tns[it], descr=parinfo_descr_local
         endfor ;; each top-level tag
      endelse ;; pfo struct-compatible parinfo or not
 
