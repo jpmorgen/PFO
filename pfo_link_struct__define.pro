@@ -46,9 +46,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_link_struct__define.pro,v 1.5 2011/11/18 15:49:58 jpmorgen Exp $
+; $Id: pfo_link_struct__define.pro,v 1.6 2011/11/21 15:25:01 jpmorgen Exp $
 ;
 ; $Log: pfo_link_struct__define.pro,v $
+; Revision 1.6  2011/11/21 15:25:01  jpmorgen
+; Get intralink working, add hand_tied, calculate effect of precision on
+; ftype rounding, improve documentation
+;
 ; Revision 1.5  2011/11/18 15:49:58  jpmorgen
 ; Got working with basic pfo_scint function, still some work to do
 ;
@@ -81,8 +85,13 @@ pro pfo_link_struct__update, $
                       completed_updates=completed_updates, $
                       pfo_obj=pfo_obj
 
-  ;; Use only active parameters
-  use_idx = where((parinfo.pfo.status AND !pfo.active) gt 0, npar)
+  ;; Use only active parameters.  Also, don't use parameters "tied" by
+  ;; hand.
+  use_idx = where((parinfo.pfo.status AND !pfo.active) gt 0 and $
+                  (parinfo.pfo_link.link_status AND !pfo.hand_tied) eq 0, npar)
+  ;; Quietly return if we don't have any such parameters to manage
+  if npar eq 0 then $
+     return
 
   ;; Check for auto_links first
   auto_link_idx = where(parinfo[use_idx].pfo_link.auto_link ne !pfo.not_used, count) 
@@ -90,20 +99,24 @@ pro pfo_link_struct__update, $
      ;; unwrap
      auto_link_idx = use_idx[auto_link_idx]
 
-     ;; Clear away all msstatus and to_IDs, since we are going to
+     ;; Clear away all link_status and to_IDs, since we are going to
      ;; assign them automatically
-     parinfo[auto_link_idx].pfo_link.msstatus = !pfo.not_used
+     parinfo[auto_link_idx].pfo_link.link_status = !pfo.not_used
      parinfo[auto_link_idx].pfo_link.to_ID = !tok.nowhere
 
-     ;; Handle interlinks first (links between functions)
+     ;; Handle interlinks (links between functions) first, otherwise
+     ;; intralinks in master function don't get set up properly.
      interlink_idx = where(parinfo[use_idx].pfo_link.auto_link eq !pfo.interlink, count)
      ;; We need to cycle through each kind of function
      while count gt 0 do begin
         ;; unwrap
         interlink_idx = use_idx[interlink_idx]
-        ;; Find the first function and make it the master
+        ;; Find the first function and make it the master.  Making the
+        ;; whole function master is why we have to do this first,
+        ;; since intralinks may require some of these parameters to be
+        ;; slaves
         master_idx = pfo_parinfo_parse(/indices, parinfo=parinfo, expand_idx=interlink_idx[0], pfo_obj=pfo_obj)
-        parinfo[master_idx].pfo_link.msstatus = !pfo.master
+        parinfo[master_idx].pfo_link.link_status = !pfo.master
         ;; Check to make sure all parameters have the same ID
         ID = parinfo[master_idx].pfo_link.linkID
         if N_elements(uniq(ID, sort(ID))) gt 1 then begin
@@ -111,7 +124,7 @@ pro pfo_link_struct__update, $
            parinfo[master_idx].pfo_link.linkID = !tok.nowhere
         endif ;; non-syncronized linkIDs
         ;; --> having trouble with functions that already have linkID
-        ;; set to the same value
+        ;; set to the same value?
         ;; Check to see if we need to initialize ID
         if ID[0] lt 0 then begin
            parinfo[master_idx].pfo_link.linkID = max(parinfo.pfo_link.linkID) + 1
@@ -123,7 +136,7 @@ pro pfo_link_struct__update, $
         master_fnum = fnums[master_idx[0]]
         slave_idx = where(fnums[use_idx] eq master_fnum and $ ;; same functions
                           parinfo[use_idx].pfo_link.auto_link eq !pfo.interlink and $ ;; auto interlink
-                          parinfo[use_idx].pfo_link.msstatus eq !pfo.not_used, count) ;; not our master
+                          parinfo[use_idx].pfo_link.link_status eq !pfo.not_used, count) ;; not our master
         ;; Check to see if we found slaves.  If not, it is not a
         ;; problem to have marked our first and only function of this
         ;; type as the master, above.
@@ -133,22 +146,27 @@ pro pfo_link_struct__update, $
            ;; We found some slaves.  Mark them as such, link it to the
            ;; master ID we found above.  The to_ftype should be
            ;; already assigned
-           parinfo[slave_idx].pfo_link.msstatus = !pfo.slave
+           parinfo[slave_idx].pfo_link.link_status = !pfo.slave
            parinfo[slave_idx].pfo_link.to_ID = ID
         endif ;; found slaves
         ;; Get ready to handle our next interlinked function (if any)
         interlink_idx = where(parinfo[use_idx].pfo_link.auto_link eq !pfo.interlink and $ ;; interlinked functions
-                              parinfo[use_idx].pfo_link.msstatus ne !pfo.master and $ ;; not a master (which we would have just assigned)
+                              parinfo[use_idx].pfo_link.link_status ne !pfo.master and $ ;; not a master (which we would have just assigned)
                               parinfo[use_idx].pfo_link.to_ID eq !tok.nowhere, count) ;; slave status not assigned yet
      endwhile
 
-     ;; Handle intralinks (links within one function).  In this case,
-     ;; we just need to make sure each function with an intralink
-     ;; relationship has a master ID
+     ;; Handle intralinks (links within one function) next.  This
+     ;; enables us to set parameters to slaves that were
+     ;; indiscriminately set to master in the interlink code.
      intralink_idx = where(parinfo[use_idx].pfo_link.auto_link eq !pfo.intralink, N_intralink)
-     ;; unwrap
-     if N_intralink gt 0 then $
+     if N_intralink gt 0 then begin
+        ;; unwrap
         intralink_idx = use_idx[intralink_idx]
+        ; Mark intralinks as slaves
+        parinfo[intralink_idx].pfo_link.link_status = !pfo.slave
+     endif
+     ;; Make sure intralink functions have a linkID and set the
+     ;; intralink's to_ID to that value
      for ip=0, N_intralink-1 do begin
         f_idx = pfo_parinfo_parse(/indices, parinfo=parinfo, expand_idx=intralink_idx[ip], pfo_obj=pfo_obj)
         ;; Check to make sure all parameters have the same ID
@@ -156,20 +174,40 @@ pro pfo_link_struct__update, $
         if N_elements(uniq(ID, sort(ID))) gt 1 then begin
            message, /CONTINUE, 'WARNING: parinfo.pfo_link.linkID values are out of sync.  linkID should have the same value for all parameters in each function.  Reinitializing.'
            parinfo[f_idx].pfo_link.linkID = !tok.nowhere
+           ID = parinfo[f_idx].pfo_link.linkID
         endif ;; non-syncronized linkIDs
         ;; Check to see if we need to initialize ID
         if ID[0] lt 0 then begin
-           parinfo[f_idx].pfo_link.linkID = max(parinfo.pfo_link.linkID) + 1
+           ID = max(parinfo.pfo_link.linkID) + 1
+           parinfo[f_idx].pfo_link.linkID = ID
         endif ;; initializing ID
+        parinfo[intralink_idx[ip]].pfo_link.to_ID = ID[0]
      endfor ;; each intralinked parameter
 
   endif ;; auto_link
 
-  ;; Be jealous and clear away all other mention of tied
-  parinfo.tied = ''  
+  ;; Now that we have our masters and slaves set up, populate the
+  ;; MPFIT parinfo.tied tag
+
+  ;; Clear away any old mentions of tied unless the user is
+  ;; specifically marked them with !pfo.hand_tied.
+  parinfo[use_idx].tied = ''  
 
   ;; Get slave indexes
-  slave_idx = where(parinfo.pfo_link.msstatus eq !pfo.slave, nslaves)
+  slave_idx = where(parinfo[use_idx].pfo_link.link_status eq !pfo.slave, nslaves)
+  if nslaves gt 0 then begin
+     ;; Unwrap
+     slave_idx = use_idx[slave_idx]
+     ;; The number of significant digits on single-precision floating
+     ;; point is a little over 7
+     ;; (http://en.wikipedia.org/wiki/Single_precision_floating-point_format).
+     ;; Calculate the number of significant digits we have left for
+     ;; the fractional part depending on how many digits our maximum
+     ;; fnum has.  Add 1 to fix ftype, just in case all we have is
+     ;; fnum=0.  Add 1 to the alog10, since we are counting digits,
+     ;; not powers of 10.
+     fdigits = 7 - round(alog10(max(fix(parinfo.pfo.ftype)+1))+1)
+  endif
 
   ;; This loop gets skipped if there are no slaves.  Too bad if someone
   ;; sets to_ID and to_ftype and forgets to set status=!pfo.slave
@@ -185,9 +223,9 @@ pro pfo_link_struct__update, $
      endif ;; to_ID points to missing linkID
 
      ;; Make sure we have just one parameter that we are trying to
-     ;; point to
-     to_ftype_idx = where(round(1E6 * pfo_frac(parinfo[ID_idx].pfo.ftype)) / 1E6 eq to_ftype $
-                          and parinfo[ID_idx].pfo_link.msstatus eq !pfo.master, count)
+     ;; point to.  
+     to_ftype_idx = where(round(10^fdigits * pfo_frac(parinfo[ID_idx].pfo.ftype)) eq $
+                          round(10^fdigits * to_ftype), count)
      if count ne 1 then begin
        message, 'WARNING: found ' + strtrim(count, 2) + ' parameters with fractional ftype = pfo_link.to_ftype = ' + strtrim(to_ftype, 2) + ' Non-unique linkID?  Skipping', /CONTINUE
        CONTINUE
@@ -219,7 +257,7 @@ pro pfo_link_struct__get_tag, $
    strict= strict, $ ;; See pfo_setget_tag
    _REF_EXTRA   = extra, $
    linkID       = linkID    , $
-   msstatus     = msstatus, $
+   link_status     = link_status, $
    to_ID        = to_ID , $
    to_ftype     = to_ftype, $
    auto_link	= auto_link
@@ -244,7 +282,7 @@ pro pfo_link_struct__get_tag, $
   ;; keywords
 
   if arg_present(linkID   ) or N_elements(linkID   ) ne 0 then linkID    = parinfo[idx].pfo.linkID   
-  if arg_present(msstatus ) or N_elements(msstatus ) ne 0 then msstatus  = parinfo[idx].pfo.msstatus 
+  if arg_present(link_status ) or N_elements(link_status ) ne 0 then link_status  = parinfo[idx].pfo.link_status 
   if arg_present(to_ID    ) or N_elements(to_ID    ) ne 0 then to_ID     = parinfo[idx].pfo.to_ID    
   if arg_present(to_ftype ) or N_elements(to_ftype ) ne 0 then to_ftype  = parinfo[idx].pfo.to_ftype 
   if arg_present(auto_link) or N_elements(auto_link) ne 0 then auto_link = parinfo[idx].pfo.auto_link
@@ -272,7 +310,7 @@ pro pfo_link_struct__set_tag, $
    strict= strict, $ ;; See pfo_setget_tag
    _REF_EXTRA   	= extra, $
    linkID       = linkID    , $
-   msstatus     = msstatus, $
+   link_status     = link_status, $
    to_ID        = to_ID , $
    to_ftype     = to_ftype, $
    auto_link	= auto_link
@@ -297,7 +335,7 @@ pro pfo_link_struct__set_tag, $
   ;; tags
 
   if N_elements(linkID	) ne 0 then parinfo[idx].pfo_link.linkID   = linkID	
-  if N_elements(msstatus) ne 0 then parinfo[idx].pfo_link.msstatus   = msstatus	
+  if N_elements(link_status) ne 0 then parinfo[idx].pfo_link.link_status   = link_status	
   if N_elements(to_ID	) ne 0 then parinfo[idx].pfo_link.to_ID    = to_ID	
   if N_elements(to_ftype) ne 0 then parinfo[idx].pfo_link.to_ftype = to_ftype
   if N_elements(auto_link) ne 0 then parinfo[idx].pfo_link.auto_link   = auto_link	
@@ -329,7 +367,7 @@ function pfo_link_struct__init, descr=descr
   descr = $
     {README	: 'Structure to keep track of which parameters are linked to each other by the MPFIT "tied" system.  There are master parameters and slave parameters (sorry for the imagery).  Master parameters are the ones that are varied by MPFIT, slave parameters come along for the ride', $
      linkID	: 'Set this in the master function, one ID per function, the same ID for all the parameters, even for the ones that don''t participate', $
-     msstatus	: '0 = not linked, 1 = master, 2 = slave (token available in !pfo)', $
+     link_status	: '0 = not linked, 1 = master, 2 = slave (token available in !pfo)', $
      to_ID	: 'set in the slave functions, indicating a master function ID', $
      to_ftype	: 'set in the slave functions indicating the _fractional_ ftype of the parameter in the master function (pfo_frac is helpful)', $
      auto_link  : 'Used to automatically assign master/slave relationships in identical functions.  0 = no_used, 1 (intralink)= link to parameter in this instance of the function, 2 (interlink) = link to parameter in another instance of this function' $
@@ -364,8 +402,8 @@ pro pfo_link_struct__define
 
   pfo_link_struct $
     = {pfo_link_struct, $
+       link_status  : 0B, $ ;; [master]/slave/hand_tied status.  It is not an error to have a slave point to a slave.  Master designation is optional
        linkID       : 0, $ ;; Set this in the master function, one ID per function, the same ID for all the parameters, even for the ones that don't participate
-       msstatus   : 0B, $ ;; master/slave status.  It is not an error to have a slave point to a slave.  This is more a tag for convenience.
        to_ID    : 0, $ ;; for slave functions: indicates linkID of master
        to_ftype : 0., $ ;; for slave functions: fractional ftype of master parameter
        auto_link: 0B $ ;; used in pfo_link_struct__update to help automatically assign master/slave to desired parameter(s)
