@@ -164,9 +164,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.9 2011/11/18 15:31:54 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.10 2011/11/21 15:29:30 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.10  2011/11/21 15:29:30  jpmorgen
+; Fix bug with too many terminate_idxs
+;
 ; Revision 1.9  2011/11/18 15:31:54  jpmorgen
 ; Change call to use parinfo as a keyword rather than a positional
 ; parameter so that upstream use of _REF_EXTRA in pfo_calc_obj results
@@ -930,7 +933,7 @@ function pfo_parinfo_parse, $
                                       fname=fname, first_funct=first_funct, $
                                       pfo_obj=pfo_obj, $
                                       _EXTRA=extra)
-                                end
+                                end ;; print
 
                                 !pfo.widget : begin
                                    ;; Create our widgets and build up our list of IDs and cw_objs
@@ -946,7 +949,7 @@ function pfo_parinfo_parse, $
                                       _EXTRA=extra)
                                    pfo_array_append, widget_IDs, ID
                                    pfo_array_append, cw_objs, cw_obj
-                                end
+                                end ;; widget
 
                                 !pfo.indices: begin
                                    ;; Get the sorted (or otherwise ordered) idx for this function
@@ -957,6 +960,7 @@ function pfo_parinfo_parse, $
                                       status_mask=status_mask, $
                                       fname=fname, first_funct=first_funct, $
                                       pfo_obj=pfo_obj, $
+                                      terminate_idx=terminate_idx, $
                                       _EXTRA=extra)
 
                                    ;; Check to see if the user wants to expand an idx into all of the idx of that
@@ -975,14 +979,11 @@ function pfo_parinfo_parse, $
                                          pfo_array_append, indices_idx, sidx
                                    endif else begin
                                       ;; If we are not expanding a particular (set of) idx, just accumulate our set of
-                                      ;; parsed fidx in indices_idx
+                                      ;; parsed fidx in indices_idx.  NOTE: individual functions are responsible for
+                                      ;; adding terminate_idx to the end of their
                                       pfo_array_append, indices_idx, sidx
                                    endelse 
-                                   ;; In either case, put in our parsing marks, if desired.
-                                   if keyword_set(terminate_idx) then $
-                                      pfo_array_append, indices_idx, !tok.nowhere
-                                end
-
+                                end ;; indices
 
                                 else :
                              endcase ;; action
