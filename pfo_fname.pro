@@ -1,7 +1,7 @@
 ;+
 ; NAME: pfo_fname
 
-; PURPOSE: returns the function name  of a PFO-enabled function.
+; PURPOSE: returns the function name of a PFO-enabled function.
 
 ; CATEGORY: PFO functions
 ;
@@ -14,21 +14,23 @@
 ; This function allows easy conversion between the dynamically
 ; assigned fnum (the integer part of parinfo.pfo.ftype) and its
 ; function name (fname).  See pfo_finfo for more detail about this
-; syste.  If no positional parameters are given, the caller is assumed
-; to be part of the function definition (e.g. <funct>__<method>) and
-; the string <funct> is returned.
+; system.  If no positional parameters are given, the caller is
+; assumed to be a routine whose name is of the form <fname>__<method>.
+; In this case, the string <fname> is used to run pfo_finfo and
+; <fname> is returned.  Keyword parameters alow information about the
+; fname to be returned to the caller.
 
 ; INPUTS: 
 
-; OPTIONAL INPUTS: fnum_or_fname.  If a string, conversion is made to fnum
-; using pfo_finfo.  If not a string, this input is assumed to be fnum,
-; fnum_or_fname is set to the null string and control is passed to
-; pfo_finfo.  If not specified, a 1-element parinfo array must be specified.
-;
+; OPTIONAL INPUTS: 
+
+; fnum_or_fname: If a string, conversion is made to fnum using
+; pfo_finfo.  If not a string, this input is assumed to be fnum.
+
 ; KEYWORD PARAMETERS:
 
 ;	parinfo: a 1-element parinfo array from which to extract the
-;		fnum (if fnum_or_fname not specified)
+;		fnum (ignored if fnum_or_fname is specified)
 ;	fnpars (output): number of parameters in the function (0 = unknown)
 ;	fdescr (output): function documentation
 ;	pfo_fstruct_descr (output): documentation of the structure
@@ -61,9 +63,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fname.pro,v 1.2 2011/09/01 22:20:23 jpmorgen Exp $
+; $Id: pfo_fname.pro,v 1.3 2011/11/21 15:28:52 jpmorgen Exp $
 ;
 ; $Log: pfo_fname.pro,v $
+; Revision 1.3  2011/11/21 15:28:52  jpmorgen
+; Minor improvements
+;
 ; Revision 1.2  2011/09/01 22:20:23  jpmorgen
 ; Added cool feature to grab fname from calling routine
 ;
@@ -75,14 +80,13 @@
 ;
 ;-
 function pfo_fname, $
-   fnum_or_fname, $ ;; function name or num, if conversion has occured elsewhere
+   fnum_or_fname_in, $ ;; function name or num, if conversion has occured elsewhere
    fnpars=fnpars, $
    fdescr=fdescr, $
    pfo_fstruct_descr=pfo_fstruct_descr, $
    parinfo=parinfo, $
    pfo_obj=pfo_obj, $ ;; pfo_obj containing pfo_fstruct_array
    callstack=callstack ;; how many levels to go back up the callstack to get the fname (when neither fnum_or_fname or parinfo are specified
-
 
   init = {pfo_sysvar}
   init = {tok_sysvar}
@@ -96,6 +100,10 @@ function pfo_fname, $
         message, 'USAGE: pfo_fname, fnum_or_fname[, parinfo=parinfo][,fnpars=fnpars][, fdescr=fdescr][, pfo_fstruct_fdescr=pfo_fstruct_fdescr][, pfo_obj=pfo_obj] [, callstack=callstack]'
      endif
   endif ;; not debugging
+
+  ;; Be polite with our fnum_or_fname input
+  if N_elements(fnum_or_fname_in) ne 0 then $
+     fnum_or_fname = fnum_or_fname_in
 
   ;; If we are not given any positional parameter or parinfo, assume
   ;; caller is a function "method."  The name of its function will be
@@ -126,6 +134,7 @@ function pfo_fname, $
      endif ;; fnum_or_fname is a number
   endelse 
 
+  ;; Here is the meat of our code
   pfo_finfo, fname=fnum_or_fname, $
              fnum=fnum, $
              fnpars=fnpars, $
