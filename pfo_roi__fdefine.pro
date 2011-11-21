@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi__fdefine.pro,v 1.5 2011/11/18 16:10:30 jpmorgen Exp $
+; $Id: pfo_roi__fdefine.pro,v 1.6 2011/11/21 15:27:42 jpmorgen Exp $
 ;
 ; $Log: pfo_roi__fdefine.pro,v $
+; Revision 1.6  2011/11/21 15:27:42  jpmorgen
+; Minor improvments/standardizations of __fdefine files
+;
 ; Revision 1.5  2011/11/18 16:10:30  jpmorgen
 ; Add auto_ROI_flist and automatic ROI incrementing features
 ;
@@ -80,7 +83,7 @@ function pfo_ROI__indices, $
    _REF_EXTRA=extra ;; soak up any extra parameters
 
   ;; Do basic idx error checking and collect our function indices
-  idx = pfo_fidx(parinfo, 'pfo_ROI', idx=idx, status_mask=status_mask, pfo_obj=pfo_obj, $
+  idx = pfo_fidx(parinfo, pfo_fname(), idx=idx, status_mask=status_mask, pfo_obj=pfo_obj, $
                  npar=npar, nfunct=nfunct)
   if nfunct ne 1 then $
      message, 'ERROR: ' + strtrim(nfunct, 2) + ' instances of function found, I can only work with one.  Use pfo_parinfo_parse and/or pfo_fidx to help process multiple instances of a function.'
@@ -132,7 +135,7 @@ function pfo_ROI__indices, $
   ;; Return indices sorted in order of ffrac
   retval = idx[sort(ffrac)] 
   if keyword_set(terminate_idx) then $
-     pfo_array_append, retval, !pfo.nowhere
+     pfo_array_append, retval, !tok.nowhere
   return, retval
 
 end
@@ -403,7 +406,7 @@ function pfo_ROI__init, $
         ;; If the user passed in the existing parinfo (recommended!),
         ;; we can make sure to choose our new parinfo's iROI so that
         ;; doesn't conflict with any others.
-        eROI_idx = pfo_fidx(eparinfo, 'pfo_ROI', status_mask=!pfo.all_status, $
+        eROI_idx = pfo_fidx(eparinfo, pfo_fname(), status_mask=!pfo.all_status, $
                             pfo_obj=pfo_obj, nfunct=nROI)
         if nROI gt 0 then $
            iROI = max(eparinfo[eROI_idx].pfo_ROI.iROI) + 1
