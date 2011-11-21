@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_czt__fdefine.pro,v 1.1 2011/11/19 21:03:13 jpmorgen Exp $
+; $Id: pfo_czt__fdefine.pro,v 1.2 2011/11/21 15:25:29 jpmorgen Exp $
 ;
 ; $Log: pfo_czt__fdefine.pro,v $
+; Revision 1.2  2011/11/21 15:25:29  jpmorgen
+; Minor debugging
+;
 ; Revision 1.1  2011/11/19 21:03:13  jpmorgen
 ; Initial revision
 ;
@@ -331,7 +334,7 @@ function pfo_CZT__init, $
                        0.07, $ ;; mu hi       
                        0.08, $ ;; f low       
                        0.09, $ ;; f hi        
-                       0.10, $ ;; f step      
+                       0.10]   ;; f step      
   ;; FTYPE
   ;; Integer part (fnum).  Dynamically assigned by fdefine
   parinfo.pfo.ftype += fnum
@@ -351,7 +354,7 @@ function pfo_CZT__init, $
      message, 'ERROR: specify either sigma or width'
   if N_elements(width) ne 0 then $
      sigma = width
-  if N_elements(sigma) ne 0 then $
+  if N_elements(sigma) eq 0 then $
      sigma = 1d
 
   ;; Don't clobber our inputs when we vectorize
@@ -403,7 +406,8 @@ function pfo_CZT__init, $
   ;; Set "to_ftype" to point to each parameter's own ftype
   parinfo[3:8].pfo_link.to_ftype = pfo_frac(parinfo[3:8].pfo.ftype)
   ;; To make f symmetric, link f hi to f lo in "intralink" mode
-  ;; (linked within one function)
+  ;; (linked within one function).  NOTE: this overwrites f hi
+  ;; interlinking
   parinfo[8].pfo_link.auto_link = !pfo.intralink
   parinfo[8].pfo_link.to_ftype = pfo_frac(parinfo[7].pfo.ftype)
 
