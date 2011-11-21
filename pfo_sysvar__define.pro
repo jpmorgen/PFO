@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.10 2011/11/18 15:56:08 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.11 2011/11/21 15:25:47 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -109,6 +109,7 @@ pro pfo_sysvar__define
        $;;no_used:	0,   $  duplicate of pfo.status
        master	:	2^0, $
        slave	:	2^1, $
+       hand_tied:	2^3, $
        intralink:	1, $
        interlink:	2, $
        $ ;; mpfit iterproc/stop stuff
