@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_xfunct_cw.pro,v 1.3 2011/09/16 13:49:43 jpmorgen Exp $
+; $Id: pfo_parinfo_xfunct_cw.pro,v 1.4 2011/11/21 15:30:07 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_xfunct_cw.pro,v $
+; Revision 1.4  2011/11/21 15:30:07  jpmorgen
+; Add exp10 and alog10
+;
 ; Revision 1.3  2011/09/16 13:49:43  jpmorgen
 ; Simplified widget hierarchy to try to speed up
 ;
@@ -175,10 +178,10 @@ function pfo_parinfo_xfunct_cw_obj::init, $
 
   ;; Handle initialization of our allowed axis types in each case
   if keyword_set(in) then begin
-     self.pxfuncts = ptr_new(['no funct', 'exp'])
+     self.pxfuncts = ptr_new(['no funct', 'alog', 'alog10'])
   endif
   if keyword_set(out) then begin
-     self.pxfuncts = ptr_new(['no funct', 'alog'])
+     self.pxfuncts = ptr_new(['no funct', 'exp', 'exp10'])
   endif
 
   self.in = keyword_set(in)
