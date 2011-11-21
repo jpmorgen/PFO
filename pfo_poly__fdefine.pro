@@ -29,27 +29,41 @@
 ;; pixels are indicated with ftype=n.01, n.02, etc. and the
 ;; coefficients with n.00001, n.00002, etc.  Note that the polynomial
 ;; labeling therefore starts with 1 and can be no higher than 9.
-;; Polynomial coefficients start with 0 and in principle could be as
-;; large as desired, but since they are stored in a single precision
-;; floating point variable, can be no more than 99.  Because I have to
-;; round things to get the digits right, the 9th polynomial can't be
-;; more than 4th order.  If you don't specify a n.1 boundary value, it
-;; is assumed to be the leftmost point on the pfo.inaxis axis.
-;; Similarly, if you don't specify any reference values (n.0x), they
-;; are assumed to be the leftmost point of that segment.  If you
-;; specify a reference value (e.g. n.01), then subsequently
-;; unspecified reference values are set to that value.  This is meant
-;; to be convenient in the case where you have one reference pixel
-;; about which all the polynomial expansions are done.
+;; Polynomial coefficients start with 0 and, since ftype is stored in
+;; a single precision floating point variable, are limited in number.
+;; Single-precision floats have a little more than 7 decimal digits of
+;; precision
+;; (http://en.wikipedia.org/wiki/Single_precision_floating-point_format).
+;; As long as there are less than 100 functions registered in the
+;; current instance of the pfo_finfo system, the pfo_poly coefs will
+;; work properly.  NOTE: there can be more than 100 PFO functions
+;; available, they just can't all be in use at once.  --> If this ever
+;; becomes a problem, a simpler polynomial function will be needed.
+;; Also note: Because "round" is used indiscriminately, the 9th
+;; polynomial currently can't be more than 4th order.
+
+;; If you don't specify a n.1 boundary value, it is assumed to be the
+;; leftmost point on the Xin axis.  Similarly, if you don't specify
+;; any reference values (n.0x), they are assumed to be the leftmost
+;; point of that segment.  WANRING: if you don't always pass the same
+;; Xin to your polynomial, this will produce unexpected results.  If
+;; you specify a reference value (e.g. n.01), then unspecified
+;; reference values in subsequent segments are set to that value.
+;; This is meant to be convenient in the case where you have one
+;; reference pixel about which all the polynomial expansions are done.
 
 ;; Note that if you want more than one instance of pfo_poly (e.g. if
 ;; you want to use the infunct/outfunct strings on individual
 ;; segments), you will need to define separate pfo_poly functions and
-;; use the pfo.pfoID tag to keep them from all running into one another.
-;; Also note that by default, there is no right-hand bound on the
-;; calculation of a pfo_poly segment.  If you need to to have more
-;; than one instance of pfo_poly, start a second segment, 0th order,
-;; with a value that does not contribute to the output axis.
+;; use the pfo.pfoID tag to keep them from all running into one
+;; another.  This does not solve the coefficient precision problem
+;; noted above.  Also note that by default, there is no right-hand
+;; bound on the calculation of a pfo_poly segment.  If you want too
+;; terminate the calculation of a polynomial segment, start a second
+;; segment, 0th order, with a value that does not contribute to the
+;; output axis.  Alternately, you use the pfo_ROI (Region of Interest)
+;; feature, which ensures that functions are only calculated on the
+;; ROI to which they are assigned.
 
 ;; For convenience in creating a complex pfo_poly, you can use the
 ;; poly_order, poly_num, poly_bound, poly_ref, and poly_value
@@ -82,9 +96,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_poly__fdefine.pro,v 1.4 2011/11/18 16:06:46 jpmorgen Exp $
+; $Id: pfo_poly__fdefine.pro,v 1.5 2011/11/21 15:23:51 jpmorgen Exp $
 ;
 ; $Log: pfo_poly__fdefine.pro,v $
+; Revision 1.5  2011/11/21 15:23:51  jpmorgen
+; Improve documentation
+;
 ; Revision 1.4  2011/11/18 16:06:46  jpmorgen
 ; Add documentation from old pfo_poly, improve widget so that the order
 ; of a single polynomial can be changed
@@ -114,11 +131,11 @@ function pfo_poly__calc, $
    pfo_obj=pfo_obj, $ ;; pfo_obj for pfo_finfo system, if not defined, PFO COMMON block is used
    indices=indices, $ ;; flag to trigger indices calculation instead of regular calculation: should only be used by __indices method
    terminate_idx=terminate_idx, $ ;; append !tok.nowhere to each index variable after we are done
-   poly_bound=poly_bound, $ ;; return value for indices: left boundary value
-   poly_ref=poly_ref, $ ;; return value for indices: reference value
-   poly_value=poly_value, $ ;; return value for indices: coefs
-   poly_order=poly_order, $ ;; return value for indices: polynomial orders
-   poly_nums=poly_nums, $ ;; return value for indices: polynomial numbers (tenths place in ftype)
+   poly_bound=poly_bound, $ ;; return value for __indices: left boundary value idx
+   poly_ref=poly_ref, $ ;; return value for __indices: reference value idx
+   poly_value=poly_value, $ ;; return value for __indices: coef idx
+   poly_order=poly_order, $ ;; return value for __indices: polynomial orders **NOT IDX**
+   poly_nums=poly_nums, $ ;; return value for __indices: polynomial numbers (tenths place in ftype) **NOT IDX**
    _REF_EXTRA=extra ;; passed to underlying routines
 
   ;; Use shared routines to do basic error checking.  These error
@@ -574,7 +591,7 @@ function pfo_poly__init, $
   ;; without some kind of unique identifier.  pfoID provides this
   ;; identifier.  Make sure we choose a unique one if we are given the
   ;; opportunity to.
-  epoly_idx = pfo_fidx(eparinfo, 'pfo_poly', status_mask=!pfo.all_status, $
+  epoly_idx = pfo_fidx(eparinfo, pfo_fname(), status_mask=!pfo.all_status, $
                        pfo_obj=pfo_obj, npar=enpar)
   if enpar gt 0 then $ 
      parinfo.pfo.pfoID = max(eparinfo[epoly_idx].pfo.pfoID) + 1
