@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_scint__fdefine.pro,v 1.5 2011/11/21 15:27:14 jpmorgen Exp $
+; $Id: pfo_scint__fdefine.pro,v 1.6 2011/12/01 22:19:21 jpmorgen Exp $
 ;
 ; $Log: pfo_scint__fdefine.pro,v $
+; Revision 1.6  2011/12/01 22:19:21  jpmorgen
+; make W1 limit a small value rather than 0
+;
 ; Revision 1.5  2011/11/21 15:27:14  jpmorgen
 ; Minor improvments/standardizations of __fdefine files
 ;
@@ -333,6 +336,10 @@ function pfo_scint__init, $
   parinfo.limits = [0,0]
   parinfo.limited = [1,0]
   ;; --> I suppose W0 could be negative, but assume no for now
+  ;; If both W0 and W1 get pegged at 0, the function will blow up.  We
+  ;; know we will always have at least a little W1, so put our limit
+  ;; at a very small value.
+  parinfo[3].limits = [1D-5, 0]
 
   ;; LINKED
   ;; Mark W0 and W1 as auto "interlinked" parameters so that as
