@@ -43,9 +43,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_obj__define.pro,v 1.6 2011/11/18 14:47:05 jpmorgen Exp $
+; $Id: pfo_plot_obj__define.pro,v 1.7 2011/12/01 22:09:33 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_obj__define.pro,v $
+; Revision 1.7  2011/12/01 22:09:33  jpmorgen
+; Improve autoscaling, log plotting, expand default oplot_call_list
+;
 ; Revision 1.6  2011/11/18 14:47:05  jpmorgen
 ; Generalized autoscaling
 ;
@@ -72,63 +75,92 @@
 ;-
 
 ;; Functions that return Xin, Xaxis, and Yaxis ranges.  If the range
-;; is specified on the command line, it is just popped back out
-;; again.  If the range is defined as property, that is returned.  If
-;; no range is in the property, it is calculated.  The /autoscale
-;; switch deletes property and forces case of 
+;; is specified on the command line, it is just popped back out again,
+;; checking for the case of logarithmic plotting and avoiding minimum
+;; values <= 0.  If the range is defined as property, that is returned.
+;; If no range is in the property, it is calculated.  The /autoscale
+;; switch deletes property and forces case of
 function pfo_plot_obj::Xin_range, $
    Xin_range, $ ;; (optional) if you know this, your job is done, but it saves you from doing the check in the calling code
    Xin=Xin ;; (optional) input axis to check.  Otherwise, use encapsulated property
 
   ;; Check for the trivial case that we have been called but already
   ;; know what we want
-  if N_elements(Xin_range) eq 2 then $
-     return, Xin_range
+  if N_elements(Xin_range) eq 2 then begin
+     range = Xin_range
+  endif else begin
+     ;; Make sure input has two elements, or is not specified
+     if N_elements(Xin_range) ne 0 then $
+        message, 'ERROR: range must have 2 elements.'
 
-  ;; Make sure input has two elements, or is not specified
-  if N_elements(Xin_range) ne 0 then $
-     message, 'ERROR: range must have 2 elements.'
+     ;; Handle case where our property is defined
+     if N_elements(*self.pXin_range) ne 0 then begin
+        range = *self.pXin_range
+     endif else begin
+        ;; Autoscale on provided axis
+        if N_elements(Xin) ne 0 then begin
+           range = minmax(Xin, /NAN)
+        endif else begin
+           ;; Check to make sure encapsulated Xin is defined
+           if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
+              return, make_array(2, value=!values.d_NAN)
 
-  ;; Handle case where our property is defined
-  if N_elements(*self.pXin_range) ne 0 then $
-     return, *self.pXin_range
+           ;; Autoscale on encapsulated pfo_obj axis
+           range = minmax(self.plot_pfo_obj->Xin(), /NAN)
+        endelse
+     endelse
+  endelse
+  ;; Now make sure we keep log axis happy.  For this, we rely on
+  ;; plot_[xy]log property being up-to-date
+  if keyword_set(self.plot_xlog) then begin
+     bad_idx = where(range le 0, count)
+     if count gt 0 then $
+        range[bad_idx] = !pfo.min_plot_log_value
+  endif 
 
-  ;; Autoscale on provided axis
-  if N_elements(Xin) ne 0 then $
-     return, minmax(Xin, /NAN)
-
-  ;; Check to make sure Xin is defined
-  if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
-     return, make_array(2, value=!values.d_NAN)
-
-  ;; Autoscale on encapsulated pfo_obj axis
-  return, minmax(self.plot_pfo_obj->Xin(), /NAN)
+  return, range
 
 end
 
 function pfo_plot_obj::Xaxis_range, $
    Xaxis_range, $ ;; (optional) if you know this, your job is done, but it saves you from doing the check in the calling code
-   _REF_EXTRA=extra ;; (optional) args to Xaxis (e.g. Xin)
+   Xaxis=Xaxis ;; (optional) input axis to check.  Otherwise, use encapsulated property
 
   ;; Check for the trivial case that we have been called but already
   ;; know what we want
-  if N_elements(Xaxis_range) eq 2 then $
-     return, Xaxis_range
+  if N_elements(Xaxis_range) eq 2 then begin
+     range = Xaxis_range
+  endif else begin
+     ;; Make sure input has two elements, or is not specified
+     if N_elements(Xaxis_range) ne 0 then $
+        message, 'ERROR: range must have 2 elements.'
 
-  ;; Make sure input has two elements, or is not specified
-  if N_elements(Xaxis_range) ne 0 then $
-     message, 'ERROR: range must have 2 elements.'
+     ;; Handle case where our property is defined
+     if N_elements(*self.pXaxis_range) ne 0 then begin
+        range = *self.pXaxis_range
+     endif else begin
+        ;; Autoscale on provided axis
+        if N_elements(Xaxis) ne 0 then begin
+           range = minmax(Xaxis, /NAN)
+        endif else begin
+           ;; Check to make sure encapsulated Xaxis is defined
+           if N_elements(self.plot_pfo_obj->Xaxis()) eq 0 then $
+              return, make_array(2, value=!values.d_NAN)
 
-  ;; Handle case where our property is defined
-  if N_elements(*self.pXaxis_range) ne 0 then $
-     return, *self.pXaxis_range
+           ;; Autoscale on encapsulated pfo_obj axis
+           range = minmax(self.plot_pfo_obj->Xaxis(), /NAN)
+        endelse
+     endelse
+  endelse
+  ;; Now make sure we keep log axis happy.  For this, we rely on
+  ;; plot_[xy]log property being up-to-date
+  if keyword_set(self.plot_xlog) then begin
+     bad_idx = where(range le 0, count)
+     if count gt 0 then $
+        range[bad_idx] = !pfo.min_plot_log_value
+  endif 
 
-  ;; Check to make sure Xin is defined
-  if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
-     return, make_array(2, value=!values.d_NAN)
-
-  ;; Autoscale on encapsulated pfo_obj axis
-  return, minmax(self.plot_pfo_obj->Xaxis(_EXTRA=extra), /NAN)
+  return, range
 
 end
 
@@ -141,72 +173,85 @@ function pfo_plot_obj::Yaxis_range, $
 
   ;; Check for the trivial case that we have been called but already
   ;; know what we want
-  if N_elements(Yaxis_range) eq 2 then $
-     return, Yaxis_range
-
-  ;; Make sure input has two elements, or is not specified
-  if N_elements(Yaxis_range) ne 0 then $
-     message, 'ERROR: range must have 2 elements.'
-
-  ;; Handle case where our property is defined
-  if N_elements(*self.pYaxis_range) ne 0 then $
-     return, *self.pYaxis_range
-
-  ;; Check to make sure Xin is defined
-  if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
-     return, make_array(2, value=!values.d_NAN)
-
-  ;; If we made it here, we can autoscale
-
-  ;; Create local Xin axis
-  if N_elements(Xin) ne 0 then begin
-     ;; Command line
-     Xin = Xin_in
+  if N_elements(Yaxis_range) eq 2 then begin
+     range = Yaxis_range
   endif else begin
-     ;; Data property
-     Xin = self.plot_pfo_obj->Xin()
-  endelse
+     ;; Make sure input has two elements, or is not specified
+     if N_elements(Yaxis_range) ne 0 then $
+        message, 'ERROR: range must have 2 elements.'
 
-  ;; Create local Yin axis
-  if N_elements(Yin) ne 0 then begin
-     ;; Command line
-     Yin = Yin_in
-  endif else begin
-     ;; Some form of property
-     if N_elements(self.plot_pfo_obj->Yin()) ne 0 then begin
-        ;; Data property
-        Yin = self.plot_pfo_obj->Yin()
+     ;; Handle case where our property is defined
+     if N_elements(*self.pYaxis_range) ne 0 then begin
+        range = *self.pYaxis_range
      endif else begin
-        ;; No Yin, but maybe there is a function
-        if self.plot_pfo_obj->parinfo_call_function( $
-           /no_update, 'N_elements') ne 0 then begin
-           ;; There is a parinfo, so we can get a Yaxis
-           Yin = self.plot_pfo_obj->Yaxis(Xin=Xin, _EXTRA=extra)
-        endif else begin
-           ;; No data, no function, return no value
+        ;; Check to make sure Xin is defined
+        if N_elements(self.plot_pfo_obj->Xin()) eq 0 then $
            return, make_array(2, value=!values.d_NAN)
+
+        ;; If we made it here, we can autoscale
+
+        ;; Create local Xin axis
+        if N_elements(Xin) ne 0 then begin
+           ;; Command line
+           Xin = Xin_in
+        endif else begin
+           ;; Data property
+           Xin = self.plot_pfo_obj->Xin()
         endelse
+
+        ;; Create local Yin axis
+        if N_elements(Yin) ne 0 then begin
+           ;; Command line
+           Yin = Yin_in
+        endif else begin
+           ;; Some form of property
+           if N_elements(self.plot_pfo_obj->Yin()) ne 0 then begin
+              ;; Data property
+              Yin = self.plot_pfo_obj->Yin()
+           endif else begin
+              ;; No Yin, but maybe there is a function
+              if self.plot_pfo_obj->parinfo_call_function( $
+                 /no_update, 'N_elements') ne 0 then begin
+                 ;; There is a parinfo, so we can get a Yaxis
+                 Yin = self.plot_pfo_obj->Yaxis(Xin=Xin, _EXTRA=extra)
+              endif else begin
+                 ;; No data, no function, return no value
+                 return, make_array(2, value=!values.d_NAN)
+              endelse
+           endelse
+        endelse
+
+        ;; Find the idx over which our Xin_range operates.  --> This depends
+        ;; on changes to Xaxis_range updating Xin_range
+        Xin_range = self->Xin_range(Xin=Xin, _EXTRA=extra)
+        good_Xin_idx = where(Xin_range[0] le Xin and $
+                             Xin le Xin_range[1], count)
+        if count eq 0 then $
+           return, make_array(2, value=!value.d_NAN)
+
+        ;; Handle Yunits
+        if N_elements(Yunits) eq 0 then Yunits = self.plot_Yunits
+ 
+        case Yunits of 
+           !pfo.Xin : range = minmax(Yin[good_Xin_idx], /NAN)
+           !pfo.Xaxis : range = minmax(Yin[good_Xin_idx], /NAN) / $
+                                self.plot_pfo_obj->dXaxis_dXin(Xin=Xin, idx=good_Xin_idx, _REF_EXTRA)
+           else: message, 'ERROR: invalid Yunits value: ' + strtrim(Yunits, 2) + ' expecting !pfo.Xin or !pfo.Xaxis'
+
+        endcase
      endelse
   endelse
 
-  ;; Find the idx over which our Xin_range operates.  --> This depends
-  ;; on changes to Xaxis_range updating Xin_range
-  Xin_range = self->Xin_range(Xin=Xin, _EXTRA=extra)
-  good_Xin_idx = where(Xin_range[0] le Xin and $
-                       Xin le Xin_range[1], count)
-  if count eq 0 then $
-     return, make_array(2, value=!value.d_NAN)
+  ;; Now make sure we keep log axis happy.  For this, we rely on
+  ;; plot_[xy]log property being up-to-date
+  if keyword_set(self.plot_ylog) then begin
+     bad_idx = where(range le 0, count)
+     if count gt 0 then $
+        range[bad_idx] = !pfo.min_plot_log_value
+  endif 
 
-  ;; Handle Yunits
-  if N_elements(Yunits) eq 0 then Yunits = self.plot_Yunits
- 
-  case Yunits of 
-     !pfo.Xin : return, minmax(Yin[good_Xin_idx], /NAN)
-     !pfo.Xaxis : return, minmax(Yin[good_Xin_idx], /NAN) / $
-                          self.plot_pfo_obj->dXaxis_dXin(Xin=Xin, idx=good_Xin_idx, _REF_EXTRA)
-     else: message, 'ERROR: invalid Yunits value: ' + strtrim(Yunits, 2) + ' expecting !pfo.Xin or !pfo.Xaxis'
+  return, range
 
-  endcase
 end
 
 
@@ -339,62 +384,6 @@ pro pfo_plot_obj::plot, $
 
   if N_elements(Xunits) eq 0 then Xunits = self.plot_Xunits
   if N_elements(Yunits) eq 0 then Yunits = self.plot_Yunits
-
-  ;; Check for undefined heap variables and calculate ranges if necessary
-  if N_elements(Xin_range) eq 0 then begin
-     if N_elements(*self.pXin_range) ne 0 then begin
-        Xin_range = *self.pXin_range 
-     endif else begin
-        Xin_range = minmax(pfo_obj->Xin(), /NAN)
-     endelse 
-;;     ;; Store this in our property
-;;     *self.pXin_range = Xin_range
-  endif
-  if N_elements(Xaxis_range) eq 0 then begin
-     if N_elements(*self.pXaxis_range) ne 0 then begin
-        Xaxis_range = *self.pXaxis_range 
-     endif else begin
-        ;; Start a local cache of Xaxis
-        if N_elements(Xaxis) eq 0 then $
-           Xaxis = pfo_obj->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
-        Xaxis_range = minmax(Xaxis, /NAN)
-;;        ;; Store this in our property
-;;        *self.pXaxis_range = Xaxis_range
-     endelse 
-  endif
-  if N_elements(Yaxis_range) eq 0 then begin
-     if N_elements(*self.pYaxis_range) ne 0 then begin
-        Yaxis_range = *self.pYaxis_range 
-     endif else begin
-        ;; This ends up being our autoscaling code
-        count = 0
-        if Xunits eq !pfo.Xin then begin
-           good_Xin_idx = where(Xin_range[0] le Xin and $
-                                Xin le Xin_range[1], count)
-        endif 
-        if Xunits eq !pfo.Xaxis then begin
-           if N_elements(Xaxis) eq 0 then $
-              Xaxis = pfo_obj->Xaxis(params=params, idx=idx, ispec=ispec, iROI=iROI, _EXTRA=calc_args)
-           good_Xin_idx = where(Xaxis_range[0] le Xaxis and $
-                                Xaxis le Xaxis_range[1], count)
-        endif 
-        if count eq 0 then begin
-           message, /INFORMATIONAL, 'NOTE: no valid points to plot in Xin_range = [' + strtrim(Xin_range[0], 2) + ', ' + strtrim(Xin_range[1]) + ']'
-        endif else begin
-           ;; Check to see if we have any Yin
-           if N_elements(pfo_obj->Yin()) ne 0 then begin
-              ;; Prefer data for Yaxis_range...
-              ;; --> not considering Yunits
-              Yaxis_range = minmax((pfo_obj->Yin())[good_Xin_idx], /NAN)
-           endif else begin
-              ;; ... but if we have no data, use the function values
-              Yaxis_range = minmax((pfo_obj->Yaxis())[good_Xin_idx], /NAN)
-           endelse ;; Yin or no Yin
-        endelse ;; Valid points in Xin_range
-;;        ;; Save our autoscaled Yaxis_range into the property
-;;        *self.pYaxis_range = Yaxis_range
-     endelse ;; No Yaxis_range property
-  endif ;; No Yaxis_range on command line
 
   if N_elements(Xin_title) eq 0 then Xin_title = self.plot_Xin_title
   if N_elements(Xin_units) eq 0 then Xin_units = self.plot_Xin_units
@@ -550,7 +539,7 @@ pro pfo_plot_obj::plot, $
         ytitle=ytitle, $
         xstyle=main_xstyle, ystyle=!tok.exact+!tok.extend, $
         xlog=xlog, ylog=ylog, $
-        xrange=xrange, yrange=Yaxis_range, $
+        xrange=xrange, yrange=self->Yaxis_range(Yaxis_range), $
         position=main_position, $
         /noerase
   ;; Put an axis on the top with tick marks pointing down
@@ -1042,7 +1031,7 @@ function pfo_plot_obj::init, $
   self.pplot_iROI	= ptr_new(/allocate_heap) 
 
   ;; Initialize our oplot_call_list to a reasonable set of things
-  self.poplot_call_list = ptr_new(['pfo_oplot_data', 'pfo_oplot_parinfo'])
+  self.poplot_call_list = ptr_new(['pfo_oplot_data', 'pfo_oplot_back', 'pfo_oplot_ROI', 'pfo_oplot_parinfo'])
 
   ;; Initialize plot_pfo_obj to ourself, under the assumption that we
   ;; have been inherited into the pfo_obj.  If this is not true, it is
