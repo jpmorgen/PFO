@@ -56,9 +56,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 2.2 2011/11/18 14:46:06 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 2.3 2011/12/01 22:10:43 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 2.3  2011/12/01 22:10:43  jpmorgen
+; Improve caller access to expanding menus, allow customization of enable_undo
+;
 ; Revision 2.2  2011/11/18 14:46:06  jpmorgen
 ; Improve widget
 ;
@@ -142,10 +145,12 @@ function pfo_fit_obj::init, $
    pfo_obj=pfo_obj, $ ;; optional input or output
    returning_pfo_obj=returning_pfo_obj, $ ;; flag to indicate pfo_fit caller wants pfo_obj that is initialized here returned
    title=title, $	;; title string
-   menus=menus, $	;; list of menus to be used with pfo_menubar (default: 'pfo_generic')
-   menu_args=menu_args, $ ;; optional keyword argument(s) to the *_menu widget functions
+   menus=menus_in, $	;; list of menus to be used with pfo_menubar (see code for default list)
+   additional_menus=additional_menus, $ ;; list of menus to be added to default pfo_fit list of menus (allows pfo_fit to improve without need to change calling code)
+   menu_args=menu_args_in, $ ;; optional keyword argument(s) to the *_menu widget functions.  The current plotwin_obj is always added
    xsize=xsize, $ ;; x size of widget
    ysize=ysize, $ ;; y size of widget
+   enable_undo=enable_undo, $ ;; by default enable_undo=1 for GUI.  Set enable_undo=0 to disable undo and save memory
    _REF_EXTRA=extra
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
@@ -182,7 +187,18 @@ function pfo_fit_obj::init, $
      ysize = 512 < (screen[1] * 0.8)
   self.plot_xfrac = .42
 
+  ;; We need to syncronize the xsize and ysize of the pfo_plot_obj
+  ;; property in the pfo_obj (or wherever the pfo_plot_obj ends up
+  ;; residing) with the xsize and ysize of our draw widget.  Kind of
+  ;; inconvenient to have to do it that way, but that is the
+  ;; breaks....
+  plot_xsize = xsize*self.plot_xfrac
+  plot_ysize = ysize
 
+  ;; enable undo in the GUI by default
+  if N_elements(enable_undo) eq 0 then $
+     enable_undo = 1
+  
   ;; Call our inherited init routines.  This creates a top-level base
   ;; with a menu bar and makes sure that the resize event can be
   ;; handled.  It also puts pfo_obj into self or creates it if none
@@ -202,28 +218,16 @@ function pfo_fit_obj::init, $
      return, 0
   endif
 
-  ;; Set up the default menus for the parinfo editor
-  if N_elements(menus) eq 0 then $
-     menus = ['pfo_generic', 'pfo_parinfo_edit', 'pfo_fit']
-  ;; Insert the menu bar menus into the menu bar.  Help is always the
-  ;; last menu
-  self->mbar, menus, menu_args=menu_args
+  ;; Put the customization derived above into the (possibly newly
+  ;; created) pfo_obj
+  self.pfo_obj->set_property, $
+     plot_xsize=plot_xsize, $
+     plot_ysize=plot_ysize, $
+     enable_undo=enable_undo
 
   ;; Create a container into which we will put our plot window and
   ;; pfo_parinfo_container_cw
   self->create_container, column=2
-
-  ;; We need to syncronize the xsize and ysize of the pfo_plot_obj
-  ;; property in the pfo_obj (or wherever the pfo_plot_obj ends up
-  ;; residing) with the xsize and ysize of our draw widget.  Kind of
-  ;; inconvenient to have to do it that way, but that is the
-  ;; breaks....  
-  self.pfo_obj->set_property, $
-     plot_xsize=xsize*self.plot_xfrac, $
-     plot_ysize=ysize, $
-     $ ;; Set up the default oplot list
-     oplot_call_list=['pfo_oplot_data', 'pfo_oplot_ROI', 'pfo_oplot_parinfo'], $
-     /enable_undo
 
   ;; Put our plot window in the first column.  Make sure the draw
   ;; widget is the same size as the plot object thinks
@@ -260,6 +264,28 @@ function pfo_fit_obj::init, $
      widget_base(col2ID, $
                  x_scroll_size=x_scroll_size, $
                  y_scroll_size=y_scroll_size)
+
+  ;; Since some of our menus relate to the compound widgets we are
+  ;; displaying, set menus up last
+  
+  ;; Set up the drop-down menus.  Allow entire list to be overridden 
+  if N_elements(menus_in) ne 0 then $
+     menus = menus_in
+  if N_elements(menus) eq 0 then $
+     menus = ['pfo_generic', 'pfo_plot', 'pfo_parinfo_edit', 'pfo_fit']
+  ;; Allow menu items to be added without altering the default list.
+  ;; Quietly does nothing if additional_menus is undefined
+  pfo_array_append, menus, additional_menus, /quiet
+
+  ;; Protect input menu_args list
+  if N_elements(menu_args_in) ne 0 then $
+     menu_args = menu_args_in
+  ;; Put our plotwin_obj on the menu_args list
+  pfo_array_append, menu_args, {plotwin_obj:self.plotwin_obj}
+
+  ;; Insert the menu bar menus into the menu bar.  Help is always the
+  ;; last menu
+  self->mbar, menus, menu_args=menu_args
 
   ;; Put our parinfo display widget in the second column
   self.pfo_obj->parinfo_edit, status_mask=!pfo.all_status, $
