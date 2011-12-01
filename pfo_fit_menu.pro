@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit_menu.pro,v 1.1 2011/09/22 23:45:59 jpmorgen Exp $
+; $Id: pfo_fit_menu.pro,v 1.2 2011/12/01 22:16:11 jpmorgen Exp $
 ;
 ; $Log: pfo_fit_menu.pro,v $
+; Revision 1.2  2011/12/01 22:16:11  jpmorgen
+; Minor doc fix, standardize event return
+;
 ; Revision 1.1  2011/09/22 23:45:59  jpmorgen
 ; Initial revision
 ;
@@ -51,13 +54,15 @@ function pfo_fit_menu_obj::event, event
   ;; Just call fit and let the pfo_obj property take care of all of
   ;; the rest of the stuff
   junk = self.pfo_obj->fit()
-                                  
+
+  ;; Swallow event
+  return, !tok.nowhere
+
 end
 
 pro pfo_fit_menu_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
-  ;; The kill_tlb method is defined in pfo_cw_obj, which we inherit
   ID = widget_button(self.tlbID, value='Fit', $
                         uvalue={method: 'event', obj:self})
 
