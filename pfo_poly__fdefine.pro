@@ -96,9 +96,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_poly__fdefine.pro,v 1.5 2011/11/21 15:23:51 jpmorgen Exp $
+; $Id: pfo_poly__fdefine.pro,v 1.6 2011/12/01 22:14:22 jpmorgen Exp $
 ;
 ; $Log: pfo_poly__fdefine.pro,v $
+; Revision 1.6  2011/12/01 22:14:22  jpmorgen
+; Fixed some indices bugs.  Defining on the fly is still not convenient
+; for gain/dispersion
+;
 ; Revision 1.5  2011/11/21 15:23:51  jpmorgen
 ; Improve documentation
 ;
@@ -284,13 +288,13 @@ function pfo_poly__calc, $
 
   endfor ;; each polynomial
 
-  ;; Return values
+  ;; Return values.  Don't terminate last poly_value, since it
+  ;; will already be terminated
   if keyword_set(indices) then begin
      if keyword_set(terminate_idx) then begin
         pfo_array_append, poly_order, !tok.nowhere
         pfo_array_append, poly_bound, !tok.nowhere
         pfo_array_append, poly_ref  , !tok.nowhere
-        pfo_array_append, poly_value, !tok.nowhere
         pfo_array_append, poly_nums,  !tok.nowhere
      endif
      ;; pfo_parinfo_parse takes care of termination of the function indices
@@ -340,15 +344,27 @@ function pfo_poly__widget, $
   ;; poly_order, but don't forget that the poly_order array is
   ;; terminated with -1.
   for iseg=0,N_elements(poly_order)-2 do begin
+     ;; See if we have a poly_bound
+     bound_idx = pfo_idx_parse(poly_bound, iseg)
+     if bound_idx[0] ne !tok.nowhere then $
+        pfo_array_append, display_idx, bound_idx
+     ;; See if we have a poly_ref
+     ref_idx = pfo_idx_parse(poly_ref, iseg)
+     if ref_idx[0] ne !tok.nowhere then $
+        pfo_array_append, display_idx, ref_idx
+     ;; We had better have coefs
      coef_idx = pfo_idx_parse(poly_value, iseg)
-     ;; Display the polynomial coefs
-     ID = pfo_null__widget(containerID, idx=coef_idx, $
+     pfo_array_append, display_idx, coef_idx
+     ;; For now, display all of them with pfo_null__widget.  --> we
+     ;; will want to get more sophisticated with this
+     ID = pfo_null__widget(containerID, idx=display_idx, $
                            edit=edit, pfo_obj=pfo_obj, _EXTRA=extra)
      ;; Display the polynomial order if we are in edit mode
      if keyword_set(edit) then $
         ID = pfo_poly_order_cw(parentID, order=poly_order[iseg], idx=coef_idx, $
                                pfo_obj=pfo_obj, _EXTRA=extra)
-     
+     ;; --> we will want to add features that at least let us add and
+     ;; delete references and boundaries
   endfor ;; each polynomial
 
   ;; Return the container widget ID
