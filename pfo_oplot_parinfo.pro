@@ -68,9 +68,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_parinfo.pro,v 1.2 2011/08/02 15:43:15 jpmorgen Exp $
+; $Id: pfo_oplot_parinfo.pro,v 1.3 2011/12/01 22:12:25 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_parinfo.pro,v $
+; Revision 1.3  2011/12/01 22:12:25  jpmorgen
+; Added better init
+;
 ; Revision 1.2  2011/08/02 15:43:15  jpmorgen
 ; Release to Tom
 ; Removed parinfo argument to guarantee encapsulated parinfo is used
@@ -94,7 +97,9 @@ pro pfo_oplot_parinfo, $
    oplot_parinfo_thick=oplot_parinfo_thick, $ ;; thickness to use for parinfo (default = !p.thick+!pfo.oplot_parinfo_thick_boost)
    oplot_parinfo_extra=oplot_parinfo_extra ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
 
+  ;; Make sure system variables are defined
   init = {tok_sysvar}
+  init = {pfo_sysvar}
 
   ;; Get our default color
   if N_elements(oplot_parinfo_color) eq 0 then oplot_parinfo_color=!pfo.oplot_parinfo_color

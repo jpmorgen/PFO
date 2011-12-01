@@ -64,9 +64,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_roi.pro,v 1.4 2011/11/18 16:10:59 jpmorgen Exp $
+; $Id: pfo_oplot_roi.pro,v 1.5 2011/12/01 22:12:49 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_roi.pro,v $
+; Revision 1.5  2011/12/01 22:12:49  jpmorgen
+; Added better init
+;
 ; Revision 1.4  2011/11/18 16:10:59  jpmorgen
 ; Fix minor bug
 ;
@@ -99,7 +102,9 @@ pro pfo_oplot_ROI, $
    oplot_ROI_allROI_color=oplot_ROI_allROI_color, $ ;; color of the allROI lines (default = !pfo.oplot_ROI_allROI_color)
    oplot_ROI_extra=oplot_ROI_extra
 
+  ;; Make sure system variables are defined
   init = {tok_sysvar}
+  init = {pfo_sysvar}
 
   ;; Check to see if we have any ROIs to overplot.  If so, ROI_idx
   ;; contains the indices into parinfo of just the ROI functions

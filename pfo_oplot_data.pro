@@ -68,9 +68,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_data.pro,v 1.2 2011/08/02 15:43:50 jpmorgen Exp $
+; $Id: pfo_oplot_data.pro,v 1.3 2011/12/01 22:12:32 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_data.pro,v $
+; Revision 1.3  2011/12/01 22:12:32  jpmorgen
+; Added better init
+;
 ; Revision 1.2  2011/08/02 15:43:50  jpmorgen
 ; Release to Tom
 ; Removed parinfo argument to guarantee encapsulated parinfo is used
@@ -93,7 +96,9 @@ pro pfo_oplot_data, $
    oplot_data_psym=oplot_data_psym, $ ;; psym to use for data (default==!tok.hist)
    oplot_data_extra=oplot_data_extra ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
 
+  ;; Make sure system variables are defined
   init = {tok_sysvar}
+  init = {pfo_sysvar}
 
   ;; Get our default yaxis
   yaxis = pfo_obj->Yin()
