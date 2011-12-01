@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.11 2011/11/21 15:25:47 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.12 2011/12/01 22:15:12 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -117,6 +117,7 @@ pro pfo_sysvar__define
        iterstop	:	-2, $   ;; stop fit, keep values
        iterquit	:	-3, $   ;; stop fit, discard values
        window_index:	 28, $  ;; default PFO plot window.  Should not be 0 (see pfo_plot_obj__define)
+       min_plot_log_value: 1., $,;; minimum value to use in place of axis values le 0 on log plots
        $ ;; tokens for actions in pfo_funct to keep code clean
        $;;print	:	1, $ ;; duplicate above
        calc	:	2, $
