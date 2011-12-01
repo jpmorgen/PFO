@@ -37,9 +37,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_new_exit_menu.pro,v 1.1 2011/09/23 13:05:55 jpmorgen Exp $
+; $Id: pfo_parinfo_new_exit_menu.pro,v 1.2 2011/12/01 22:15:43 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_new_exit_menu.pro,v $
+; Revision 1.2  2011/12/01 22:15:43  jpmorgen
+; Minor doc fix
+;
 ; Revision 1.1  2011/09/23 13:05:55  jpmorgen
 ; Initial revision
 ;
@@ -89,7 +92,7 @@ end
 pro pfo_parinfo_new_exit_menu_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
-  ;; The kill_tlb method is defined in pfo_cw_obj, which we inherit
+  ;; Done means append our new parinfo to the orig_pfo_obj
   ID = widget_button(self.tlbID, value='Done', $
                         uvalue={method: 'done', obj:self})
   ;; Cancel button deletes parinfo as a hint to the calling routine
