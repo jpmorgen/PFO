@@ -34,46 +34,49 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_edit_menu.pro,v 1.1 2011/09/23 13:10:31 jpmorgen Exp $
+; $Id: pfo_parinfo_edit_menu.pro,v 1.2 2011/12/01 22:16:48 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_edit_menu.pro,v $
+; Revision 1.2  2011/12/01 22:16:48  jpmorgen
+; Make string tokens out of actions rather than numbers
+;
 ; Revision 1.1  2011/09/23 13:10:31  jpmorgen
 ; Initial revision
 ;
 ;-
 
-function pfo_parinfo_edit_menu_obj::edit, event, action=action
+function pfo_parinfo_edit_menu_obj::event, event, button=button
 
   sn = tag_names(event, /structure_name)
   if sn ne 'WIDGET_BUTTON' then $
      message, 'ERROR: unexpected event type ' + sn
 
-  if N_elements(action) eq 0 then $
-     message, 'ERROR: action keyword required'
+  if N_elements(button) eq 0 then $
+     message, 'ERROR: button keyword required'
 
-  case action of 
-     0: begin ;; toggle enable_undo.
+  case button of 
+     'enable_undo': begin ;; toggle enable_undo.
         self.pfo_obj->get_property, enable_undo=enable_undo
         self.pfo_obj->set_property, enable_undo=~enable_undo
         ;; Refresh any other instances that display this information
         self.pfo_obj->refresh
      end
      ;; Undo and redo take care of update stuff
-     1: self.pfo_obj->undo
-     2: self.pfo_obj->redo
-     3: begin
+     'undo': self.pfo_obj->undo
+     'redo': self.pfo_obj->redo
+     'erase': begin
         ok = dialog_message('Erase the entire parinfo?!', title='Erase?', /question, /default_no, dialog_parent=self.parentID)
         if ok eq 'Yes' then begin
            self.pfo_obj->delete_parinfo
            self.pfo_obj->update
         endif
      end
-     ;;4: 
-     else : message, 'ERROR: unrecognized action ' + strtrim(action, 2)
+     else : message, 'ERROR: unrecognized button token: ' + button
   endcase
 
   ;; Swallow event
   return, !tok.nowhere
+
 end
 
 ;; Refresh method.  pfo_cw_obj handles error catching
@@ -89,16 +92,19 @@ pro pfo_parinfo_edit_menu_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
   self.enable_undoID = widget_button(self.tlbID, value='Enable undo', /checked_menu, $
-                                     uvalue={method: 'edit', obj:self, keywords:{action:0}})
+                                     uvalue={method: 'edit', obj:self, keywords:{button:'enable_undo'}})
   ID = widget_button(self.tlbID, value='Undo', $
-                     uvalue={method: 'edit', obj:self, keywords:{action:1}})
+                     uvalue={method: 'event', obj:self, keywords:{button:'undo'}})
   ID = widget_button(self.tlbID, value='Redo', $
-                     uvalue={method: 'edit', obj:self, keywords:{action:2}})
+                     uvalue={method: 'event', obj:self, keywords:{button:'redo'}})
   ID = widget_button(self.tlbID, value='Erase all', $
-                     uvalue={method: 'edit', obj:self, keywords:{action:3}})
-  ;;ID = widget_button(self.tlbID, value='New sub-function', $
-  ;;                   uvalue={method: 'edit', obj:self, keywords:{action:4}})
-
+                     uvalue={method: 'event', obj:self, keywords:{button:'erase'}})
+  ;; --> It would be nice to have an "add function" item here, but I
+  ;; can't just use pfo_parinfo_new_droplist, since a droplist can't
+  ;; be the child of a button menu.  I would have to make separate
+  ;; buttons for each function.  Since the parinfo display window is
+  ;; likely to be up and have the droplist, put this feature off for
+  ;; now....
 
   ;; Use the refresh method to set our checkbox to the proper state
   self->refresh
