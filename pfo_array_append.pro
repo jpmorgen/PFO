@@ -30,6 +30,8 @@
 ;       will be reinitialized with the contents of more_array.  Useful
 ;       if you don't want to change the type of the arrays.
 ;
+;	quiet: prevents informational messages
+;
 ; OUTPUTS:
 ;	orig_array contains the new array.  If you want to save the
 ;	original array, plan accordingly.
@@ -73,9 +75,12 @@
 ; 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_array_append.pro,v 1.4 2011/09/16 13:56:04 jpmorgen Exp $
+; $Id: pfo_array_append.pro,v 1.5 2011/12/01 22:11:44 jpmorgen Exp $
 ;
 ; $Log: pfo_array_append.pro,v $
+; Revision 1.5  2011/12/01 22:11:44  jpmorgen
+; Added quiet keyword
+;
 ; Revision 1.4  2011/09/16 13:56:04  jpmorgen
 ; Fixed bug.
 ;
@@ -90,7 +95,7 @@
 ; Initial revision
 ;
 ;-
-pro pfo_array_append, orig_array, more_array, null_array=null_array
+pro pfo_array_append, orig_array, more_array, null_array=null_array, quiet=quiet
   init = {tok_sysvar}
   init = {pfo_sysvar}
 
@@ -107,9 +112,10 @@ pro pfo_array_append, orig_array, more_array, null_array=null_array
 
   ;; Check to see if we need to do anything
   if N_elements(more_array) eq 0 then begin
-     ;; --> I am not sure if I really want this message.  Users can
-     ;; get rid of it with !quiet = 1     
-     message, /INFORMATIONAL, 'NOTE: more_array not specified/undefined'
+     ;; quiet keyword prevents this as does pfo_quiet, 1 or higher
+     ;; (sets !quiet)
+     if NOT keyword_set(quiet) then $
+        message, /INFORMATIONAL, 'NOTE: more_array not specified/undefined'
      return
   endif
 
@@ -196,8 +202,10 @@ pro pfo_array_append, orig_array, more_array, null_array=null_array
         CATCH, err
         if err ne 0 then begin
            CATCH, /CANCEL
-           message, /NONAME, !error_state.msg, /INFORMATIONAL
-           message, /INFORMATIONAL, 'NOTE: Caught above error when trying to initialize tag ' + mtag_names[it] + ' with the pfo_stuct system.  Adding tag as a copy of more_array[0], which means it might not be properly initialized.' + mtag_names[it]
+           if NOT keyword_set(quiet) then begin
+              message, /NONAME, !error_state.msg, /INFORMATIONAL
+              message, /INFORMATIONAL, 'NOTE: Caught above error when trying to initialize tag ' + mtag_names[it] + ' with the pfo_stuct system.  Adding tag as a copy of more_array[0], which means it might not be properly initialized.' + mtag_names[it]
+           endif
            new_struct1 = $
               create_struct(temporary(new_struct1), mtag_names[it], more_array[0].(it))
            CONTINUE
