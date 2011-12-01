@@ -51,9 +51,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_struct__define.pro,v 1.8 2011/09/16 13:54:31 jpmorgen Exp $
+; $Id: pfo_struct__define.pro,v 1.9 2011/12/01 22:08:11 jpmorgen Exp $
 ;
 ; $Log: pfo_struct__define.pro,v $
+; Revision 1.9  2011/12/01 22:08:11  jpmorgen
+; Minor change in documentation
+;
 ; Revision 1.8  2011/09/16 13:54:31  jpmorgen
 ; Changed default error decimals to 3
 ;
@@ -246,8 +249,8 @@ end
 pro pfo_struct__get_tag, $
    parinfo, $
    idx=idx, $
-   taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   strict= strict, $ ;; See pfo_setget_tag
+   taglist_series= taglist_series, $ ;; See pfo_struct_setget_tag
+   strict= strict, $ ;; See pfo_struct_setget_tag
    _REF_EXTRA   	= extra, $
    status    	= status, $
    ofixed    	= ofixed, $
@@ -317,8 +320,8 @@ end
 pro pfo_struct__set_tag, $
    parinfo, $
    idx=idx, $
-   taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   strict= strict, $ ;; See pfo_setget_tag
+   taglist_series= taglist_series, $ ;; See pfo_struct_setget_tag
+   strict= strict, $ ;; See pfo_struct_setget_tag
    _REF_EXTRA   	= extra, $
    status    	= status, $
    ofixed    	= ofixed, $

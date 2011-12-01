@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.7 2011/11/18 16:07:44 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.8 2011/12/01 22:08:24 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.8  2011/12/01 22:08:24  jpmorgen
+; Minor change in documentation
+;
 ; Revision 1.7  2011/11/18 16:07:44  jpmorgen
 ; Comment updates
 ;
@@ -285,8 +288,8 @@ end
 
 pro pfo_ROI_struct__get_tag, $
    parinfo, idx=idx, $
-   taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   strict= strict, $ ;; See pfo_setget_tag
+   taglist_series= taglist_series, $ ;; See pfo_struct_setget_tag
+   strict= strict, $ ;; See pfo_struct_setget_tag
    _REF_EXTRA   = extra, $
    ispec    	= ispec, $
    iROI    	= iROI, $

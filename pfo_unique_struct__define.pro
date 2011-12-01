@@ -38,9 +38,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_unique_struct__define.pro,v 1.2 2011/09/08 19:59:08 jpmorgen Exp $
+; $Id: pfo_unique_struct__define.pro,v 1.3 2011/12/01 22:07:56 jpmorgen Exp $
 ;
 ; $Log: pfo_unique_struct__define.pro,v $
+; Revision 1.3  2011/12/01 22:07:56  jpmorgen
+; Minor change in documentation
+;
 ; Revision 1.2  2011/09/08 19:59:08  jpmorgen
 ; Implemented completed_updates tag to help sort out order of interdependencies
 ;
@@ -112,8 +115,8 @@ end
 pro pfo_unique_struct__get_tag, $
    parinfo, $
    idx=idx, $
-   taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   strict= strict, $ ;; See pfo_setget_tag
+   taglist_series= taglist_series, $ ;; See pfo_struct_setget_tag
+   strict= strict, $ ;; See pfo_struct_setget_tag
    _REF_EXTRA   	= extra, $
    uniqueID=uniqueID
 
@@ -153,8 +156,8 @@ end
 pro pfo_unique_struct__set_tag, $
    parinfo, $
    idx=idx, $
-   taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   strict= strict, $ ;; See pfo_setget_tag
+   taglist_series= taglist_series, $ ;; See pfo_struct_setget_tag
+   strict= strict, $ ;; See pfo_struct_setget_tag
    _REF_EXTRA   	= extra, $
    uniqueID=uniqueID
 

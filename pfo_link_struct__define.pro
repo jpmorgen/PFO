@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_link_struct__define.pro,v 1.6 2011/11/21 15:25:01 jpmorgen Exp $
+; $Id: pfo_link_struct__define.pro,v 1.7 2011/12/01 22:08:31 jpmorgen Exp $
 ;
 ; $Log: pfo_link_struct__define.pro,v $
+; Revision 1.7  2011/12/01 22:08:31  jpmorgen
+; Minor change in documentation
+;
 ; Revision 1.6  2011/11/21 15:25:01  jpmorgen
 ; Get intralink working, add hand_tied, calculate effect of precision on
 ; ftype rounding, improve documentation
@@ -253,8 +256,8 @@ end
 pro pfo_link_struct__get_tag, $
    parinfo, $
    idx=idx, $
-   taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   strict= strict, $ ;; See pfo_setget_tag
+   taglist_series= taglist_series, $ ;; See pfo_struct_setget_tag
+   strict= strict, $ ;; See pfo_struct_setget_tag
    _REF_EXTRA   = extra, $
    linkID       = linkID    , $
    link_status     = link_status, $
@@ -306,8 +309,8 @@ end
 pro pfo_link_struct__set_tag, $
    parinfo, $
    idx=idx, $
-   taglist_series= taglist_series, $ ;; See pfo_setget_tag
-   strict= strict, $ ;; See pfo_setget_tag
+   taglist_series= taglist_series, $ ;; See pfo_struct_setget_tag
+   strict= strict, $ ;; See pfo_struct_setget_tag
    _REF_EXTRA   	= extra, $
    linkID       = linkID    , $
    link_status     = link_status, $
