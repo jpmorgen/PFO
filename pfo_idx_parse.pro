@@ -52,9 +52,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_idx_parse.pro,v 1.1 2011/10/25 21:31:48 jpmorgen Exp $
+; $Id: pfo_idx_parse.pro,v 1.2 2011/12/01 22:13:23 jpmorgen Exp $
 ;
 ; $Log: pfo_idx_parse.pro,v $
+; Revision 1.2  2011/12/01 22:13:23  jpmorgen
+; Fix bug if 0th length array found
+;
 ; Revision 1.1  2011/10/25 21:31:48  jpmorgen
 ; Initial revision
 ;
@@ -82,6 +85,10 @@ function pfo_idx_parse, idx, ith
   term_idx = where(idx eq !tok.nowhere, count)
   if count eq 0 then $
      message, 'ERROR: No instances of !tok.nowhere found in input array.  Did you forget /terminate_idx when you queried for indices?'
+
+  ;; Check to see if we have a zero-length array
+  if count eq 1 and term_idx eq 0 then $
+     return, !tok.nowhere
 
   if ith ge count then $
      return, !tok.nowhere
