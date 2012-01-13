@@ -91,9 +91,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cw_obj__define.pro,v 1.6 2011/11/18 15:54:04 jpmorgen Exp $
+; $Id: pfo_cw_obj__define.pro,v 1.7 2012/01/13 21:01:07 jpmorgen Exp $
 ;
 ; $Log: pfo_cw_obj__define.pro,v $
+; Revision 1.7  2012/01/13 21:01:07  jpmorgen
+; Fix line wrapping
+;
 ; Revision 1.6  2011/11/18 15:54:04  jpmorgen
 ; Added widget_base_args keyword.
 ;
@@ -205,11 +208,23 @@ function pfo_cw_obj::help, event
   ;; Make our help a text widget.  Put it into the container, just in
   ;; case we eventually want to do fancy refreshing
   tlbID = cw_obj->tlbID()
-  ;; textlineformat is from David Fanning's Coyote
-  ;; library.  It does a line wrap
+
+  ;; Use David Fanning's Coyote library textlineformat to do line
+  ;; wrapping with occasional linefeeds to indicate paragraph breaks.
+
+  ;; Make an array of strings, one per instance of string(10B), or
+  ;; one per ~80 char line
+  help = textlineformat(*self.phelp, length=80)
+
+  ;; Wrap individual paragraphs, if necessary
+  for ih=0, N_elements(help)-1 do begin
+     pfo_array_append, dhelp, textlineformat(help[ih], length=80)
+  endfor
+  help = 0
+
   ID = widget_text(tlbID, $
                    /scroll, $
-                   value=textlineformat(*self.phelp, length=80), $
+                   value=dhelp, $
                    xsize=85, ysize=24)
   ;; Use our object-oriented event handler.  Note, this seems to work
   ;; if we use self (cw_obj of invoking widget) or cw_obj, since the
