@@ -269,7 +269,7 @@ make sense.
 Check the file into revision control.
 
 TEST IT: to test a new function, you need to make sure your IDL_PATH
-is refreshed and the pfo_fit widget (aka gpaw) is restarted.  The
+is refreshed and the pfo_fit (or gpaw) widget is restarted.  The
 easiest way to do this is to just exit and restart IDL.  You might
 also find it useful to use the pfo_debug command to pop your command
 line out right at the point of the code where any error may occur.
@@ -287,9 +287,12 @@ pfo_obj->append_parinfo, 'pfo_ROI', ROI=[625,764], iroi=1
 pfo_obj->append_parinfo, 'pfo_CZT', peak=650, iroi=1
 pfo_obj->append_parinfo, 'pfo_CZT', peak=732, iroi=1
 
-$Id: README.pfo_CZT,v 1.1 2011/11/21 13:11:36 jpmorgen Exp $
+$Id: README.pfo_CZT,v 1.2 2012/01/13 21:03:15 jpmorgen Exp $
 
 $Log: README.pfo_CZT,v $
+Revision 1.2  2012/01/13 21:03:15  jpmorgen
+*** empty log message ***
+
 Revision 1.1  2011/11/21 13:11:36  jpmorgen
 Initial revision
 
