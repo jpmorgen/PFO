@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_error_cw.pro,v 1.2 2011/09/16 13:51:33 jpmorgen Exp $
+; $Id: pfo_parinfo_error_cw.pro,v 1.3 2012/01/13 21:03:48 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_error_cw.pro,v $
+; Revision 1.3  2012/01/13 21:03:48  jpmorgen
+; Minor changes
+;
 ; Revision 1.2  2011/09/16 13:51:33  jpmorgen
 ; Fixed bug, Simplified widget hierarchy to try to speed up.
 ;
@@ -52,14 +55,10 @@ pro pfo_parinfo_error_cw_obj::refresh
 
   ;; Refresh our display
 
-  ;; Use the value we have been passed as a keyword in preference to
-  ;; that in the parinfo
-  if N_elements(params) eq 0 then begin
-     ;; Read our value from the parinfo
-     self.pfo_obj->parinfo_call_procedure, $
-        /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
-        taglist_series='mpfit_parinfo', error=error, eformat=eformat
-  endif ;; no value keyword specified
+  ;; Read our value from the parinfo
+  self.pfo_obj->parinfo_call_procedure, $
+     /no_update, 'pfo_struct_setget_tag', /get, idx=*self.pidx, $
+     taglist_series=['mpfit_parinfo', 'pfo'], error=error, eformat=eformat
 
   widget_control, self.ID, set_value=string(format=eformat, error)
 
@@ -109,11 +108,12 @@ function pfo_parinfo_error_cw_obj::init, $
   ok = self->pfo_parinfo_cw_obj::init(parentID, _EXTRA=extra)
   if NOT ok then return, 0
 
-  ;; Register ourselves in the refresh list.
-  self->register_refresh
-
   ;; Build our widget
   self->populate, _EXTRA=extra
+
+  ;; If build is sucessful, we can register ourselves in the refresh
+  ;; list
+  self->register_refresh
 
   ;; If we made it here, we have successfully set up our widget.
   return, 1

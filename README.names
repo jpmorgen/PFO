@@ -1,18 +1,3 @@
-$Id: README.names,v 1.3 2011/09/01 22:17:24 jpmorgen Exp $
-
-$Log: README.names,v $
-Revision 1.3  2011/09/01 22:17:24  jpmorgen
-Significant improvements to parinfo editing widget, created plotwin
-widget, added pfo_poly function.
-
-Revision 1.2  2011/08/02 18:59:28  jpmorgen
-Release to Tom
-Fix up for current state of affairs
-
-Revision 1.1  2011/08/01 19:18:16  jpmorgen
-Initial revision
-
-
 README.names -- Documentation of naming conventions for PFO system
 
 PFO FUNCTIONS:
@@ -21,8 +6,7 @@ pfo_<fname>__fdefine: Register function fname in the dynamic list of
 	pfo functions using pfo_fdefine.  Also registers the number of
 	parameters, if known (0 parameters indicates number of
 	parameters of this function might vary -- e.g. pfo_poly).
-	Called by pfo_parinfo_new.  TODO: make a routine that searches
-	the entire IDL_PATH to register all pfo functions.
+	Called by pfo_parinfo_new.
 
 pfo_<fname>__init: Called by pfo_parinfo_new after
 	pfo_<fname>__fdefine to create a new strand of parinfo for
@@ -32,13 +16,16 @@ pfo_<fname>__init: Called by pfo_parinfo_new after
 	After intermediate processing, the strand should be joind to
 	an existing parinfo with pfo_array_append and then
 	pfo_parinfo_update should be called to automatically sort out
-	any interdependencies
+	any interdependencies.  pfo_obj->parinfo_append, 'pfo_<fname>'
+	takes care of all of this.
 
 pfo_<fname>__calc: Called by pfo_parinfo_parse to calculate function
 	fname given the input axis specified in parinfo.pfo.inaxis,
 	combined with the operation specified in parinfo.pfo.fop with
 	the contents of parinfo.pfo.oaxis.  parinfo.pfo.infunct and
 	parinfo.pfo.outfunct also operate, if specified.
+	pfo_obj->Xaxis(), pfo_obj->Yaxis(), etc. take care of calling
+	calc.
 
 pfo_<fname>__indices: Each __indices function has a list of keywords
 	that correspond to the list of parameters in a particular
@@ -47,17 +34,20 @@ pfo_<fname>__indices: Each __indices function has a list of keywords
 	other names appropriate for other functions (e.g. E0, f_low,
 	f_high, etc.)  The indices into parinfo corresponding to the
 	name of the keyword are returned on the keyword.
+	pfo_obj->indices() calls indices.
 
 pfo_<fname>__print: Called by pfo_funct to print the function in the
 	IDL command line window.  If no __print "method" is found in
 	the pfo_<fname>__fdefine file (or anywhere else),
 	pfo_null__print is used, which does a reasonably good job for
-	simple functions
+	simple functions.  pfo_obj->print is a nice way to print the
+	parinfo.
 
 pfo_<fname>__widget: Called by pfo_funct to create a widget to display
 	the function in IDL GUI format.  As with __print,
 	pfo_null__widget is the fallback if the particular function
-	doesn't have its own.
+	doesn't have its own.  pfo_obj->edit is a good way to get a
+	widget up.
 
 STRUCTURES:
 
@@ -65,7 +55,7 @@ STRUCTURES:
 	tagname_struct.  This is a basic feature of IDL since version
 	5 or so, but we expand on it with the function pfo_struct_new.
 	<tagname>_struct__define will initialize tags to IDL "null"
-	values.  This does not always serve our purposes.
+	values.  IDL null values are not always what we want
 	<tagname>_struct__init fixes this.
 
 <tagname>_struct__init: called by pfo_struct_new(tagname).
@@ -138,4 +128,23 @@ pfo_plotwin__define: the object class that is inherited by all
 	methods for linking to the pfo_obj_plotwin_obj in the pfo_obj,
 	so the pfo_obj->replot method works, a default plot method
 	which uses the pfo_plot_obj in the pfo_obj encapsulated in the 
+
+
+$Id: README.names,v 1.4 2012/01/13 21:02:36 jpmorgen Exp $
+
+$Log: README.names,v $
+Revision 1.4  2012/01/13 21:02:36  jpmorgen
+Minor changes
+
+Revision 1.3  2011/09/01 22:17:24  jpmorgen
+Significant improvements to parinfo editing widget, created plotwin
+widget, added pfo_poly function.
+
+Revision 1.2  2011/08/02 18:59:28  jpmorgen
+Release to Tom
+Fix up for current state of affairs
+
+Revision 1.1  2011/08/01 19:18:16  jpmorgen
+Initial revision
+
 
