@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.12 2011/12/01 22:15:12 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.13 2012/01/13 20:54:35 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -76,24 +76,6 @@ pro pfo_sysvar__define
        delimiters: ['.', '<', '|'], $
        $ ;; Indicator when we are pegged against a limit
        pegged: '*', $
-       $;; obselete
-       $;;poly	:	1,  $	; ftype tokens
-       $;;deltafn	:	2,  $
-       $;;gauss	:	3,  $
-       $;;voigt	:	4,  $
-       $;;sso	:	5,  $
-       $;;sso_funct:	5,  $
-       $;;czt	:	6,  $
-       $;;pow	:	7,  $
-       $;;scint	:	8,  $ ;; Generic scintillator
-       $;;bgo	:	8,  $ ;; temporary for debugging
-       $;;mgm	:	9,  $	;; Modified Gaussian
-       $;;ROI	:	10, $
-       $;;deriv	:	11, $ ;; derivative -- depends on link
-       $;;last_fn	:	11, $
-       $ ;; If you add functions, add to these.  0 parameters means unspecified
-       fnames	:	['null', 'poly', 'deltafn', 'gauss', 'voigt', 'sso_funct', 'czt', 'pow', 'scint', 'mgm', 'ROI', 'deriv'], $
-       fnpars	:	[0,0,2,3,4,0,10,2,5,3,2,1], $ ;; Number of params per fn
        $ ;; Tokens for printing
        print	:	1,   $  ;; parameter printing options 1=/print -- single-line concise print
        ppname	:	2,   $  ;; parameter names only
@@ -106,12 +88,16 @@ pro pfo_sysvar__define
        left	:	0,   $
        right	:	1,   $
        $ ;; tokens for pfo_link status
-       $;;no_used:	0,   $  duplicate of pfo.status
+       $;;not_used:	0,   $  duplicate of pfo.status
        master	:	2^0, $
        slave	:	2^1, $
-       hand_tied:	2^3, $
-       intralink:	1, $
+       hand_tied:	2^2, $
+       $ ;; String representations of master/slave tokens
+       link_status_string: ['-', 'master', 'slave', 'hand_tied'], $
+       intralink:	1, $ ;; auto_link tokens
        interlink:	2, $
+       $ ;; String representations of auto link tokens
+       auto_link_string: ['-', 'intra', 'inter'], $
        $ ;; mpfit iterproc/stop stuff
        iterproc	:	'pfo_iterproc', $
        iterstop	:	-2, $   ;; stop fit, keep values
