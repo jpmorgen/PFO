@@ -38,9 +38,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_xaxis_idx.pro,v 1.1 2012/01/13 18:48:54 jpmorgen Exp $
+; $Id: pfo_xaxis_idx.pro,v 1.2 2012/01/13 20:48:07 jpmorgen Exp $
 ;
 ; $Log: pfo_xaxis_idx.pro,v $
+; Revision 1.2  2012/01/13 20:48:07  jpmorgen
+; Got it working
+;
 ; Revision 1.1  2012/01/13 18:48:54  jpmorgen
 ; Initial revision
 ;
@@ -50,6 +53,7 @@ function pfo_Xaxis_idx, $
    idx=idx, $
    count=count
   
+  ;; Initialize system variable
   init = {pfo_sysvar}
 
   ;; Initialize output keyword
@@ -58,8 +62,15 @@ function pfo_Xaxis_idx, $
   ;; Make sure idx exists
   pfo_idx, parinfo, idx
 
-  ;; Indices of any Xin to Xaxis transformations in idx
-  return, where(parinfo[idx].pfo.inaxis eq !pfo.Xin and $
-                parinfo[idx].pfo.outaxis eq !pfo.Xaxis, count)
+  ;; Find indices of any Xin to Xaxis transformations in idx
+  Xaxis_idx = where(parinfo[idx].pfo.inaxis eq !pfo.Xin and $
+                    parinfo[idx].pfo.outaxis eq !pfo.Xaxis, count)
+  ;; Return -1 if none found
+  if count eq 0 then $
+     return, Xaxis_idx
+
+  ;; unwrap
+  return, idx[Xaxis_idx]
+
 
 end

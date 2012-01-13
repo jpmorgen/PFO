@@ -44,9 +44,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_xaxis.pro,v 1.5 2011/11/18 15:35:20 jpmorgen Exp $
+; $Id: pfo_xaxis.pro,v 1.6 2012/01/13 20:47:50 jpmorgen Exp $
 ;
 ; $Log: pfo_xaxis.pro,v $
+; Revision 1.6  2012/01/13 20:47:50  jpmorgen
+; Got it working
+;
 ; Revision 1.5  2011/11/18 15:35:20  jpmorgen
 ; Change call to pfo_parinfo_parse to use parinfo as a keyword.
 ;
@@ -78,17 +81,10 @@ function pfo_Xaxis, parinfo, Xin=Xin, idx=idx, _REF_EXTRA=extra
   if N_elements(parinfo) eq 0 then $
      return, Xaxis
 
-  ;; Make sure idx exists
-  pfo_idx, parinfo, idx
-
-  ;; Indices of any Xin to Xaxis transformations in idx
-  Xaxis_idx = where(parinfo[idx].pfo.inaxis eq !pfo.Xin and $
-                    parinfo[idx].pfo.outaxis eq !pfo.Xaxis, count)
+  ;; Get the indices into parinfo of Xaxis transformations
+  Xaxis_idx = pfo_Xaxis_idx(parinfo, idx=idx, count=count)
   if count eq 0 then $
     return, Xaxis
-
-  ;; unwrap
-  Xaxis_idx = idx[Xaxis_idx]
 
   ;; If we made it here, we have a parinfo that defines an Xaxis
 
