@@ -7,15 +7,27 @@
 ;
 ; CALLING SEQUENCE:
 ;
-; DESCRIPTION:
+; DESCRIPTION: Return indices into parinfo of likely background
+; functions (functions that replace the Y-axis)
 ;
-; INPUTS:
+; INPUTS: 
 ;
 ; OPTIONAL INPUTS:
 ;
 ; KEYWORD PARAMETERS:
+
+;   parinfo: (optional) parinfo array describing the function
+
+;   pfo_obj: (optional) pfo_obj encapsulating parinfo
+
+;   idx: indices into parinfo over which to look for backgroun
+;   functions
+
+;  non_back_idx: complement of returned background indices
+
 ;
-; OUTPUTS:
+; OUTPUTS: indices into parinfo of likley background functions
+; (!tok.nowhere if none found)
 ;
 ; OPTIONAL OUTPUTS:
 ;
@@ -33,9 +45,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_back_idx.pro,v 1.1 2012/01/05 20:01:17 jpmorgen Exp $
+; $Id: pfo_back_idx.pro,v 1.2 2012/01/13 20:49:29 jpmorgen Exp $
 ;
 ; $Log: pfo_back_idx.pro,v $
+; Revision 1.2  2012/01/13 20:49:29  jpmorgen
+; Documentation
+;
 ; Revision 1.1  2012/01/05 20:01:17  jpmorgen
 ; Initial revision
 ;
