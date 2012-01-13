@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__print.pro,v 1.4 2011/09/16 13:47:51 jpmorgen Exp $
+; $Id: pfo_null__print.pro,v 1.5 2012/01/13 21:05:46 jpmorgen Exp $
 ;
 ; $Log: pfo_null__print.pro,v $
+; Revision 1.5  2012/01/13 21:05:46  jpmorgen
+; Add parameter line printing for additional structures
+;
 ; Revision 1.4  2011/09/16 13:47:51  jpmorgen
 ; Added col_head output and idx and tied printing
 ;
@@ -307,6 +310,9 @@ function pfo_null__print, $
            param_print += string(parinfo[idx[ip]].mpmaxstep, format=pformat)
         endif ;; Additional mpfit stuff, if desired
 
+        ;; Check to see if any of the parinfo structure tags want to
+        ;; print anything on the parameter line (e.g. pfo_ROI_struct)
+        pfo_struct_call_procedure, parinfo, 'print', param_print=param_print, idx=idx[ip], _EXTRA=extra
         ;; Next line for next parameter or end of list
         toprint += param_print + !tok.newline
      endfor ;; each parameter
