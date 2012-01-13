@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_struct__define.pro,v 1.8 2011/12/01 22:08:24 jpmorgen Exp $
+; $Id: pfo_roi_struct__define.pro,v 1.9 2012/01/13 21:04:31 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_struct__define.pro,v $
+; Revision 1.9  2012/01/13 21:04:31  jpmorgen
+; Clear away FSC stuff
+;
 ; Revision 1.8  2011/12/01 22:08:24  jpmorgen
 ; Minor change in documentation
 ;
@@ -151,22 +154,10 @@ pro pfo_ROI_struct_cw_obj::populate, $
                              value=iROI, /integer, /return_events, $
                              /kbrd_focus_events, $
                              uvalue={method:'event', obj:self})
-
-  ;; Register ourselves in the refresh list.  
-  self->register_refresh
-
 end
 
 ;; Cleanup method
 pro pfo_ROI_struct_cw_obj::cleanup
-  ;; Turn off keyboard focus before we kill our widgets so extra
-  ;; keyboard focus events during death don't cause segmentation
-  ;; faults
-  if obj_valid(self.ispec_obj) then begin
-     self.ispec_obj->SetProperty, event_func=''
-     self.iROI_obj->SetProperty, event_func=''
-  endif ;; if fsc_field widgets still exist, turn off event processing until they die
-
   ;; Call our inherited cleaup routines
   self->pfo_parinfo_cw_obj::cleanup
 end
@@ -193,11 +184,11 @@ function pfo_ROI_struct_cw_obj::init, $
   ok = self->pfo_parinfo_cw_obj::init(parentID, /row, _EXTRA=extra)
   if NOT ok then return, 0
 
-  ;; Register with the refresh list
-  self->register_refresh
-
   ;; Build our widget
   self->populate, _EXTRA=extra
+
+  ;; Register with the refresh list
+  self->register_refresh
 
   ;; If we made it here, we have successfully set up our widget.
   return, 1
@@ -210,8 +201,6 @@ pro pfo_ROI_struct_cw_obj__define
      {pfo_ROI_struct_cw_obj, $
       ispecID	: 0L, $ ;; widget ID(s) used in refresh method
       iROIID	: 0L, $ ;; widget ID(s) used in refresh method
-      ispec_obj	: obj_new(), $ ;; object controlling fsc_field widget
-      iROI_obj	: obj_new(), $ ;; object controlling fsc_field widget
       inherits pfo_parinfo_cw_obj}
 end
 
