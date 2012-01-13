@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_xfunct_cw.pro,v 1.4 2011/11/21 15:30:07 jpmorgen Exp $
+; $Id: pfo_parinfo_xfunct_cw.pro,v 1.5 2012/01/13 21:00:33 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_xfunct_cw.pro,v $
+; Revision 1.5  2012/01/13 21:00:33  jpmorgen
+; Change to widget_combobox so user can enter their own function
+;
 ; Revision 1.4  2011/11/21 15:30:07  jpmorgen
 ; Add exp10 and alog10
 ;
@@ -55,7 +58,7 @@
 function pfo_parinfo_xfunct_cw_obj::event, event
 
   sn = tag_names(event, /structure_name)
-  if sn ne 'WIDGET_DROPLIST' then $
+  if sn ne 'WIDGET_COMBOBOX' then $
      message, 'ERROR: unexpected event'
 
   ;; We will always swallow the event
@@ -67,10 +70,16 @@ function pfo_parinfo_xfunct_cw_obj::event, event
   if event.index eq 0 then $
      return, retval
 
-  ;; Translate 'no funct' to null string
-  xfunct = (*self.pxfuncts)[event.index-1]
-  if xfunct eq 'no funct' then $
-     xfunct = ''
+  ;; Check for a user-entered value
+  if event.index eq -1 then begin
+     xfunct = event.str
+  endif else begin
+     ;; We have one of our pre-defined functions
+     ;; Translate 'no funct' to null string
+     xfunct = (*self.pxfuncts)[event.index-1]
+     if xfunct eq 'no funct' then $
+        xfunct = ''
+  endelse ;; index -1 or > 0
 
   ;; Write it into the parinfo
   if keyword_set(self.in) then $
@@ -133,7 +142,7 @@ end
 pro pfo_parinfo_xfunct_cw_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
-  self.xfunctID = widget_droplist( $
+  self.xfunctID = widget_combobox(/editable,  $
                   self.tlbID, $
                   value=[self->get_xfunct(), $
                          *self.pxfuncts], $
