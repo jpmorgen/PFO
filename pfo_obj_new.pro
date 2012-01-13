@@ -7,7 +7,7 @@
 ;
 ; CALLING SEQUENCE:
 
-;   pfo_obj = pfo_obj_new([ObjectCLassName], keyword arguments to ObjectCLassName init method)
+;   pfo_obj = pfo_obj_new([ObjectCLassName or template], keyword arguments to ObjectCLassName init method)
 
 ;
 ; DESCRIPTION: This routine is a wrapper around IDL's obj_new function.  If no
@@ -15,13 +15,17 @@
 ; stored !pfo.pfo_obj_ClassName
 ;
 ;
-; INPUTS:
+; INPUTS: 
+
+; OPTIONAL INPUTS: p0, p1, p2, p3.  If p0 is a string, it is taken to
+; be the object class name.  If it is an object, the object class name
+; copied and a new object is returned.  The [other] positional
+; parameters are assumed to be [Xin,] Yin, and [Yerr].
+
+; KEYWORD PARAMETERS:  All keyword parameters are passed on to the
+; underlying object class init method(s)
 ;
-; OPTIONAL INPUTS:
-;
-; KEYWORD PARAMETERS:
-;
-; OUTPUTS:
+; OUTPUTS: newly initialized object (if successful)
 ;
 ; OPTIONAL OUTPUTS:
 ;
@@ -39,9 +43,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj_new.pro,v 1.1 2011/08/01 19:18:16 jpmorgen Exp $
+; $Id: pfo_obj_new.pro,v 1.2 2012/01/13 20:48:30 jpmorgen Exp $
 ;
 ; $Log: pfo_obj_new.pro,v $
+; Revision 1.2  2012/01/13 20:48:30  jpmorgen
+; Added template option
+;
 ; Revision 1.1  2011/08/01 19:18:16  jpmorgen
 ; Initial revision
 ;
@@ -67,19 +74,27 @@ function pfo_obj_new, $
      endif
   endif ;; not debugging
 
-  pfo_obj_ClassName = !pfo.pfo_obj_ClassName
-
-  ;; Check to see if user omitted replacement pfo_obj ClassName.  This
-  ;; will usually be the case.  The other positional parameters will
-  ;; be (optionally) Xin, Yin, and Yerr.
-  if size(/type, p0) ne !tok.string then $
-     return, obj_new(pfo_obj_ClassName, p0, p1, p2, _EXTRA=extra)
-
-  ;; If we made it here, the user has built their own pfo_obj
-  ;; replacement.
-  pfo_obj_ClassName = p0
-  return, obj_new(pfo_obj_ClassName, p1, p2, p3, _EXTRA=extra)
-
-
+  ;; Handle the different types of p0
+  case size(/type, p0) of
+     !tok.string: begin
+        ;; Named object.  This is basically just IDL's obj_new case
+        return, obj_new(p0, p1, p2, p3, _EXTRA=extra)
+     end
+     !tok.objref: begin
+        ;; Reading our object class name from a template pfo_obj.  Use
+        ;; the output of help:
+        ;; P0         OBJREF    = <ObjHeapVar1(PFO_OBJ)>
+        help, p0, output=s
+        ;; Find last open (
+        op = strpos(s, '(', /reverse_search)
+        ;; Find close of expression
+        cp = strpos(s, ')>', /reverse_search)
+        return, obj_new(strmid(s, op+1, cp-op-1), p1, p2, p3, _EXTRA=extra)
+     end
+     else: begin
+        ;; Default is to use value in pfo system variable
+        return, obj_new(!pfo.pfo_obj_ClassName, p1, p2, p3, _EXTRA=extra)
+     end
+  endcase
 
 end
