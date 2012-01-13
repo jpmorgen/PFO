@@ -25,7 +25,7 @@
 ;   variable into which to return the pfo_obj created and modified by
 ;   pfo_fit.  In either case, the caller should be prepared to issue
 ;   the obj_destroy command on pfo_obj at the apropriate time to avoid
-;   memory leaks.  --> The pfo_obj is documented elsewhere
+;   memory leaks.  See README.pfo_obj for an introduction to the pfo_obj.
 
 ;   Other keyword arguments are explained in the code.  NOTE: not all
 ;   keywords are explicitly mentioned at each level.  For example,
@@ -34,8 +34,7 @@
 ;   pfo_fit_obj::init, any keyword valid for that routine is a valid
 ;   keyword for pfo_fit.  Similary pfo_fit_obj calls pfo_cw_obj::init,
 ;   which itself has a list of keywords.  pfo_cw_obj::init calls IDL
-;   routines like widget_base which receive the _EXTRA command.   -->
-;   see PFO documentation for more details.
+;   routines like widget_base which receive the _EXTRA command.
 
 ;
 ; OUTPUTS:
@@ -56,9 +55,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 2.3 2011/12/01 22:10:43 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 2.4 2012/01/13 20:55:03 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 2.4  2012/01/13 20:55:03  jpmorgen
+; Add help
+;
 ; Revision 2.3  2011/12/01 22:10:43  jpmorgen
 ; Improve caller access to expanding menus, allow customization of enable_undo
 ;
@@ -175,7 +177,7 @@ function pfo_fit_obj::init, $
 
   ;; Default title
   if N_elements(title) eq 0 then $
-     title = 'PFO FIT'
+     title = 'PFO_FIT'
 
   ;; Find a comfortable size for our widget
   ;; Get screen size
@@ -199,6 +201,19 @@ function pfo_fit_obj::init, $
   if N_elements(enable_undo) eq 0 then $
      enable_undo = 1
   
+  ;; Set up our help string.
+  help = title + ' help.  Data, function, and deviates are displayed in the left panel.  The top right displays the cursor location on the plot and allows adjustment of the plot limits (min and max).  The plot -> autoscale menu items reset user-specified plot limits.  The function editor is displayed in the lower righthand panel.  '
+  help += string(10B) + string(10B)
+
+  help += 'The FUNCTION EDITOR shows a set of equations that define the function to be fit to the data.  The basic equation always starts X = Xin; Y = NaN (or 0).  Subsequent sub-functions (e.g. pfo_poly) are combined using simple operations.  +, *, and "replacement" are currently supported and debugged.  Convolution is in the code but not debugged.  "Replacement" is an important operation, since it means that the Y-axis NaNs will be replaced by the value of the function. pfo_poly (usually used as a background) defaults to replacing the Y-axis for this reason.  Subsequent functions operate as desired by selecting the appropriate axis and operation.  Sophisticated algebra is not supported.  The order in which functions are listed is the order in which operations are performed.'
+  help += string(10B) + string(10B)
+
+  help += 'PARAMETER EDITING, VALUES and CONSTRAINTS.  When you "Add a new function" or click the "edit" button to the left of an existing function, a new window will appear with editable fields.  It is important to recognize that there are *four columns* of values that apply to the parameter: left limit, value, error, and right limit.  Note that the actual value of the parameter is the *SECOND* column of numbers.  This is the one you will usually want to edit first.  The reason for this is that MPFIT, the parameter optimizer used by PFO, allows left and right simple bounds to be placed on the excursion of a parameter during a fit.  The display of these left and right limits is to the left and right of the parameter value.  In order to enable the limit feature, use the pulldown menu in the "L" columns and select "<".  When you fit (fit menu), pay careful attention to whether or not your parameter becomes "pegged" at a limit value (indicated by "<*").  If this happens, you may want to fix it at that value (set the "L" column to "|") so that the number of fitted parameters comes out right.  An "L" value of "." means the parameter is free.'
+  help += string(10B) + string(10B)
+
+  ;; --> It might be nice to figure out how to add on help for parinfo
+  ;; modules here.
+
   ;; Call our inherited init routines.  This creates a top-level base
   ;; with a menu bar and makes sure that the resize event can be
   ;; handled.  It also puts pfo_obj into self or creates it if none
@@ -210,7 +225,7 @@ function pfo_fit_obj::init, $
        /first_child, $ ;; hide cw_obj in a first child uvalue instead of tlb uvalue
        /tlb_size_events, $ ;; have IDL generate resize events
        uvalue={method: 'resize', obj:self}, $ ;; catch resize events (/first_child needed to let this work)
-       help='Select Menu -> exit to exit widget', $ ;; --> this needs to get better with the help up pfo_string2array, and possibly the pfo_finfo system
+       help=help, $
        realize=0, $
        _EXTRA=extra)
   if NOT ok then begin
