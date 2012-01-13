@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_edit_menu.pro,v 1.2 2011/12/01 22:16:48 jpmorgen Exp $
+; $Id: pfo_parinfo_edit_menu.pro,v 1.3 2012/01/13 21:02:02 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_edit_menu.pro,v $
+; Revision 1.3  2012/01/13 21:02:02  jpmorgen
+; Make token-based logic
+;
 ; Revision 1.2  2011/12/01 22:16:48  jpmorgen
 ; Make string tokens out of actions rather than numbers
 ;
@@ -55,16 +58,16 @@ function pfo_parinfo_edit_menu_obj::event, event, button=button
      message, 'ERROR: button keyword required'
 
   case button of 
-     'enable_undo': begin ;; toggle enable_undo.
+     self.enable_undo: begin ;; toggle enable_undo.
         self.pfo_obj->get_property, enable_undo=enable_undo
         self.pfo_obj->set_property, enable_undo=~enable_undo
         ;; Refresh any other instances that display this information
         self.pfo_obj->refresh
      end
      ;; Undo and redo take care of update stuff
-     'undo': self.pfo_obj->undo
-     'redo': self.pfo_obj->redo
-     'erase': begin
+     self.undo: self.pfo_obj->undo
+     self.redo: self.pfo_obj->redo
+     self.erase: begin
         ok = dialog_message('Erase the entire parinfo?!', title='Erase?', /question, /default_no, dialog_parent=self.parentID)
         if ok eq 'Yes' then begin
            self.pfo_obj->delete_parinfo
@@ -92,13 +95,13 @@ pro pfo_parinfo_edit_menu_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
   self.enable_undoID = widget_button(self.tlbID, value='Enable undo', /checked_menu, $
-                                     uvalue={method: 'edit', obj:self, keywords:{button:'enable_undo'}})
+                                     uvalue={method: 'event', obj:self, keywords:{button:self.enable_undo}})
   ID = widget_button(self.tlbID, value='Undo', $
-                     uvalue={method: 'event', obj:self, keywords:{button:'undo'}})
+                     uvalue={method: 'event', obj:self, keywords:{button:self.undo}})
   ID = widget_button(self.tlbID, value='Redo', $
-                     uvalue={method: 'event', obj:self, keywords:{button:'redo'}})
+                     uvalue={method: 'event', obj:self, keywords:{button:self.redo}})
   ID = widget_button(self.tlbID, value='Erase all', $
-                     uvalue={method: 'event', obj:self, keywords:{button:'erase'}})
+                     uvalue={method: 'event', obj:self, keywords:{button:self.erase}})
   ;; --> It would be nice to have an "add function" item here, but I
   ;; can't just use pfo_parinfo_new_droplist, since a droplist can't
   ;; be the child of a button menu.  I would have to make separate
@@ -138,11 +141,18 @@ function pfo_parinfo_edit_menu_obj::init, $
   ok = self->pfo_cw_obj::init(parentID, /menu, value='Edit', _EXTRA=extra)
   if NOT ok then return, 0
 
-  ;; Register ourselves in the refresh list for the enable_undo feature
-  self->register_refresh
+  ;; Initialize our tokens
+  self.enable_undo = 0
+  self.undo = 1
+  self.redo = 2
+  self.erase = 3
 
   ;; Build our widget
   self->populate, _EXTRA=extra
+
+  ;; If build is sucessful, we can register ourselves in the refresh
+  ;; list
+  self->register_refresh
 
   ;; If we made it here, we have successfully set up our container.  
   return, 1
@@ -154,7 +164,11 @@ end
 pro pfo_parinfo_edit_menu_obj__define
   objectClass = $
      {pfo_parinfo_edit_menu_obj, $
-      enable_undoID	: 0L, $ ;; 
+      enable_undoID	: 0L, $ ;; widget ID of child that does all the work
+      enable_undo	: 0B, $ ;; tokens for event
+      undo		: 0B, $
+      redo		: 0B, $
+      erase		: 0B, $
       inherits pfo_cw_obj}
 end
 
