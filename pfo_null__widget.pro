@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__widget.pro,v 1.5 2011/11/18 15:34:56 jpmorgen Exp $
+; $Id: pfo_null__widget.pro,v 1.6 2012/01/13 20:58:04 jpmorgen Exp $
 ;
 ; $Log: pfo_null__widget.pro,v $
+; Revision 1.6  2012/01/13 20:58:04  jpmorgen
+; Add tied widget
+;
 ; Revision 1.5  2011/11/18 15:34:56  jpmorgen
 ; Changed to use pfo_obj print method
 ;
@@ -150,6 +153,8 @@ pro pfo_null_cw_obj::populate, $
            ID = widget_label(rowID, value='MPside', xsize=mpside_width, units=units)
            ID = widget_label(rowID, value='MPmaxstep', xsize=val_width, units=units)
         endif ;; optional MPside stuff
+        ID = widget_label(rowID, value='idx', xsize=delim_width, units=units)        
+        ID = widget_label(rowID, value='tied', xsize=val_width, units=units)        
         ;; Call the col_head sections of any other widget routines in
         ;; the parinfo structure.  Make use of the call procedure system
         ;; in the pfo_obj and then again at the struct level.
@@ -284,9 +289,8 @@ pro pfo_null_cw_obj::populate, $
      ;; Close paranthesis from outfunct
      ID = widget_label(rowID, value=')')
 
-     ;; fseq
+     ;; fseq --> make a real widget
      ID = widget_label(rowID, value='fseq = ')
-     ;; --> make a real widet
      ID = fsc_field(rowID, title='', value=fseq[0], decimal=0, digits=3, xsize=3, /NONSENSITIVE)
 
      ;; Check to see if any of the parinfo structure tags want to
@@ -329,9 +333,17 @@ pro pfo_null_cw_obj::populate, $
         ;; Right limit
         ID = pfo_parinfo_limit_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
                                   xsize=val_width, units=units)
-        
+        ;; idx.  If this changes, we will be repopulating
+        ID = widget_label(rowID, value=string(format='(i4)', (*self.pidx)[ip]), xsize=pm_width, units=units)
+        ;; tied.  Make it small for now, since all it will typically
+        ;; display is P[xxx]
+        ID = pfo_parinfo_tied_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
+                                 xsize=val_width, units=units)
+
+        ;; Call the other __widget functions in the parinfo structure
+        ;; *on each parameter*
         ID = self.pfo_obj->parinfo_call_function( $
-             /no_update, 'pfo_struct_call_function', 'widget', /parameter, rowID, idx=*self.pidx, _EXTRA=extra)
+             /no_update, 'pfo_struct_call_function', 'widget', /parameter, rowID, idx=(*self.pidx)[ip], _EXTRA=extra)
 
      end ;; each parameter
   endif else begin
@@ -351,6 +363,7 @@ end
 ;; Init method
 function pfo_null_cw_obj::init, $
    parentID, $ ;; widgetID of parent widget
+   idx=idx,  $ ;; make sure we capture idx here, so it doesn't get propagated through to the _EXTRA in the populate
    _REF_EXTRA=extra ;; All other input parameters passed to other initilization routines via _EXTRA mechanism
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
@@ -367,7 +380,7 @@ function pfo_null_cw_obj::init, $
   ;; Call our inherited init routines.  This puts pfo_obj and idx of
   ;; this function into self, among other things.  It also makes the
   ;; tlb a column base.
-  ok = self->pfo_parinfo_cw_obj::init(parentID, /column, _EXTRA=extra)
+  ok = self->pfo_parinfo_cw_obj::init(parentID, idx=idx, /column, _EXTRA=extra)
   if NOT ok then begin
      message, 'WARNING: object not initialized properly'
      return, 0
