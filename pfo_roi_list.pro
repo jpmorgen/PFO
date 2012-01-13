@@ -11,15 +11,13 @@
 ; ispec_in=ispec_in, iROI_in=iROI_in, ispec_out=ispec_out,
 ; iROI_out=iROI_out, N_ispec_out=N_ispec_out, N_iROI_out=N_iROI_out
 
-
 ; DESCRIPTION: This routine is useful for probing the ispec and iROI
-; contents of parinfo[idx].  It is a function that returns -1 if the
-; pfo_ROI tag is not present, 0 if you specified ispec_in(s) that
-; ended up not being found in the parinfo and 1 if at least some
-; matching ispec was found.  If no ispec_in were specified, all ispecs
-; in parinfo[idx] are returned on ispec_out.  All iROI _on each ispec_
-; matching iROI_in are returned on iROI_out.  As with ispec, if no
-; iROI_in is specified, all iROI in parinfo[idx] are returned.
+; contents of parinfo[idx].  It is a function that returns 0 if the
+; pfo_ROI tag is not present, and 1 it is present.  If no ispec_in
+; were specified, all ispecs in parinfo[idx] are returned on
+; ispec_out.  All iROI _on each ispec_ matching iROI_in are returned
+; on iROI_out.  As with ispec, if no iROI_in is specified, all iROI in
+; parinfo[idx] are returned.
 
 ; INPUTS: parinfo: parinfo array defining the functions
 ;
@@ -71,9 +69,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi_list.pro,v 1.2 2011/09/01 22:27:20 jpmorgen Exp $
+; $Id: pfo_roi_list.pro,v 1.3 2012/01/13 20:49:02 jpmorgen Exp $
 ;
 ; $Log: pfo_roi_list.pro,v $
+; Revision 1.3  2012/01/13 20:49:02  jpmorgen
+; Updated documentation, changed default output a little
+;
 ; Revision 1.2  2011/09/01 22:27:20  jpmorgen
 ; Significant improvements to parinfo editing widget, created plotwin
 ; widget, added pfo_poly function.
@@ -96,8 +97,6 @@ function pfo_ROI_list, $
   init = {pfo_sysvar}
 
   ;; Initialize our outputs
-  ispec_out = ''
-  iROI_out = ''
   N_ispec_out = 0
   N_iROI_out = 0
 
@@ -119,6 +118,11 @@ function pfo_ROI_list, $
 
   ;; Make sure idx exists
   pfo_idx, parinfo, idx
+
+  ;; If we made it here, it is reasonable to initialize our ispec and
+  ;; iROI output variables
+  ispec_out = ''
+  iROI_out = ''
 
   ;; Work from local variables
   if N_elements(ispec_in) ne 0 then $
