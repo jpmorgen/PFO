@@ -1,0 +1,73 @@
+README.pfo_fit
+
+pfo_fit is the default graphical user interface (GUI) of the PFO
+system.  To invoke pfo_fit, simply issue the command:
+
+pfo_fit
+
+at the IDL command prompt.  There is some basic on-screen help
+(top-level menu to the far right).
+
+Currently, not much functionality in terms of reading and writing data
+files is implemented with the GUI, so you might want to use the
+positional parameters to specify some data.  For instance:
+
+pfo_fit, data
+
+will load in a vector, data, automatically assign ordinal channels as
+the X-axis (formally, "Xin"), and use sqrt(data) as yerr.  If you
+specify more positional parameters, they will be used as Xin and Yerr
+(see documentation in pfo_fit.pro).
+
+Another thing that will be useful for you to know at this stage of
+development of the PFO system is that it is possible to have pfo_fit
+return the "pfo_obj" that stores the data, function, and can be used
+to control the GUI.  Thus, you might want to issue the command:
+
+pfo_fit, Xin, data, Yerr, pfo_obj=pfo_obj
+
+Now you can use the methods in pfo_obj to avoid tedious mouse entry.
+You can also use the pfo_obj to access features of PFO that have yet
+to be implemented in the GUI.  See README.pfo_obj to get started with
+the pfo_obj.
+
+NOTE: if you do use the pfo_obj, remember to destroy it when you are
+done, to prevent memory leaks:
+
+obj_destroy, pfo_obj
+
+CUSTOMIZING PFO_FIT:
+
+pfo_fit is intended to be a generic interface to the PFO system that
+is easy to customize.  Customization occurs at a couple of levels:
+
+. Plot axis labels and other plotting property can be set using the
+set_property method of the pfo_obj.  In this case, you may find it
+convenient to define a new object which inherits pfo_obj and, in the
+init method of the new object, call the self->set_property method.
+gpaw_obj (gpaw_obj__define.pro) is an example of such an object.
+
+. Menus can be added using the menus or additional_menus keywords to
+pfo_fit.  These keywords are the names of PFO compound object menus
+(e.g. the pfo_*_menu.pro).  In this case, you may wish to define a
+wrapper procedure that makes a call to pfo_fit with the desired
+customizations.  gpaw.pro is an example of such a routine.
+
+. An entirely new look-and-feel can be created by copying pfo_fit to a
+new name and rewriting it to suit your tastes.  The PFO widget system
+has been written in such a way to make this easy: widgets communicate
+via object methods rather than event "bubbling."  This means that
+widgets displaying pfo_obj information don't all have to live in the
+same base.  Refreshing the widgets happens automatically, as long as
+they are properly registered in the system.  See
+pfo_cw_obj__define.pro and examples in the *_cw.pro and *_menu.pro
+files.
+
+
+$Id: README.pfo_fit,v 1.1 2012/01/13 20:59:48 jpmorgen Exp $
+
+$Log: README.pfo_fit,v $
+Revision 1.1  2012/01/13 20:59:48  jpmorgen
+Initial revision
+
+
