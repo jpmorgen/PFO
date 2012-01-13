@@ -1,282 +1,83 @@
-$Id: README.pfo,v 1.2 2010/07/01 18:08:14 jpmorgen Exp $
+README.pfo
 
-The Parameter Function Objection system (PFO) is designed to create
+The Parameter Function Objection (PFO) system is designed to create
 and evaluate functions for the purpose of non-linear least-squares
-fitting.  The software underlying PFO is MPFIT by Craig Markwardt.  It
-would be helpful for you to familiarize yourself with the basics of
-that package before reading on here.
+fitting.  PFO has a GUI front-end, called pfo_fit.  For more
+information about that program, see the file README.pfo_fit, or just
+start that program in IDL.  On-screen help is limited at the moment,
+but can easily be added....
 
-So now that you know the basics of MPFIT, I can tell you that pfo
-provides a kernel function, pfo_funct that is used by MPFIT to
-calculate the function being fit.  MPFIT provides a very handy
-mechanism, the parinfo array, for attaching some information to each
-parameter of the fit.  PFO simply expands on this structure to define
-the function itself.
+PFO was inspired by the parameter optimization package "MPFIT" by
+Craig Markwardt.  Like most modern parameter optimizers, MPFIT accepts
+a user-defined kernel function name, a set of independent variables
+(the X-axis) and a list of initial guesses for the parameters to the
+kernel function.  MPFIT passes the independent variables and the
+current set of parameter guesses on to the kernel function, which
+calculates the model function, compares it to the data, and returns a
+set of deviates.  MPFIT uses the deviates to calculate a new set of
+parameter guesses.  We will treat the methods by which the new guesses
+are generated as a "black box."  The goal of MPFIT is to find the set
+of parameters that minimize the sum of the squares of the deviates
+(the chi squared).
 
-In PFO, each function is assigned a number.  This number is stored in
-the PFO.FTYPE tag of the parinfo structure.  PFO_SYSVAR__DEFINE has
-the complete list of numbers, the functions they correspond to and the
-number of function parameters each function uses.  To load in the
-definitions of the numbers into handy English looking expressions, use
-the following code:
+The key feature of MPFIT that inspired PFO is the "parinfo."  In
+MPFIT, the parinfo is an array of type structure, one array element
+per parameter, that defines properties of the parameters.  The tags in
+the MPFIT parinfo structure can be as mundane as the parameter name
+(.parname) and as sophisticated as instructions to the numeric
+derivative algorithm (e.g. .relstep and .mpside).  Particularly useful
+are .limits and .limited tags, which fix or free parameters, or
+constrain them parameters to certain ranges.
 
-init = {pfo_sysvar}
+PFO expands the MPFIT parinfo so that the entire function is defined
+by the parinfo.  This is a key enabling technology.  Instead of
+functions being a set of code that must be modified off-line and
+recompiled when changes are needed, functions are data structures that
+can be modified at run-time by intelligent algorithms or by user input
+through a GUI.
 
-Now let's pick a function to play with:
+The PFO system provides a set of libraries and templates which make it
+easy for users to transform mathematical functions into segments of
+parinfo.  See the file README.pfo_CZT for an example of how one
+function definition file was transformed into another.  The function
+definition files use naming conventions that resemble the IDL
+object-oriented system, but, formally, they are just IDL routines.
 
-peakpar1 = pfo_funct(/CREATE, ftype=!pfo.bgo, width=[0.,1.])
+The PFO parinfo was designed so that simple functions with no
+parameter interrelations can be implemented without the need to
+augment the parinfo structure.  The file README.pfo_CZT documents how
+one function definition file, pfo_scint__fdefine.pro, was used as a
+template to create another function definition file,
+pfo_czt__fdefine.pro.  If you want to add your own function, start by
+reading README.pfo_CZT.
 
-This, by the way, is equivalent to:
+The pfo_scint and pfo_CZT functions (particularly pfo_CZT) are
+slightly more complicated than the default case.  The example shows
+how the structure pfo_link can be easily added to the parinfo to deal
+with this complication.  The pfo_link system is designed to handle
+simple parameter interrelations in the PFO system.  Some functions
+require even more complicated interrelations.  The information
+necessary for managing these interrelations can be added as augments
+to the parinfo structure and interpreted by the appropriate PFO
+subsystems.  There is one subsystem that inteprets functions and their
+arguments (the <fname>__fdefine.pro files) and another that interprets
+parinfo tag definitions (the <tag>_struct__define.pro files).  See
+README.names for details about the naming conventions used in these
+systems.  README.names includes pointers to the PFO routines you will
+need, which are, themselves reasonably well documented.
 
-peakpar1 = pfo_fcreate(!pfo.bgo, width=[0.,1.])
+Once you have created a __fdefine.pro file and restarted IDL, your
+function will be available in the "Add a new function" menu of
+pfo_fit.  This may be all you need.  If you want to work with PFO from
+the command line or other programs, you will need to learn how the
+pfo_obj works.  See README.pfo_obj.
 
-Use whichever one you prefer in your code (e.g. uniformity
-vs. brevity).  Thanks to IDL's _EXTRA functionality, the same
-underlying code is invoked either way.
+NOTE: because PFO (specifically pfo_parinfo_parse) has to parse the
+parinfo every time the function is evaluated, function fits conducted
+in the PFO system will take longer than fits conducted with more
+traditional hard-coded kernels.  If your problem does not require a
+GUI or run-time customization of the kernel function, you might be
+better off using MPFIT "in the raw."
 
-Now look at the output of:
-
-help, /stru, peakpar1
-
-You will see a complete list of the MPFIT parinfo tags plus a
-structure, "PFO."  
-
-help, /stru, peakpar1.pfo
-
-Now you see some of the guts of what makes the PFO system work.  There
-is some documentation in pfo_struct__define.pro, but I will go over
-the basics here.
-
-The most important tag in the PFO structure is FTYPE.  You already saw
-it used above when you created the BGO function.  What I didn't
-explain above is the somewhat obvious problem of differentiating
-between individual parameters in the function.  In other words,
-something needs to tell pfo_funct that one parameter stands for the
-peak energy, the next for the area, etc.  I solve that problem for
-simple functions by making FTYPE a floating point number.  The decimal
-part (yes, in base 10 for those of us who are binary illiterate) is
-what is used to index which parameter in which.  Check it out:
-
-print, peakpar1.pfo.ftype
-      8.01000      8.02000      8.03000      8.04000      8.05000
-
-So the BGO FTYPE is 8, but you should never care about that, always
-think of it as !pfo.bgo.  The individual parameters are indicated as
-0.01, 0.02, etc.  You can look in the pfo_bgo code to see what the
-specific definitions of the parameters are or try:
-
-print, peakpar1.parname
-Peak energy Area W0 W1 f step
-
-You will still probably want to look at the code to see what is really
-meant by these (in particular W0 and W1).
-
-This brings up an important point.  Some functions, like BGO have
-parameters that are linked across several instances of the same
-function.  To clarify, a BGO peak is basically a Gaussian with a width
-defined as W0 + W1*E.  So if you have many BGO peaks in your spectrum,
-you will want to relate all of the W0 and W1 parameters.  There are
-two ways to do this.  For complicated problems, you will want to
-define another substructure, as I do in the solar system object (SSO)
-package.  With this structure, I take a layered approach to the
-calculation of the function.  Parameters start in natural units
-(e.g. rest wavelength and equivalent width) and eventually end up
-mapped to the data in natural detector units.  With an additional
-structure, I can add tags that help me keep information about
-individual lines, which catalog they came from, the cataloged
-strength, etc.  It is then easy to write code to grab onto that
-information to evaluate the quality of the fit and guide subsequent
-tries.  When dealing with simple functions and developing software
-incrementally, it is easier to use the "tied" functionality of MPFIT.
-
-"tied" is a string in the parinfo structure that MPFIT uses to relate
-parameters.  Say we have two BGO peaks in our data:
-
-npeaks = 2
-peakpar = peakpar1
-for ip=0,npeaks-2 do $
-  peakpar = [peakpar, peakpar1]
-
-To properly define the BGO function, we need to relate the W0 and W1
-parameters from the two peaks to each other.  Lets choose the first
-peak the "master" and define the second peak, the "slave" relative to
-that:
-
-peakpar[7].tied = 'P[2]'
-peakpar[8].tied = 'P[3]'
-
-Unfortunately, the way "tied" works, it hard-wires in the array
-indices of the parameters you are relating.  If you add and delete
-elements from the parinfo array without updating the tied values, you
-will get unexpected results.  To address this issue, I have designed
-an optional add-on to the parinfo structure, pfo_link.  This is its
-own little structure that has a couple of tags that help identify
-master parameters, and point slaves to them.  Just before calling
-MPFIT, PFO_FIT calls PFO_LINK_CHECK, which interprets the PFO_LINK
-tags and properly recreates all of the "tied" strings.  See
-pfo_link_struct__define.pro for more detailed documentation.  GPAW
-uses PFO_LINK, GPA does not.
-
-
-Now when we print out our parameters verbosely:
-
-print, pfo_funct(parinfo=peakpar, print=!pfo.pall)
-
-X = Xin; Y = 0
-Y = Y + bgo0(X)(
-   0 Peak energy =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
-   1        Area =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
-   2          W0 =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
-   3          W1 =        0.0000000 <         1.0000000 +/-              NaN .         0.0000000
-   4      f step =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
-)
-Y = Y + bgo0(X)(
-   5 Peak energy =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
-   6        Area =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
-   7          W0 =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000 tied=P[2]
-   8          W1 =        0.0000000 <         1.0000000 +/-              NaN .         0.0000000 tied=P[3]
-   9      f step =        0.0000000 <*        0.0000000 +/-              NaN .         0.0000000
-)
-
-
-you see the full listing of all 10 parameters (starting from 0)
-together with some cryptic strings which define the full model you are
-using to fit your data.  This reads: "start with you Xin axis
-(e.g. channels) and set that equal to your working X axis.  Set the Y
-axis to 0.  Now add a BGO function to the Y axis.  This BGO function
-operates on the working X axis and has 5 parameters.  All parameters
-are bounded on the lower side by 0.  All parameters but W1 are
-currently sitting at that lower value.  The error values are currently
-undefined since no fit has been made.  The parameters are not bounded
-on the upper side.  
-
-In the example above, the W0 and W1 parameters in the second BGO
-function are tied to those in the first function.  If you have more
-peaks, it makes sense to tie them to the master, rather than another
-"slave" although I am not sure if MPFIT really cares.  PFO_LINK will
-help you do this, if you want to use it.
-
-As stated above, fseq is useful for making sure that operations happen
-in the order in which you want them to even if your parinfo array gets
-scrambled for some reason.  Actually, because of the way pfo_funct
-works, your parinfo array might not be interpreted in the order in
-which you expect.  But don't worry, what you see when you print the
-function is the same thing that is done when calculating the
-function.  Just remember that there is no sophisticated algebra.  An
-example of this is a scaling factor that I put into the model in the
-GRaND Peak Analysis (GPA) package:
-
-gain = [169, 9.3]
-  scale_par = pfo_fcreate(!pfo.poly, poly_order=0, $
-                         inaxis=!pfo.Yaxis, outaxis=!pfo.Yaxis, $
-                         fop=!pfo.mult, fseq=1, poly_value=gain[1])
-
-This creates a 1-element parinfo array which defines a 0th order
-polynomial (basically a number) that operates on the Y axis applying
-the operation !pfo.mult (can you guess what operation that might be --
-you can see why I shy away from using actual integer values wherever
-possible).  The value of that multiplicative factor is the 1st order
-gain coefficient.  In other words, this is how I make my model read in
-counts/keV or, if gain=1, counts/channel.  By default fseq=0, so all
-other operations I have defined in GPA are defined with fseq=0.  By
-defining this with fseq=1, I assure that it is calculated after
-everything else.
-
-While we are on the topic of the segmented polynomial, I should
-probably tell you more about what it is and how it can be used.  I
-originally developed the pfo_poly function to describe a continuum
-that was basically flat but had a rolloff on one or both sides.  I
-wanted a low-order polynomial on the flat section, a 2nd or 3rd order
-polynomial in the transition region(s) and then a low order polynomial
-in the tail(s).  I figured while I was using decimals to delineate
-function parameters, I could also use them for the values that
-indicate the boundaries between the regions and other handy things.
-pfo_poly.pro has the full documentation on the scheme.  Basically it
-uses the full single-precision floating-point range of values to
-define up to 9 polynomials, the first 8 of which can have up to 99th
-order and the 9th up to 4th.  If you need more polynomials than that,
-or want to apply transformations to the input or output axes using the
-infunct/outfunct feature (e.g. to work in log space), you will need to
-define individual pfo_poly functions and give them separate pfo.ID
-values.  GPA has examples of how to do this.
-
-Because it is somewhat painful to work with a pfo_poly, I built some
-keywords into pfo_poly so that you just need to specify sensible
-vectors to those keywords and pfo_poly will do the rest of the work
-for you.  For instance:
-
-     backpar = $
-       pfo_fcreate(!pfo.poly, poly_order=[3,1,1], poly_bound=[10,100,200], $
-                   poly_ref=[50,150,250])
-
-creates a background function in three segments: a 3rd order and two
-1st order segments.  The left-hand boundaries are at 10, 100 and 200.
-The polynomials are expanded in terms of values near the midpoints of
-the segments (50,150,250).  See how it looks when you print it out:
-
-print, pfo_funct(parinfo=backpar, print=!pfo.pall)
-
-There is one problem with the above function.  The boundaries and
-reference points are free parameters of the fit.  This might be
-desirable in some circumstances but lets assume that you have some
-some external knowledge that they should be fixed at those values
-(e.g. they relate to ROI boundaries).  The following code will find
-the indices of the poly bounds and reference points and use them to
-set the FIXED tag in the MPFIT section of the parinfo array.  The key
-to making it work is the fact that pfo_poly understands the /indices
-keyword, which causes it to barf back the indices corresponding to the
-named keywords and other useful information (e.g. the polynomial
-order(s) are spit back in the order keyword):
-
-  ;; Fix the poly bounds and reference points
-  junk = pfo_poly(parinfo=backpar, /indices, poly_bound=poly_bound, $
-                 poly_ref=poly_ref, poly_value=poly_value)
-  backpar[[poly_bound, poly_ref]].fixed = !pfo.fixed
-
-
-Not all of the functions implement the /indices keyword yet.  That is
-a work in progress.
-
-Now lets check out the background function:
-
-print, pfo_funct(parinfo=backpar, print=!pfo.pall)
-
-Notice that there are "|" around the parameter +/- error bar values of
-the boundaries and reference values.  The "|" symbol indicates a
-parameter is fixed.
-
-Note that to change the polynomial order of a segment in a pfo_poly,
-you would need to insert or delete elements in the parinfo array.  To
-prevent the need for frequent array copies, I created the PFO.STATUS
-flag to help with this.  PFO.STATUS=1 is "in use", 0 is "ignore" and
--1 is a flag for deletion (or you could use !pfo.active,
-!pfo.inactive, and !pfo.delete if you prefer English).  Unfortunately,
-MPFIT doesn't know about the PFO.STATUS flag, so using it messes up
-MPFIT's active parameter count.  You get around this by setting
-PARINFO.FIXED=!pfo.fixed at the same time you set PARINFO.PFO.STATUS
-to something other than !pfo.active.  Some day I might make a
-primitive that does all this for you.  I already have one, pfo_gc,
-which "garbage collects" parameters marked for deletion.
-
-So now lets see how we can put together a parinfo:
-
-parinfo = [backpar, scale_par, peakpar]
-
-print, pfo_funct(parinfo=parinfo, print=!pfo.pall)
-
-Oops.  Here you see some problems.  By ordering the parameters the way
-we did and without using the PFO_LINK package in this example, you
-find that the "tied" values in the second BGO peak no longer point to
-the correct parameters.  Also note that the scale polynomial parameter
-value (14) looks like it is out of sequence.  If you look at where we
-put it in the parinfo array and what its fseq value is, it is actually
-in just the right place.  This just highlights the difference between
-the order in which the parinfo list parameters and the order in which
-pfo_funct interprets them.  Never fear, though, the same code is used
-for interpreting the parinfo for printing and calculating.  WYSIWYG,
-as long as you can read the cryptic model description.
-
-Next up: how to extend the default parinfo structure to include an
-add-on package like PFO_LINK.
-
+$Id: README.pfo,v 1.3 2012/01/13 20:59:18 jpmorgen Exp $
 
