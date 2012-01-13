@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_menu.pro,v 1.1 2011/11/30 21:03:10 jpmorgen Exp $
+; $Id: pfo_plot_menu.pro,v 1.2 2012/01/13 20:56:16 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_menu.pro,v $
+; Revision 1.2  2012/01/13 20:56:16  jpmorgen
+; Got working
+;
 ; Revision 1.1  2011/11/30 21:03:10  jpmorgen
 ; Initial revision
 ;
@@ -62,17 +65,17 @@ function pfo_plot_menu_obj::event, event, button=button
 
   plot_obj = self.plotwin_obj->last_pfo_plot_obj()
   case button of 
-     'xlog': begin
+     self.xlog: begin
         plot_obj->get_property, plot_xlog=plot_xlog
         plot_obj->set_property, plot_xlog=~plot_xlog
      end
-     'ylog': begin
+     self.ylog: begin
         plot_obj->get_property, plot_ylog=plot_ylog
         plot_obj->set_property, plot_ylog=~plot_ylog
      end
-     'xin_autoscale': plot_obj->set_property, /plot_Xin_autoscale
-     'xaxis_autoscale': plot_obj->set_property, /plot_Xaxis_autoscale
-     'yaxis_autoscale': plot_obj->set_property, /plot_Yaxis_autoscale
+     self.xin_autoscale: plot_obj->set_property, /plot_Xin_autoscale
+     self.xaxis_autoscale: plot_obj->set_property, /plot_Xaxis_autoscale
+     self.yaxis_autoscale: plot_obj->set_property, /plot_Yaxis_autoscale
      else : message, 'ERROR: unrecognized button token: ' + button
   endcase
 
@@ -85,15 +88,15 @@ pro pfo_plot_menu_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
   ID = widget_button(self.tlbID, value='X log', $
-                        uvalue={method: 'event', obj:self, keywords:{button:'xlog'}})
+                        uvalue={method: 'event', obj:self, keywords:{button:self.xlog}})
   ID = widget_button(self.tlbID, value='Y log', $
-                        uvalue={method: 'event', obj:self, keywords:{button:'ylog'}})
+                        uvalue={method: 'event', obj:self, keywords:{button:self.ylog}})
   ID = widget_button(self.tlbID, value='Xin autscale', $
-                        uvalue={method: 'event', obj:self, keywords:{button:'xin_autoscale'}})
+                        uvalue={method: 'event', obj:self, keywords:{button:self.xin_autoscale}})
   ID = widget_button(self.tlbID, value='Xaxis autscale', $
-                        uvalue={method: 'event', obj:self, keywords:{button:'xaxis_autoscale'}})
+                        uvalue={method: 'event', obj:self, keywords:{button:self.xaxis_autoscale}})
   ID = widget_button(self.tlbID, value='Yaxis autscale', $
-                        uvalue={method: 'event', obj:self, keywords:{button:'yaxis_autoscale'}})
+                        uvalue={method: 'event', obj:self, keywords:{button:self.yaxis_autoscale}})
 
 end
 
@@ -120,15 +123,20 @@ function pfo_plot_menu_obj::init, $
      endif
   endif ;; not debugging
 
+  ;; Initialize our tokens
+  self.xlog = 0
+  self.ylog = 1
+
   ;; Call our inherited init routines.
   ok = self->pfo_cw_obj::init(parentID, /menu, value='Plot', _EXTRA=extra)
-  if NOT ok then return, 0
-  ;; This registers our plotwin_obj
-  ok = self->pfo_plotwin_cw_obj::init(_EXTRA=extra)
   if NOT ok then return, 0
 
   ;; Build our widget
   self->populate, _EXTRA=extra
+
+  ;; This registers our plotwin_obj
+  ok = self->pfo_plotwin_cw_obj::init(_EXTRA=extra)
+  if NOT ok then return, 0
 
   ;; If we made it here, we have successfully set up our container.  
   return, 1
@@ -140,6 +148,11 @@ end
 pro pfo_plot_menu_obj__define
   objectClass = $
      {pfo_plot_menu_obj, $
+      xlog	: 0B, $ ;; tokens for events
+      ylog	: 0B, $
+      xin_autoscale	: 0B, $
+      xaxis_autoscale	: 0B, $
+      yaxis_autoscale	: 0B, $
       inherits pfo_cw_obj, $
       inherits pfo_plotwin_cw_obj}
 end
