@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mpfit_obj__define.pro,v 1.7 2011/11/18 15:33:13 jpmorgen Exp $
+; $Id: pfo_mpfit_obj__define.pro,v 1.8 2012/01/13 20:55:38 jpmorgen Exp $
 ;
 ; $Log: pfo_mpfit_obj__define.pro,v $
+; Revision 1.8  2012/01/13 20:55:38  jpmorgen
+; Change keyword for disambiguation
+;
 ; Revision 1.7  2011/11/18 15:33:13  jpmorgen
 ; Change call to pfo_parinfo_parse, add some MPFIT keywords to property
 ;
@@ -112,7 +115,7 @@ pro pfo_mpfit_obj_iterproc, $
    fnorm, $ ;; return value: sum of squares of deviates
    FUNCTARGS=fcnargs, $ ;; function args to myfunct
    keyboard_iterstop=keyboard_iterstop, $ ;; allow keyboard entry to stop iteration
-   widget_iterstop=widget_iterstop, $ ;; raise a widget that allows the user to stop the fit
+   iterstop_widget=iterstop_widget, $ ;; raise a widget that allows the user to stop the fit
    plot=plot, $ ;; call pfo_obj->plot for each iteration
    widget=widget, $ ;; call pfo_obj->widget_refresh for each iteration
    quiet=quiet, $ ;; no printed output
@@ -131,7 +134,7 @@ pro pfo_mpfit_obj_iterproc, $
   endif ;; working from pfo_obj
 
   ;; Print the definitions of the functions used before the first iteration.
-  if keyword_set(widget_iterstop) and iter eq 1 then begin
+  if keyword_set(iterstop_widget) and iter eq 1 then begin
      ;; Create mpfit_itrestop widget
      message, 'ERROR: --> code not written yet.'
   endif
@@ -238,7 +241,7 @@ function pfo_mpfit_obj::fit, $
    mpfit_STATUS=mpfit_status, $ ;; (output) MPFIT exit status code
    ITERPROC=iterproc, $ ;; name of kernel function (MYFUNCT) used by MPFIT to call residual method
    keyboard_iterstop=keyboard_iterstop, $ ;; allow keyboard entry to stop iteration
-   widget_iterstop=widget_iterstop, $ ;; raise a widget that allows the user to stop the fit
+   iterstop_widget=iterstop_widget, $ ;; raise a widget that allows the user to stop the fit
    plot=plot, $ ;; plot is drawn every niter
    parinfo_widget=parinfo_widget, $ ;; refresh parinfo widgets every niter
    ITERARGS=iterargs_in, $ ;; other keyword arguments passed to iterproc
@@ -337,8 +340,8 @@ function pfo_mpfit_obj::fit, $
   ;; KEYBOARD_ITERSTOP: allow keyboard entry to stop iteration
   if N_elements(keyboard_iterstop) eq 0 then keyboard_iterstop = self.mpfit_keyboard_iterstop
 
-  ;; WIDGET_ITERSTOP: raises a widget that will stop iteration
-  if N_elements(widget_iterstop) eq 0 then widget_iterstop = self.mpfit_widget_iterstop
+  ;; ITERSTOP_WIDGET: raises a widget that will stop iteration
+  if N_elements(iterstop_widget) eq 0 then iterstop_widget = self.mpfit_iterstop_widget
 
   ;; PLOT plot is drawn every niter
   if N_elements(plot) eq 0 then plot = self.mpfit_plot
@@ -350,7 +353,7 @@ function pfo_mpfit_obj::fit, $
   ;; couple we deal with ourselves.
   iterargs = {pfo_obj:self, $
               keyboard_iterstop:keyboard_iterstop, $
-              widget_iterstop:widget_iterstop, $
+              iterstop_widget:iterstop_widget, $
               plot:plot, $
               parinfo_widget:parinfo_widget}
   ;; Concatenate command line and property iterargs
@@ -463,7 +466,7 @@ pro pfo_mpfit_obj::get_property, $
    mpfit_status=mpfit_status, $ ;; (output) MPFIT exit status code
    mpfit_iterproc=mpfit_iterproc, $ ;; Procedure to call every niter iterations
    mpfit_keyboard_iterstop=mpfit_keyboard_iterstop, $ ;; allow keyboard entry to stop iteration
-   mpfit_widget_iterstop=mpfit_widget_iterstop, $ ;; raise a widget that allows the user to stop the fit
+   mpfit_iterstop_widget=mpfit_iterstop_widget, $ ;; raise a widget that allows the user to stop the fit
    mpfit_plot=mpfit_plot, $ ;; plot is drawn every niter
    mpfit_parinfo_widget=mpfit_parinfo_widget, $ ;; refresh parinfo widgets every niter
    mpfit_iterargs=mpfit_iterargs, $ ;; other keyword arguments passed to iterproc
@@ -491,7 +494,7 @@ pro pfo_mpfit_obj::get_property, $
   if arg_present(mpfit_status	) or N_elements(mpfit_status	) gt 0 then mpfit_status 	= self.mpfit_status
   if arg_present(mpfit_iterproc	) or N_elements(mpfit_iterproc	) gt 0 then mpfit_iterproc 	= self.mpfit_iterproc
   if arg_present(mpfit_keyboard_iterstop) or N_elements(mpfit_keyboard_iterstop) gt 0 then mpfit_keyboard_iterstop= self.mpfit_keyboard_iterstop
-  if arg_present(mpfit_widget_iterstop) or N_elements(mpfit_widget_iterstop) gt 0 then mpfit_widget_iterstop= self.mpfit_widget_iterstop
+  if arg_present(mpfit_iterstop_widget) or N_elements(mpfit_iterstop_widget) gt 0 then mpfit_iterstop_widget= self.mpfit_iterstop_widget
   if arg_present(mpfit_plot	) or N_elements(mpfit_plot	) gt 0 then mpfit_plot 		= self.mpfit_plot
   if arg_present(mpfit_parinfo_widget) or N_elements(mpfit_parinfo_widget) gt 0 then mpfit_parinfo_widget= self.mpfit_parinfo_widget
   if arg_present(mpfit_iterargs	) or N_elements(mpfit_iterargs	) gt 0 then mpfit_iterargs 	= *self.pmpfit_Iterargs
@@ -519,7 +522,7 @@ pro pfo_mpfit_obj::set_property, $
    mpfit_gtol=fit_gtol, $ ;; Stop criterion for cos of angle between fvec and any column of the jacobian 
    mpfit_iterproc=mpfit_iterproc, $ ;; Procedure to call every niter iterations
    mpfit_keyboard_iterstop=mpfit_keyboard_iterstop, $ ;; allow keyboard entry to stop iteration
-   mpfit_widget_iterstop=mpfit_widget_iterstop, $ ;; raise a widget that allows the user to stop the fit
+   mpfit_iterstop_widget=mpfit_iterstop_widget, $ ;; raise a widget that allows the user to stop the fit
    mpfit_plot=mpfit_plot, $ ;; plot is drawn every niter
    mpfit_parinfo_widget=mpfit_parinfo_widget, $ ;; refresh parinfo widgets every niter
    mpfit_iterargs=mpfit_iterargs, $ ;; other keyword arguments passed to iterproc
@@ -543,7 +546,7 @@ pro pfo_mpfit_obj::set_property, $
   if N_elements(mpfit_gtol	) gt 0 then self.mpfit_gtol 		= mpfit_gtol
   if N_elements(mpfit_iterproc	) gt 0 then self.mpfit_iterproc 	= mpfit_iterproc
   if N_elements(mpfit_keyboard_iterstop) gt 0 then self.mpfit_keyboard_iterstop	= mpfit_keyboard_iterstop
-  if N_elements(mpfit_widget_iterstop) gt 0 then self.mpfit_widget_iterstop	= mpfit_widget_iterstop
+  if N_elements(mpfit_iterstop_widget) gt 0 then self.mpfit_iterstop_widget	= mpfit_iterstop_widget
   if N_elements(mpfit_plot	) gt 0 then self.mpfit_plot	 	= mpfit_plot
   if N_elements(mpfit_parinfo_widget) gt 0 then self.mpfit_parinfo_widget= mpfit_parinfo_widget
   if N_elements(mpfit_iterargs	) gt 0 then *self.piterargs 		= mpfit_iterargs
@@ -706,7 +709,7 @@ pro pfo_mpfit_obj__define
       mpfit_status	: 0,  $ ;; (output) MPFIT exit status code
       mpfit_iterproc	: '', $ ;; Procedure to call every niter iterations
       mpfit_keyboard_iterstop: 0B, $ ;; flag to indicate if keyboard input will allow iteration to be stopped
-      mpfit_widget_iterstop: 0B, $ ;; flag to indicate if a widget should be raised that will allow iteration to be stopped
+      mpfit_iterstop_widget: 0B, $ ;; flag to indicate if a widget should be raised that will allow iteration to be stopped
       mpfit_plot	: 0B, $ ;; plot is drawn every niter
       mpfit_parinfo_widget: 0B, $ ;; refresh parinfo widgets every niter
       pmpfit_Iterargs	: ptr_new(), $ ;; pointer to other keyword arguments passed to iterproc
