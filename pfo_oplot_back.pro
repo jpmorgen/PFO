@@ -68,9 +68,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_back.pro,v 1.1 2011/12/01 22:07:30 jpmorgen Exp $
+; $Id: pfo_oplot_back.pro,v 1.2 2012/01/13 20:50:31 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_back.pro,v $
+; Revision 1.2  2012/01/13 20:50:31  jpmorgen
+; Use pco_back_idx now
+;
 ; Revision 1.1  2011/12/01 22:07:30  jpmorgen
 ; Initial revision
 ;
@@ -108,34 +111,27 @@ pro pfo_oplot_back, $
   if N_elements(oplot_back_color) eq 0 then oplot_back_color = 5
   if N_elements(oplot_back_thick) eq 0 then oplot_back_thick = !p.thick+!pfo.oplot_parinfo_thick_boost
 
-  ;; If we have no parinfo, there is no background to oplot
-  if pfo_obj->parinfo_call_function( $
-     /no_update, 'N_elements') eq 0 then $
-        return
+  ;; Get our background idx
+  back_idx = pfo_back_idx(pfo_obj=pfo_obj)
+  ;; Return if we have no back_idx
+  if back_idx[0] eq !tok.nowhere then $
+     return
 
-  ;; Get idx of background.  This is tough, since people can use any
-  ;; kind of function or combination of functions to define the
-  ;; background.  Lets start by finding the functions that replace the
-  ;; y-axis
+  ;; Make sure that we add in any X-axis transformations
   pfo_obj->parinfo_call_procedure, $
      /no_update, 'pfo_struct_setget_tag', /get, idx=idx, $
      taglist_series='pfo', outaxis=outaxis, fop=fop
-  back_idx = where(outaxis eq !pfo.Yaxis and fop eq !pfo.repl, count)
-  if count eq 0 then $
-     return
-  ;; unwrap
-  back_idx = idx[back_idx]
-  ;; Make sure that we add in any X-axis transformations
+
   X_idx = where(outaxis eq !pfo.Xaxis, count)
   if count ne 0 then begin
-     ;; unwrap
+     ;; unwrap and append
      back_idx = [idx[X_idx], back_idx]
   endif
   ;; Add in any functions that don't appear to operate on
   ;; anything, but might affect us (e.g. ROIs)
   more_idx = where(fop eq !pfo.none, count)
   if count ne 0 then begin
-     ;; unwrap
+     ;; unwrap and append
      back_idx = [idx[more_idx], back_idx]
   endif
 
