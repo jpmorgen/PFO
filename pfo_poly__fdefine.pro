@@ -26,31 +26,31 @@
 ;; the central X value of each segment) and the polynomial
 ;; coefficients themselves.  Follwing the decimal ftype model, the
 ;; boundary X values are marked with ftype=n.1, n.2, etc.  Reference
-;; pixels are indicated with ftype=n.01, n.02, etc. and the
-;; coefficients with n.00001, n.00002, etc.  Note that the polynomial
-;; labeling therefore starts with 1 and can be no higher than 9.
-;; Polynomial coefficients start with 0 and, since ftype is stored in
-;; a single precision floating point variable, are limited in number.
-;; Single-precision floats have a little more than 7 decimal digits of
-;; precision
-;; (http://en.wikipedia.org/wiki/Single_precision_floating-point_format).
-;; As long as there are less than 100 functions registered in the
-;; current instance of the pfo_finfo system, the pfo_poly coefs will
-;; work properly.  NOTE: there can be more than 100 PFO functions
-;; available, they just can't all be in use at once.  --> If this ever
-;; becomes a problem, a simpler polynomial function will be needed.
-;; Also note: Because "round" is used indiscriminately, the 9th
-;; polynomial currently can't be more than 4th order.
+;; pixels are indicated with ftype=n.11, n.22, etc. and the
+;; coefficients with n.pp000, n.pp0001, n.pp002, etc.  Note that the
+;; polynomial labeling, p, therefore starts with 1 and can be no
+;; higher than 9.  Polynomial coefficients start with 0 and, in
+;; principle can be as high has 999.  Because "round" is used
+;; indiscriminately, the 9th polynomial currently can't be more than
+;; 4th order.
 
-;; If you don't specify a n.1 boundary value, it is assumed to be the
-;; leftmost point on the Xin axis.  Similarly, if you don't specify
-;; any reference values (n.0x), they are assumed to be the leftmost
-;; point of that segment.  WANRING: if you don't always pass the same
-;; Xin to your polynomial, this will produce unexpected results.  If
-;; you specify a reference value (e.g. n.01), then unspecified
-;; reference values in subsequent segments are set to that value.
-;; This is meant to be convenient in the case where you have one
-;; reference pixel about which all the polynomial expansions are done.
+;; WARNING: since ftype is stored in a single-precision floating point
+;; variable, if the integer part of ftype assigned to pfo_poly by the
+;; pfo_fdefine system is greater than 31, precision in the
+;; coefficients is lost and this system breaks.  The maximum fnum can
+;; be increased to 316 if the system is redesigned so that only 99
+;; coefficients are used.
+
+;; NOTE: If you don't specify a n.1 boundary value, it is assumed to
+;; be the leftmost point on the Xin axis.  Similarly, if you don't
+;; specify any reference values (n.xx), they are assumed to be the
+;; leftmost point of that segment.  WANRING: if you don't always pass
+;; the same Xin to your polynomial, this will produce unexpected
+;; results.  If you specify a reference value (e.g. n.11), then
+;; unspecified reference values in subsequent segments are set to that
+;; value.  This is meant to be convenient in the case where you have
+;; one reference pixel about which all the polynomial expansions are
+;; done.
 
 ;; Note that if you want more than one instance of pfo_poly (e.g. if
 ;; you want to use the infunct/outfunct strings on individual
@@ -96,9 +96,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_poly__fdefine.pro,v 1.6 2011/12/01 22:14:22 jpmorgen Exp $
+; $Id: pfo_poly__fdefine.pro,v 1.7 2012/01/13 20:50:59 jpmorgen Exp $
 ;
 ; $Log: pfo_poly__fdefine.pro,v $
+; Revision 1.7  2012/01/13 20:50:59  jpmorgen
+; Updated documentation regarding precision issues in ftype
+;
 ; Revision 1.6  2011/12/01 22:14:22  jpmorgen
 ; Fixed some indices bugs.  Defining on the fly is still not convenient
 ; for gain/dispersion
