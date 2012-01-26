@@ -64,9 +64,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_roi.pro,v 1.5 2011/12/01 22:12:49 jpmorgen Exp $
+; $Id: pfo_oplot_roi.pro,v 1.6 2012/01/26 16:23:04 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_roi.pro,v $
+; Revision 1.6  2012/01/26 16:23:04  jpmorgen
+; Enable _EXTRA so extra keywords can be ignored.  Minor fixes
+;
 ; Revision 1.5  2011/12/01 22:12:49  jpmorgen
 ; Added better init
 ;
@@ -100,7 +103,9 @@ pro pfo_oplot_ROI, $
    oplot_ROI_thick=oplot_ROI_thick, $ ;; thickness of ROI lines (default = !p.thick+!pfo.oplot_ROI_thick_boost)
    oplot_ROI_allROI_thick=oplot_ROI_allROI_thick, $ ;; thickness of the allROI lines (default = !p.thick+!pfo.oplot_ROI_allROI_thick_boost)
    oplot_ROI_allROI_color=oplot_ROI_allROI_color, $ ;; color of the allROI lines (default = !pfo.oplot_ROI_allROI_color)
-   oplot_ROI_extra=oplot_ROI_extra
+   oplot_ROI_extra=oplot_ROI_extra, $
+   _REF_EXTRA=extra ;; catchall in case other arguments are thrown at us
+
 
   ;; Make sure system variables are defined
   init = {tok_sysvar}
@@ -216,7 +221,7 @@ pro pfo_oplot_ROI, $
         if N_elements(Xin_idx) eq 1 and Xin_idx[0] eq !tok.nowhere then $
            CONTINUE
 
-        oplot, xaxis[Xin_idx], yaxis[Xin_idx], color=color, psym=oplot_data_psym, $
+        oplot, xaxis[Xin_idx], yaxis[Xin_idx], color=color, psym=oplot_ROI_psym, $
                thick=thick, _EXTRA=oplot_ROI_extra
 
      endfor ;; tiROI
