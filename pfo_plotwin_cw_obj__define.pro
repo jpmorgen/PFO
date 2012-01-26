@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plotwin_cw_obj__define.pro,v 1.2 2011/11/18 15:54:38 jpmorgen Exp $
+; $Id: pfo_plotwin_cw_obj__define.pro,v 1.3 2012/01/26 16:24:14 jpmorgen Exp $
 ;
 ; $Log: pfo_plotwin_cw_obj__define.pro,v $
+; Revision 1.3  2012/01/26 16:24:14  jpmorgen
+; Fix mistaken link to pfo_cw_obj.  We are truely independent of that system
+;
 ; Revision 1.2  2011/11/18 15:54:38  jpmorgen
 ; Minor comment update
 ;
@@ -83,9 +86,6 @@ pro pfo_plotwin_cw_obj::cleanup
   if obj_valid(self.plotwin_obj) then $
      self.plotwin_obj->unregister_forward, self
 
-  ;; Call our inherited cleaup routines.  This takes care of taking us
-  ;; off the appropriate refresh list
-  self->pfo_cw_obj::cleanup
 end
 
 function pfo_plotwin_cw_obj::init, $
