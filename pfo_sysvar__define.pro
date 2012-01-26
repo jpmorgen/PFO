@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_sysvar__define.pro,v 1.13 2012/01/13 20:54:35 jpmorgen Exp $
+; $Id: pfo_sysvar__define.pro,v 1.14 2012/01/26 16:22:23 jpmorgen Exp $
 
 ; pfo_sysvar__define.pro 
 
@@ -131,6 +131,7 @@ pro pfo_sysvar__define
        Yin_Xin_units	: 'Yin per Xin', $
        Yin_Xaxis_title	: 'Input Y-axis', $
        Yin_Xaxis_units	: 'Yin per Xaxis', $
+       $ ;; work with a simple color table for 1D plots.  rainbow18 has nice distinct colors
        color_table	: 38, $ ;; rainbow18
        n_colors		: 18L, $ ;; work with !d.n_colors to index colors
        oplot_parinfo_color: 6, $ ;; a nice green color
@@ -138,6 +139,8 @@ pro pfo_sysvar__define
        oplot_ROI_thick_boost: 3, $
        oplot_ROI_allROI_color: 3, $ ;; a relaxing dark blue
        oplot_ROI_allROI_thick_boost: 1, $
+       oplot_tROI_thick_boost: 5, $
+       oplot_tROI_color: 12, $ ;; bright yellow
        win_font		: 'fixedsys' $ ;; font to use for windows
       }
 
