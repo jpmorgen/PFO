@@ -55,9 +55,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 2.4 2012/01/13 20:55:03 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 2.5 2012/01/26 16:16:58 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 2.5  2012/01/26 16:16:58  jpmorgen
+; Added mouse zooming
+;
 ; Revision 2.4  2012/01/13 20:55:03  jpmorgen
 ; Add help
 ;
@@ -135,7 +138,8 @@ end
 pro pfo_fit_obj::cleanup
   ;; Call our inherited cleaup routines
   self->pfo_cw_obj::cleanup
-  ;; Nothing local to do
+  ;; Destroy local pointers and objects
+  obj_destroy, self.plotwin_zoom_obj
 end
 
 ;; Init method
@@ -202,7 +206,7 @@ function pfo_fit_obj::init, $
      enable_undo = 1
   
   ;; Set up our help string.
-  help = title + ' help.  Data, function, and deviates are displayed in the left panel.  The top right displays the cursor location on the plot and allows adjustment of the plot limits (min and max).  The plot -> autoscale menu items reset user-specified plot limits.  The function editor is displayed in the lower righthand panel.  '
+  help = title + ' help.  Data, function, and deviates are displayed in the left panel.  Left mouse button controls zoom.  Right click to cycles back through previous zooms.  The top right displays the cursor location on the plot.  The plot menu allows hand entry of limits, log axis toggleing and autoscaling.  The function editor is displayed in the lower righthand panel.  '
   help += string(10B) + string(10B)
 
   help += 'The FUNCTION EDITOR shows a set of equations that define the function to be fit to the data.  The basic equation always starts X = Xin; Y = NaN (or 0).  Subsequent sub-functions (e.g. pfo_poly) are combined using simple operations.  +, *, and "replacement" are currently supported and debugged.  Convolution is in the code but not debugged.  "Replacement" is an important operation, since it means that the Y-axis NaNs will be replaced by the value of the function. pfo_poly (usually used as a background) defaults to replacing the Y-axis for this reason.  Subsequent functions operate as desired by selecting the appropriate axis and operation.  Sophisticated algebra is not supported.  The order in which functions are listed is the order in which operations are performed.'
@@ -263,8 +267,11 @@ function pfo_fit_obj::init, $
   ID = pfo_cursor_colhead_cw(controlID, label_width=0.5, pfo_obj=self.pfo_obj, plotwin_obj=self.plotwin_obj)
   ;; Cursor
   ID = pfo_cursor_cw(controlID, label_width=0.5, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj)
-  ;; Range control
-  ID = pfo_range_cw(controlID, label_width=0.5, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj, /no_colheads)
+  ;; Range control (now incorporated into plot menu)
+  ;;ID = pfo_range_cw(controlID, label_width=0.5, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj, /no_colheads)
+
+  ;; Zoom object -- allows the mouse to do zooming
+  self.plotwin_zoom_obj = obj_new('pfo_plotwin_zoom_obj', plotwin_obj=self.plotwin_obj)
 
   ;; Figure out how big the control section is so we can size the
   ;; parinfo editor accordingly
@@ -316,6 +323,7 @@ pro pfo_fit_obj__define
       plot_xfrac	: 0., $ ;; fraction of total widget X-dimension reserved for plot
       control_size	: [0., 0.], $ ;; size of base containing cursor/plot controls
       plotwin_obj	: obj_new(), $ ;; cw_obj of plotwin
+      plotwin_zoom_obj	: obj_new(), $ ;; obj that controls mouse zooming
       parinfo_baseID	: 0L, $ ;; widgetID of scroll bar-enabled base that contains parinfo editor
       inherits pfo_cw_obj}
 end
