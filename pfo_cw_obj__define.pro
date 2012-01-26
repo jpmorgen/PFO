@@ -91,9 +91,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cw_obj__define.pro,v 1.7 2012/01/13 21:01:07 jpmorgen Exp $
+; $Id: pfo_cw_obj__define.pro,v 1.8 2012/01/26 16:20:25 jpmorgen Exp $
 ;
 ; $Log: pfo_cw_obj__define.pro,v $
+; Revision 1.8  2012/01/26 16:20:25  jpmorgen
+; TO DO: make a default title if one is not provided
+;
 ; Revision 1.7  2012/01/13 21:01:07  jpmorgen
 ; Fix line wrapping
 ;
@@ -458,7 +461,9 @@ function pfo_cw_obj::init, $
 
   ;; Initialize our property
 
-  ;; Capture title input for use in help window
+  ;; Capture title input for use in help window --> it would be nice
+  ;; to hack apart the help on our self object name to get a title if
+  ;; the user didn't specify it
   self.ptitle = ptr_new(/allocate_heap)
   if N_elements(title) ne 0 then $
      *self.ptitle = title
