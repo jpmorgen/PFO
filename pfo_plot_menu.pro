@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_menu.pro,v 1.2 2012/01/13 20:56:16 jpmorgen Exp $
+; $Id: pfo_plot_menu.pro,v 1.3 2012/01/26 16:19:37 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_menu.pro,v $
+; Revision 1.3  2012/01/26 16:19:37  jpmorgen
+; Enabled call to raise an independent ranges widget
+;
 ; Revision 1.2  2012/01/13 20:56:16  jpmorgen
 ; Got working
 ;
@@ -65,6 +68,13 @@ function pfo_plot_menu_obj::event, event, button=button
 
   plot_obj = self.plotwin_obj->last_pfo_plot_obj()
   case button of 
+     self.ranges: begin
+        ;; Make a new widget for the ranges
+        junk = $
+           pfo_range_cw(!tok.nowhere, group_leader=self.tlbID, $
+                        pfo_obj=self.pfo_obj, $
+                        plotwin_obj=self.plotwin_obj)
+     end
      self.xlog: begin
         plot_obj->get_property, plot_xlog=plot_xlog
         plot_obj->set_property, plot_xlog=~plot_xlog
@@ -85,17 +95,21 @@ function pfo_plot_menu_obj::event, event, button=button
 end
 
 pro pfo_plot_menu_obj::populate, $
+   no_ranges=no_ranges, $ ;; don't put ranges menu item on (for pfo_range_cw)
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
+  if NOT keyword_set(no_ranges) then $
+     ID = widget_button(self.tlbID, value='Set Ranges', $
+                        uvalue={method: 'event', obj:self, keywords:{button:self.ranges}})
   ID = widget_button(self.tlbID, value='X log', $
                         uvalue={method: 'event', obj:self, keywords:{button:self.xlog}})
   ID = widget_button(self.tlbID, value='Y log', $
                         uvalue={method: 'event', obj:self, keywords:{button:self.ylog}})
-  ID = widget_button(self.tlbID, value='Xin autscale', $
+  ID = widget_button(self.tlbID, value='Xin autoscale', $
                         uvalue={method: 'event', obj:self, keywords:{button:self.xin_autoscale}})
-  ID = widget_button(self.tlbID, value='Xaxis autscale', $
+  ID = widget_button(self.tlbID, value='Xaxis autoscale', $
                         uvalue={method: 'event', obj:self, keywords:{button:self.xaxis_autoscale}})
-  ID = widget_button(self.tlbID, value='Yaxis autscale', $
+  ID = widget_button(self.tlbID, value='Yaxis autoscale', $
                         uvalue={method: 'event', obj:self, keywords:{button:self.yaxis_autoscale}})
 
 end
@@ -109,7 +123,7 @@ end
 
 ;; Init method
 function pfo_plot_menu_obj::init, $
-   parentID, $ ;; widgetID of parent widget
+   parentID, $ ;; widgetID of parent widget 
    _REF_EXTRA=extra ;; All other input parameters are passed to underlying routines via _REF_EXTRA
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
@@ -124,8 +138,12 @@ function pfo_plot_menu_obj::init, $
   endif ;; not debugging
 
   ;; Initialize our tokens
-  self.xlog = 0
-  self.ylog = 1
+  self.ranges = 0
+  self.xlog = 1
+  self.ylog = 2
+  self.xin_autoscale = 3
+  self.xaxis_autoscale = 4
+  self.yaxis_autoscale = 5
 
   ;; Call our inherited init routines.
   ok = self->pfo_cw_obj::init(parentID, /menu, value='Plot', _EXTRA=extra)
@@ -148,7 +166,8 @@ end
 pro pfo_plot_menu_obj__define
   objectClass = $
      {pfo_plot_menu_obj, $
-      xlog	: 0B, $ ;; tokens for events
+      ranges	: 0B, $ ;; tokens for events
+      xlog	: 0B, $
       ylog	: 0B, $
       xin_autoscale	: 0B, $
       xaxis_autoscale	: 0B, $
