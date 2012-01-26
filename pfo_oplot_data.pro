@@ -68,9 +68,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_data.pro,v 1.3 2011/12/01 22:12:32 jpmorgen Exp $
+; $Id: pfo_oplot_data.pro,v 1.4 2012/01/26 16:23:23 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_data.pro,v $
+; Revision 1.4  2012/01/26 16:23:23  jpmorgen
+; Enable _EXTRA so extra keywords can be ignored
+;
 ; Revision 1.3  2011/12/01 22:12:32  jpmorgen
 ; Added better init
 ;
@@ -94,7 +97,8 @@ pro pfo_oplot_data, $
    pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating data, parinfo, etc.
    calc_args=calc_args, $ ;; arguments to self->Xaxis() which eventually get passed down to __calc "methods" of pfo functions
    oplot_data_psym=oplot_data_psym, $ ;; psym to use for data (default==!tok.hist)
-   oplot_data_extra=oplot_data_extra ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
+   oplot_data_extra=oplot_data_extra, $ ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
+   _REF_EXTRA=extra ;; catchall in case other arguments are thrown at us
 
   ;; Make sure system variables are defined
   init = {tok_sysvar}

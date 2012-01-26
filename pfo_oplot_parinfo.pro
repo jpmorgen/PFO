@@ -68,9 +68,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_parinfo.pro,v 1.3 2011/12/01 22:12:25 jpmorgen Exp $
+; $Id: pfo_oplot_parinfo.pro,v 1.4 2012/01/26 16:23:18 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_parinfo.pro,v $
+; Revision 1.4  2012/01/26 16:23:18  jpmorgen
+; Enable _EXTRA so extra keywords can be ignored
+;
 ; Revision 1.3  2011/12/01 22:12:25  jpmorgen
 ; Added better init
 ;
@@ -95,7 +98,9 @@ pro pfo_oplot_parinfo, $
    calc_args=calc_args, $ ;; arguments to self->Xaxis() which eventually get passed down to __calc "methods" of pfo functions
    oplot_parinfo_color=oplot_parinfo_color, $ ;; color to use for parinfo (default=!pfo.parinfo_color)
    oplot_parinfo_thick=oplot_parinfo_thick, $ ;; thickness to use for parinfo (default = !p.thick+!pfo.oplot_parinfo_thick_boost)
-   oplot_parinfo_extra=oplot_parinfo_extra ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
+   oplot_parinfo_extra=oplot_parinfo_extra, $ ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
+   _REF_EXTRA=extra ;; catchall in case other arguments are thrown at us
+
 
   ;; Make sure system variables are defined
   init = {tok_sysvar}

@@ -68,9 +68,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_oplot_back.pro,v 1.2 2012/01/13 20:50:31 jpmorgen Exp $
+; $Id: pfo_oplot_back.pro,v 1.3 2012/01/26 16:23:29 jpmorgen Exp $
 ;
 ; $Log: pfo_oplot_back.pro,v $
+; Revision 1.3  2012/01/26 16:23:29  jpmorgen
+; Enable _EXTRA so extra keywords can be ignored
+;
 ; Revision 1.2  2012/01/13 20:50:31  jpmorgen
 ; Use pco_back_idx now
 ;
@@ -101,7 +104,9 @@ pro pfo_oplot_back, $
    calc_args=calc_args, $ ;; arguments to self->Xaxis() which eventually get passed down to __calc "methods" of pfo functions
    oplot_back_color=oplot_back_color, $ ;; color to use for background
    oplot_back_thick=oplot_back_thick, $ ;; thickness to use for background
-   oplot_back_extra=oplot_bac_extra ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
+   oplot_back_extra=oplot_back_extra, $ ;; a structure containing arguments to be passed to oplot (or other routines) in this routine
+   _REF_EXTRA=extra ;; catchall in case other arguments are thrown at us
+  
 
   ;; Make sure system variables are defined
   init = {tok_sysvar}
@@ -144,6 +149,6 @@ pro pfo_oplot_back, $
   ;; get black with parinfo_color=0 and white with
   ;; parinfo_color=!pfo.n_colors
   color = float(oplot_back_color)/!pfo.n_colors*(!d.table_size - 1)
-  oplot, xaxis, yaxis, color=color, thick=oplot_back_thick, _EXTRA=oplot_components_extra
+  oplot, xaxis, yaxis, color=color, thick=oplot_back_thick, _EXTRA=oplot_back_extra
 
 end
