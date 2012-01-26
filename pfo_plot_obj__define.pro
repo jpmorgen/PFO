@@ -43,9 +43,13 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_obj__define.pro,v 1.7 2011/12/01 22:09:33 jpmorgen Exp $
+; $Id: pfo_plot_obj__define.pro,v 1.8 2012/01/26 16:21:23 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_obj__define.pro,v $
+; Revision 1.8  2012/01/26 16:21:23  jpmorgen
+; Add tROI and zoom/unzoom capabilities.  Allow set_property to process
+; autoscale and ranges (ranges override)
+;
 ; Revision 1.7  2011/12/01 22:09:33  jpmorgen
 ; Improve autoscaling, log plotting, expand default oplot_call_list
 ;
@@ -74,12 +78,73 @@
 ;
 ;-
 
+;; unzoom
+pro pfo_plot_obj::unzoom
+
+  N_unzoom = self.unzoom_obj->get_count()
+  ;; Check to see if we have an empty list
+  if N_unzoom eq 0 then $
+     return
+
+  ;; If we made it here, we have at least one unzoom stored
+
+  ;; Get ready to clear out all of our ranges.  These may get
+  ;; overriden, below
+  keywords = {plot_Xin_autoscale:1, plot_Xaxis_autoscale:1, plot_Yaxis_autoscale:1}
+
+  ;; Get the most recently saved unzoom
+  ranges = self.unzoom_obj->get_item(N_unzoom-1, /dereference)
+  
+  ;; If ranges is not a struct, we wanted everything to autoscale, so
+  ;; we are done
+  if size(/type, ranges) eq !tok.struct then begin
+     ;; Extract the ranges that were set
+     tn = tag_names(ranges)
+     ;; Cycle through the tags in the ranges struct and match them to
+     ;; the tags we expect
+     tag_list = strupcase(['Xin_range', 'Xaxis_range', 'Yaxis_range'])
+     for it=0, N_elements(tn)-1 do begin
+        tidx = where(tn[it] eq tag_list, count)
+        if count eq 0 then $
+           message, 'ERROR: unknown tag ' + tn(it) + ' in unzoom object'
+        ;; Accumulate keywords for set_property
+        case tidx of
+           0: pfo_struct_append, keywords, {plot_Xin_range  :ranges.(it)}
+           1: pfo_struct_append, keywords, {plot_Xaxis_range:ranges.(it)}
+           2: pfo_struct_append, keywords, {plot_Yaxis_range:ranges.(it)}
+        endcase
+     endfor ;; each tag in ranges
+  endif ;; ranges stored in struct
+
+  ;; Set all of our keywords at once.  This saves flickering
+  self->set_property, _EXTRA=keywords
+
+  ;; Delete our saved unzoom
+  self.unzoom_obj->delete, N_unzoom-1
+
+end
+
+;; save_zoom.   Save the current ranges in the unzoom_obj
+pro pfo_plot_obj::save_zoom
+  ;; Create a struct that has any defined ranges as tags
+  if N_elements(*self.pXin_range  ) ne 0 then pfo_struct_append, ranges, {Xin_range:   *self.pXin_range}
+  if N_elements(*self.pXaxis_range) ne 0 then pfo_struct_append, ranges, {Xaxis_range: *self.pXaxis_range}
+  if N_elements(*self.pYaxis_range) ne 0 then pfo_struct_append, ranges, {Yaxis_range: *self.pYaxis_range}
+  ;; If the struct ends up being undefined then we have no ranges:
+  ;; everything is autoscaled.
+  if N_elements(ranges) eq 0 then $
+     ranges = 0
+  ;; Save the struct or 0
+  self.unzoom_obj->add, ranges
+
+end   
+
 ;; Functions that return Xin, Xaxis, and Yaxis ranges.  If the range
 ;; is specified on the command line, it is just popped back out again,
 ;; checking for the case of logarithmic plotting and avoiding minimum
-;; values <= 0.  If the range is defined as property, that is returned.
-;; If no range is in the property, it is calculated.  The /autoscale
-;; switch deletes property and forces case of
+;; values <= 0.  If the range is defined as property, that is
+;; returned.  If no range is in the property, it is calculated.  Use
+;; set_property, /plot_*_autoscale to erase range property
 function pfo_plot_obj::Xin_range, $
    Xin_range, $ ;; (optional) if you know this, your job is done, but it saves you from doing the check in the calling code
    Xin=Xin ;; (optional) input axis to check.  Otherwise, use encapsulated property
@@ -285,7 +350,8 @@ pro pfo_plot_obj::plot, $
    Yin_Xaxis_units= Yin_Xaxis_units, $ ;; title for X-axis plots when Xunits=!pfo.Xaxis and Yunits=!pfo.Xaxis (e.g. counts/keV)
    plot_xlog=plot_xlog, $	;; main window and deviates reads in log X
    plot_ylog=plot_ylog, $ ;; plot of main window reads in log Y.  --> Deviates always linear
-   oplot_call_list=oplot_call_list, $ ;; a list of procedures which will overplot information on the main plot window
+   oplot_call_list=oplot_call_list_in, $ ;; a list of procedures which will overplot information on the main plot window
+   tROI=tROI, $ ;; temporary region of interest used in, e.g. zoom and ROI definition.  Units of Xin.
    calc_args=calc_args, $ ;; arguments to self->[XY]axis(), etc. which eventually get passed down to __calc "methods" of pfo functions
    plot_error=plot_error, $ ;; (output) error code, set to non-zero value if plot not completely successful
    _REF_EXTRA=extra ;; EXTRA args passed to oplot routines
@@ -395,8 +461,14 @@ pro pfo_plot_obj::plot, $
   if N_elements(Yin_Xaxis_units) eq 0 then Yin_Xaxis_units = self.plot_Yin_Xaxis_units
   if N_elements(xlog) eq 0 then xlog = self.plot_xlog
   if N_elements(ylog) eq 0 then ylog = self.plot_ylog
+  ;; Protect our input oplot_call_list, since we might modify it with oplot_tROI
+  if N_elements(oplot_call_list_in) ne 0 then oplot_call_list = oplot_call_list_in
   if N_elements(oplot_call_list) eq 0 then oplot_call_list = *self.poplot_call_list
-  
+  if N_elements(tROI) eq 0 then tROI = self.tROI
+  ;; If we have a non-negligable tROI, make sure we oplot it _last_
+  if tROI[0] - tROI[1] ne 0 then $
+     pfo_array_append, oplot_call_list, 'pfo_oplot_tROI'
+
   ;; !P. SYSTEM VARIABLES.  Set background to black and color to white
   ;; for normal plotting 
   !p.background = 0
@@ -572,6 +644,7 @@ pro pfo_plot_obj::plot, $
         iROI=iROI, $ ;; iROI(s) to plot
         pfo_obj=pfo_obj, $ ;; pfo_obj encapsulating data, parinfo, etc.
         calc_args=calc_args, $ ;; arguments to pfo_obj->[XY]axis(), etc. which eventually get passed down to __calc "methods" of pfo functions
+        tROI=tROI, $ ;; passed to oplot_tROI, ignored by _REF_EXTRA in others
         _EXTRA=extra ;; EXTRA args passed to oplot routines
   endfor ;; each oplot procedure
 
@@ -652,6 +725,7 @@ pro pfo_plot_obj::get_property, $
    plot_ispec      	= plot_ispec     , $
    plot_iROI	      	= plot_iROI      , $      
    oplot_call_list  	= oplot_call_list, $
+   tROI			= tROI, $
    plot_Xin_autoscale	= plot_Xin_autoscale, $
    plot_Xaxis_autoscale	= plot_Xaxis_autoscale, $
    plot_Yaxis_autoscale	= plot_Yaxis_autoscale
@@ -678,7 +752,8 @@ pro pfo_plot_obj::get_property, $
      plot_Yaxis_range = self->Yaxis_range()
   endif
 
-  ;; Handle autoscale stuff here.  We are autoscaling if there is 
+  ;; Handle autoscale stuff here.  We are autoscaling if there there
+  ;; is no range property
   if arg_present(plot_Xin_autoscale   ) or N_elements(plot_Xin_autoscale   ) gt 0 then begin
      plot_Xin_autoscale = N_elements(*self.pXin_range) eq 0
   endif
@@ -705,6 +780,7 @@ pro pfo_plot_obj::get_property, $
   if arg_present(plot_ispec       ) or N_elements(plot_ispec       ) gt 0 then plot_ispec       = *self.pplot_ispec       
   if arg_present(plot_iROI	  ) or N_elements(plot_iROI	   ) gt 0 then plot_iROI	= *self.pplot_iROI	       
   if arg_present(oplot_call_list  ) or N_elements(oplot_call_list  ) gt 0 then oplot_call_list  = *self.poplot_call_list  
+  if arg_present(tROI  		  ) or N_elements(tROI  	   ) gt 0 then tROI  		= self.tROI  
 
 end
 
@@ -736,6 +812,7 @@ pro pfo_plot_obj::set_property, $
    plot_ispec      	= plot_ispec     , $
    plot_iROI	      	= plot_iROI      , $      
    oplot_call_list  	= oplot_call_list, $
+   tROI			= tROI, $
    plot_Xin_autoscale	= plot_Xin_autoscale, $
    plot_Xaxis_autoscale	= plot_Xaxis_autoscale, $
    plot_Yaxis_autoscale	= plot_Yaxis_autoscale, $
@@ -797,6 +874,7 @@ pro pfo_plot_obj::set_property, $
      *self.pYaxis_range     = plot_Yaxis_range      
      property_set = 1
   endif
+
   if N_elements(plot_Xunits      ) gt 0 then begin
      self.plot_Xunits       = plot_Xunits      
      property_set = 1
@@ -861,9 +939,13 @@ pro pfo_plot_obj::set_property, $
      *self.poplot_call_list = oplot_call_list  
      property_set = 1
   endif
+  if N_elements(tROI  		) gt 0 then begin
+     self.tROI = tROI  
+     property_set = 1
+  endif
 
-  ;; Xin autoscale
-  if N_elements(plot_Xin_autoscale  ) gt 0 then begin
+  ;; Xin autoscale, only if we haven't already set Xin or Xaxis
+  if N_elements(plot_Xin_autoscale  ) gt 0 and (N_elements(plot_Xin_range) + N_elements(plot_Xaxis_range) eq 0) then begin
      if plot_Xin_autoscale eq 0 then begin
         ;; Turn autoscale off by setting range property to current
         ;; autoscale range
@@ -886,7 +968,7 @@ pro pfo_plot_obj::set_property, $
   endif
 
   ;; Xaxis autoscale
-  if N_elements(plot_Xaxis_autoscale  ) gt 0 then begin
+  if N_elements(plot_Xaxis_autoscale  ) gt 0 and (N_elements(plot_Xin_range) + N_elements(plot_Xaxis_range) eq 0) then begin
      if plot_Xaxis_autoscale eq 0 then begin
         ;; Turn autoscale off by setting range property to current
         ;; autoscale range
@@ -965,6 +1047,7 @@ pro pfo_plot_obj::cleanup
   ptr_free, self.pplot_ispec
   ptr_free, self.pplot_iROI
   ptr_free, self.poplot_call_list
+  obj_destroy, self.unzoom_obj
 
 end
 
@@ -1039,6 +1122,9 @@ function pfo_plot_obj::init, $
   ;; with set_property
   self.plot_pfo_obj = self
 
+  ;; Initialize our undo list
+  self.unzoom_obj = obj_new('linkedlist')
+
   ;; Call our _local_ set_property routine to convert any keywords to
   ;; property.  Keeping it local makes sure we don't get any
   ;; order-dependent cross-talk during initialization of multiple
@@ -1086,7 +1172,9 @@ pro pfo_plot_obj__define
       pplot_ispec	: ptr_new(), $ ;; pointer to (list of) ispecs to plot
       pplot_iROI	: ptr_new(), $ ;; pointer to (list of) iROIs to plot
       poplot_call_list	: ptr_new(), $ ;; a list of procedures which will overplot information on the main plot window
-      pplotwin_cw_obj_list: ptr_new()  $ ;; list of plotwin_cw_objs that are registered with this pfo_obj
+      pplotwin_cw_obj_list: ptr_new(),  $ ;; list of plotwin_cw_objs that are registered with this pfo_obj
+      tROI		: [0d, 0d],  	$ ;; temporary region of interest used in, e.g. zoom and ROI definition
+      unzoom_obj	: obj_new() 	$ ;; object that manages property related to zoom/unzoom list
      }
   
 end
