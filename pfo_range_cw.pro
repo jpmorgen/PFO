@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_range_cw.pro,v 1.1 2011/11/18 14:40:49 jpmorgen Exp $
+; $Id: pfo_range_cw.pro,v 1.2 2012/01/26 16:17:44 jpmorgen Exp $
 ;
 ; $Log: pfo_range_cw.pro,v $
+; Revision 1.2  2012/01/26 16:17:44  jpmorgen
+; Enabled tlb option
+;
 ; Revision 1.1  2011/11/18 14:40:49  jpmorgen
 ; Initial revision
 ;
@@ -200,7 +203,7 @@ function pfo_range_cw_obj::init, $
         return, 0
      endif
   endif ;; not debugging
-  
+
   ;; Set up our local property (a set/get_property routine might be
   ;; useful for these)
   self.units = !tok.inches
@@ -242,6 +245,7 @@ end
 
 function pfo_range_cw, $
    parentID, $ ;; Parent widget ID (positional parameter)
+   plotwin_obj=plotwin_obj, $ ;; object that runs the plotwin we are trying to control (required)
    cw_obj=cw_obj, $ ;; (output) the object that runs this cw
    _REF_EXTRA=extra ;; All other input parameters, including pfo_obj, 
   ;; are passed to the init method and underlying routines via _REF_EXTRA mechanism
@@ -254,8 +258,34 @@ function pfo_range_cw, $
   ;; Initialize output
   cwID = !tok.nowhere
 
-  ;; Create our controlling object
-  cw_obj = pfo_cw_obj_new(parentID, _EXTRA=extra)
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'ERROR: caught the above error.  Widget creation failed. ', /CONTINUE
+        return, !tok.nowhere
+     endif
+  endif ;; not debugging
+
+  ;; Check to see if we have been asked to be a tlb
+  if N_elements(parentID) eq 0 then $
+     parentID = !tok.nowhere
+  if parentID eq !tok.nowhere then begin
+     title = 'Set Ranges'
+     ;; In the tlb case, we want to make an mbar
+     cw_obj = pfo_cw_obj_new(parentID, title=title, /mbar, plotwin_obj=plotwin_obj, _EXTRA=extra)
+     ;; Fill mbar with the menu we want.  This will raise an error if
+     ;; plotwin_obj (necessary for pfo_plot_menu) is not defined --> work on help
+     cw_obj->mbar, ['pfo_generic', 'pfo_plot'], menu_args={no_ranges:1, plotwin_obj:plotwin_obj}
+     ;; Realize the widget and hand it over to Xmanager for event processing
+     tlbID = cw_obj->tlbID()
+     widget_control, tlbID, /realize
+     xmanager, title, tlbID, event_handler='pfo_cw_event_pro', /no_block
+  endif else begin
+     cw_obj = pfo_cw_obj_new(parentID, _EXTRA=extra)
+  endelse
 
   ;; The init method creates the widget and stores its ID in self.tlb.
   ;; Use the getID method to access it.  We return this ID, since that
