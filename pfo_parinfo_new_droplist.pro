@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_new_droplist.pro,v 1.2 2011/11/18 16:08:27 jpmorgen Exp $
+; $Id: pfo_parinfo_new_droplist.pro,v 1.3 2012/03/23 01:23:30 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_new_droplist.pro,v $
+; Revision 1.3  2012/03/23 01:23:30  jpmorgen
+; Add save_undo for better user interface
+;
 ; Revision 1.2  2011/11/18 16:08:27  jpmorgen
 ; Switch to using pfo_obj->append_parinfo method
 ;
@@ -72,6 +75,10 @@ function pfo_parinfo_new_droplist_obj::event, event
   topID = pfo_widget_top(self.parentID)
 
   N_parinfo_orig = pfo_obj->parinfo_call_function(/no_update, 'N_elements')
+  
+  ;; Save our state so that we can get rid of this new function (might
+  ;; take several undos if we have done some editing)
+  pfo_obj->save_undo
 
   ;; Use the pfo_obj append_parinfo method to do our work.  It has
   ;; access to the property, like parinfo_new_args, which customize
