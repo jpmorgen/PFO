@@ -1,8 +1,10 @@
 ;+
 ; NAME: pfo_tROI_obj__define
 
-; PURPOSE: Creates an object which allows the mouse to zoom/unzoom the
-; plot in the plotwin to which this object is connected
+; PURPOSE: Creates an object which allows the mouse to create a
+; temporary region of interest in the plot in the plotwin to which
+; this object is connected.  It can be used by other objects, such as
+; pfo_plotwin_zoom_obj.
 
 ; CATEGORY: PFO widgets
 ;
@@ -34,14 +36,20 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_troi_obj__define.pro,v 1.1 2012/01/26 16:21:48 jpmorgen Exp $
+; $Id: pfo_troi_obj__define.pro,v 1.2 2012/03/23 01:49:51 jpmorgen Exp $
 ;
 ; $Log: pfo_troi_obj__define.pro,v $
+; Revision 1.2  2012/03/23 01:49:51  jpmorgen
+; Improve ability to be used in an object-oriented manner
+;
 ; Revision 1.1  2012/01/26 16:21:48  jpmorgen
 ; Initial revision
 ;
 ;-
 
+;; This event handler should be called by the event handler of the
+;; inheriting object with something like: 
+;; OK = self-->tROI_plotwin_event(event)
 function pfo_tROI_obj::tROI_plotwin_event, event
   ;; We will always swallow the event
   retval = !tok.nowhere
@@ -194,10 +202,10 @@ function pfo_tROI_obj::init, $
   self.tROI_set_proc = tROI_set_proc
   self.tROI_calling_obj = tROI_calling_obj
 
-  ;; Register our event handler.  Make sure we have a unique name,
-  ;; since we will be inherited into other objects
-  self.plotwin_obj->register_forward, $
-     {method:'tROI_plotwin_event', obj:self}, /draw_button_events, /draw_motion_events
+  ;; Don't register an event handler: let the inheriting
+  ;; routine do that.  The inheriting routine's event handler
+  ;; should call self-> tROI_plotwin_event to handle the tROI part of
+  ;; the events.
 
   ;; If we made it here, we have successfully set up our widget.
   return, 1
