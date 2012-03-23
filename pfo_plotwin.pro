@@ -37,9 +37,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plotwin.pro,v 1.1 2011/11/18 15:56:17 jpmorgen Exp $
+; $Id: pfo_plotwin.pro,v 1.2 2012/03/23 01:50:51 jpmorgen Exp $
 ;
 ; $Log: pfo_plotwin.pro,v $
+; Revision 1.2  2012/03/23 01:50:51  jpmorgen
+; Minor documentation change
+;
 ; Revision 1.1  2011/11/18 15:56:17  jpmorgen
 ; Initial revision
 ;
@@ -68,7 +71,7 @@ function pfo_plotwin, $
   ;; Initialize output
   cwID = !tok.nowhere
 
-  ;; Create our controlling object.
+  ;; Create our controlling object.  In this case a pfo_plotwin_obj.
   cw_obj = pfo_cw_obj_new(parentID, _EXTRA=extra)
 
   ;; The init method creates the widget and stores its ID in self.tlb.
