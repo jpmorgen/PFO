@@ -1,11 +1,23 @@
 ;+
 ; NAME: pfo_plotwin_obj__define
 
-; PURPOSE: Define the object which controls pfo plot windows
+; PURPOSE: Define the object which controls pfo plot windows.  This
+; object takes care of setting up the draw widget into which IDL
+; direct graphics are put, keeps track of the last pfo_obj that
+; plotted information to that draw widget, and a list of event
+; handlers which listen to events coming from the draw widget.  A
+; special rewritable event handler, administered by
+; pfo_event_forward_obj, is set up by default.  This can be used to
+; help take control of the mouse or other event stream information
+; that might conflict between end-user applications.  Registration
+; using the register_forward method therefore requires one of two
+; switches: /persistent or /changeable.  Another keyword to
+; register_forward, pfo_event_forward_obj, can be used if you are
+; maintaining your own changeable event object.
 
 ; CATEGORY: PFO widgets
 ;
-; CALLING SEQUENCE:
+; CALLING SEQUENCE: inherited in things like pfo_plotwin
 
 ; INPUTS:
 ;
@@ -23,7 +35,7 @@
 ;
 ; SIDE EFFECTS:
 ;
-; RESTRICTIONS:
+; RESTRICTIONS:  Uses Coyote Programs linkedlist object
 ;
 ; PROCEDURE:
 ;
@@ -31,9 +43,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plotwin_obj__define.pro,v 1.4 2011/11/18 15:52:13 jpmorgen Exp $
+; $Id: pfo_plotwin_obj__define.pro,v 1.5 2012/03/23 01:49:00 jpmorgen Exp $
 ;
 ; $Log: pfo_plotwin_obj__define.pro,v $
+; Revision 1.5  2012/03/23 01:49:00  jpmorgen
+; Improve event forward handling to include /persistent and /changeable events
+;
 ; Revision 1.4  2011/11/18 15:52:13  jpmorgen
 ; Extensive work with event handler, get unregistration to work properly
 ;
@@ -60,14 +75,18 @@ end
 ;; Event handler.  This basically just forwards event to the list of
 ;; event handlers maintained in the linked list: self.forward_obj.
 ;; The items stored in the linked list resemble the uvalues of
-;; pfo_cws: item = {method:method, obj:cw_obj, keywords:{k0:v0, k1:v1...}}
+;; pfo_cws: item = {method:method, obj:cw_obj, keywords:{k0:v0,
+;; k1:v1...}}.  By default, one of the first events in this list is a
+;; changeable event handler administered by a pfo_event_forward_obj.
+;; It takes care of forwarding events registered with it.
 function pfo_plotwin_obj::pfo_plotwin_event, event
 
   retval = !tok.nowhere
 
   ;; Loop through each node in the linked list
   repeat begin
-     ;; Catch errors, which are presumably improperly formatted 
+     ;; Catch errors, which are presumably from improperly formatted
+     ;; event structures.
      ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
      if !pfo.debug le 0 then begin
         CATCH, err
@@ -141,7 +160,7 @@ function pfo_plotwin_obj::ctrld, $
   
 end
 
-;; Unregister an event hander from our forward list.
+;; Unregister an event hander from our [persistent] forward list.
 pro pfo_plotwin_obj::unregister_forward, $
    eh ;; event handler reference of the form {method:'method', obj:obj, [keywords:{k1:k1, k2:k2}]} -OR- obj for which all event handlers will be deleted
 
@@ -212,10 +231,24 @@ pro pfo_plotwin_obj::unregister_forward, $
 
 end
 
-;; Register a cw_obj in our forward list.  
+;; Register an event handler in our event forward list.  There are two
+;; basic types of forwards: persistent and changeable.  Persistent
+;; forwards go into our linked list of event handlers until they are
+;; explicitly unregistered.  This is where things like pfo_cursor_cw
+;; belong.  Changeable events are administered by
+;; pfo_event_forward_objs.  The idea is to have a little object that
+;; just stores the event handler that you might want to change at a
+;; later date.  As long as you keep track of the object reference of
+;; the pfo_event_forward_obj, you can change the event at any time
+;; without having to unregister it.  The init method of this object
+;; should set up a pfo_event_forward_obj for general use.  More can be
+;; added as needed.
 pro pfo_plotwin_obj::register_forward, $
    eh, $ ;; event handler
-   _REF_EXTRA=extra ;; args to pass to widget_control of the drawID (e.g. to turn on appropriate event generation)
+   persistent=persistent, $ ;; give the inheriting obj its own slot in the list of event handlers stored in the plotwin_obj
+   changeable=changeable, $ ;; put event into our changable event
+   event_forward_obj=event_forward_obj, $ ;; put event into this particular changable event.  It is OK to specify /changeable and event_forward_obj.  The later (if a valid obj) is prefered.
+   _REF_EXTRA=extra ;; args to pass to widget_control of the drawID to turn on appropriate event generation
 
   ;; Catch errors, which are presumably improperly formatted 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
@@ -224,27 +257,50 @@ pro pfo_plotwin_obj::register_forward, $
      if err ne 0 then begin
         CATCH, /CANCEL
         message, /NONAME, !error_state.msg, /CONTINUE
-        message, 'ERROR: caught the above error.  Did you specify your event handler properly?  {method:method, obj:cw_obj, [keyowrds:{keywords}]}.', /CONTINUE
+        message, 'ERROR: caught the above error.  Event handler not registered.', /CONTINUE
         return
      endif
   endif ;; not debugging
 
-
   ;; Check syntax of invocation
+  if (keyword_set(persistent) + (keyword_set(changeable) OR keyword_set(event_forward_obj))) ne 1 then $
+     message, 'ERROR: specify /persistent /changeable and/or event_forward_obj (persistent is incompatible with the other two, event_forward_obj is prefered over /changeble (it is just a changeable event outside the default slot).'
+
+  ;; Be militant about how events are defined (see EVENTS
+  ;; documentation in pfo_cw_obj__define.pro)
+  if size(/type, eh) ne !tok.struct then $
+     message, 'ERROR: event must be a struct of the form {method:method, obj:cw_obj, [keyowrds:{keywords}]}'
+
   if NOT obj_valid(eh.obj) then $
-     message, 'ERROR: event handler obj is not valid'
+     message, 'ERROR: event handler obj is not valid.  Did you specify your event handler properly?  {method:method, obj:cw_obj, [keyowrds:{keywords}]}.'
 
-  ;; Store forward list in Coyote programs linkedlist object
-  if NOT obj_valid(self.forward_obj) then $
-     self.forward_obj = obj_new('linkedlist')
+  ;; If we made it here, our event handler is probably OK.
 
-  ;; Pass any switches to widget_control to turn on appropriate event
-  ;; handler capabilities
-  if keyword_set(extra) then $
-     widget_control, self.drawID, _EXTRA=extra
+  if keyword_set(persistent) then begin
+     ;; Initialize our linkedlist object if this is our first
+     ;; persistent event handler.  The linked list object is defined in the
+     ;; Coyote programs
+     if NOT obj_valid(self.forward_obj) then $
+        self.forward_obj = obj_new('linkedlist')
+     ;; Add our event hander to the end of the list
+     self.forward_obj->add, eh
+     ;; Pass any switches to widget_control of our draw widget to turn on
+     ;; appropriate event generation for our cleint event handlers
+     if keyword_set(extra) then $
+        widget_control, self.drawID, _EXTRA=extra
 
-  ;; Store our forward list in Coyote programs linkedlist object
-  self.forward_obj->add, eh
+  endif else begin
+
+     ;; changeable event (depends on error message above sorting out
+     ;; command line options)
+     obj = self
+     if obj_valid(event_forward_obj) then $
+        obj = event_forward_obj
+     ;; Register our event handler in the event_forward_obj.  Pass on
+     ;; our _EXTRA args, just in case the user invoked this with an
+     ;; event_forward_obj that didn't match this plotwin_obj
+     obj->event_change, eh, _EXTRA=extra
+  endelse
 
 end
 
@@ -570,34 +626,52 @@ function pfo_plotwin_obj::init, $
   ok = self->pfo_cw_obj::init(parentID, $
                               pfo_obj=self.pfo_obj, $
                               _EXTRA=extra)
-
   if NOT ok then return, 0
 
-  ;; Put our draw widget into the tlb created by the cw_obj init
-  ;; method.  NOTE: this tlb is _not_ the tlb created above in the
-  ;; case we were invoked with no parent.  Make sure IDL does the
-  ;; backing store in the window with retain=2.
+  ;; Call our pfo_event_forward_obj init routine
+  ok = self->pfo_event_forward_obj::init()  
+  if NOT ok then return, 0
+
+  ;; If we made it here, our underlying object infrastructures are
+  ;; initialized.  Other errors will be caught by the CATCH above, if
+  ;; not debugging
+
+  ;; Start by putting our draw widget into the tlb created by the
+  ;; cw_obj init method.  NOTE: this tlb is _not_ the tlb created
+  ;; above in the case where we were invoked with no parent.  Make
+  ;; sure IDL does the backing store in the window with retain=2.  We
+  ;; are going
   self.drawID = widget_draw(self.tlbID, $
                             xsize=self.xsize, ysize=self.ysize, $
                             retain=2, $
                             uvalue={method:'pfo_plotwin_event', obj:self}, _EXTRA=extra)
-
-  ;; Register with our pfo_obj
-  self.pfo_obj->register_plotwin_obj, self
-
-  ;; Handle the group_leader argument
+  
+  ;; If that was successful, we will have a draw widget that generates
+  ;; events.  Make our first event handler ctrl-d, if the caller
+  ;; provided a group_leader argument.  This ensures we can get rid of
+  ;; our widget.
   if N_elements(group_leader) ne 0 then begin
      ;; Store property
      self.group_leader = group_leader
      ;; Register our local ctrl-d event handler and make sure the draw
      ;; window generates keyboard events.
-     self->register_forward, {method:'ctrld', obj:self}, /draw_keyboard_events
+     self->register_forward, /persistent, $
+        {method:'ctrld', obj:self}, /draw_keyboard_events
   endif
+
+  ;; Put in our default changeable event forwarder next (or first if
+  ;; group_leader not specified).  This event forwarder will be empty
+  ;; at first.  Use the self->event_change method (inherited from
+  ;; pfo_event_forward_obj) to install an event
+  self->register_event_forward_obj
 
   ;; If we created our parent, realize it
   if keyword_set(created_tlbID) then begin
      widget_control, tlbID, realize=1
   endif ;; created parent
+
+  ;; If we made it here, it is reasonable to register with our pfo_obj
+  self.pfo_obj->register_plotwin_obj, self
 
   ;; If we made it here, we have successfully set up our plotwin.  
   return, 1
@@ -605,7 +679,8 @@ function pfo_plotwin_obj::init, $
 end
 
 ;; Vestigial pfo_obj object class definition in case we were not
-;; passed a pfo_obj
+;; passed a pfo_obj.  This is just to keep the use of memory to a
+;; minimum
 pro pfo_plotwin_obj_vestigial_pfo_obj::cleanup
   self->pfo_obj_cw_obj::cleanup
   self->pfo_obj_plotwin_obj::cleanup
@@ -638,5 +713,8 @@ pro pfo_plotwin_obj__define
       last_pfo_obj: obj_new(), $ ;; last pfo_obj used to make a plot
       forward_obj:	obj_new(), $ ;; list of obj methods w/optional keywords which will recieve events
       group_leader:	0L, $ ;; widgetID to kill when ctrl-d pressed in plotwin
-      inherits pfo_cw_obj}   ;; This is going to be a standard pfo_cw object
+      inherits pfo_cw_obj, $ ;; This is going to be a standard pfo_cw object
+      inherits pfo_event_forward_obj $ ;; reserve one slot for a changable event
+     }   
 end
+
