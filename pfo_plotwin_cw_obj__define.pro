@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plotwin_cw_obj__define.pro,v 1.3 2012/01/26 16:24:14 jpmorgen Exp $
+; $Id: pfo_plotwin_cw_obj__define.pro,v 1.4 2012/03/23 01:47:34 jpmorgen Exp $
 ;
 ; $Log: pfo_plotwin_cw_obj__define.pro,v $
+; Revision 1.4  2012/03/23 01:47:34  jpmorgen
+; Change documentation about event handers
+;
 ; Revision 1.3  2012/01/26 16:24:14  jpmorgen
 ; Fix mistaken link to pfo_cw_obj.  We are truely independent of that system
 ;
@@ -69,9 +72,12 @@ pro pfo_plotwin_cw_obj::set_property, $
         self.plotwin_obj->unregister_forward, self
      ;; Store plotwin_obj in our property
      self.plotwin_obj = plotwin_obj
-     ;; Don't forget to register your event handler(s) e.g.:
-     ;;self.plotwin_obj->register_forward, $
-     ;;   {method:'event', obj:self}, /draw_motion_events
+     ;; NOTE: This does not disconnect objects that are in
+     ;; pfo_event_forward_objs (like zoom, ROI, and peak mouse
+     ;; objects).  But those are unlikely to want to be switched,
+     ;; since those tend to stick with the plotwin they are
+     ;; ministering to.
+
   endif ;; plotwin_obj
 
 end
