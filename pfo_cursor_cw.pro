@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cursor_cw.pro,v 1.2 2011/11/18 14:47:58 jpmorgen Exp $
+; $Id: pfo_cursor_cw.pro,v 1.3 2012/03/23 01:50:24 jpmorgen Exp $
 ;
 ; $Log: pfo_cursor_cw.pro,v $
+; Revision 1.3  2012/03/23 01:50:24  jpmorgen
+; Change event registration syntax
+;
 ; Revision 1.2  2011/11/18 14:47:58  jpmorgen
 ; Made column headings a separate widet
 ;
@@ -77,11 +80,24 @@ function pfo_cursor_cw_obj::plotwin_event, event
 
 end
 
+;; Register our event with the the plot_obj event fowarding system.
+;; We just care about mouse motion events, which is non-disruptive to
+;; the event flow, so we can be a persistent event handler
+pro pfo_cursor_cw_obj::register_forward
+
+  if NOT obj_valid(self.plotwin_obj) then $
+     message, 'ERROR: plotwin_obj is not yet registered with this obj.  Use set_property, plotwin_obj=plotwin_obj or pass plotwin_obj when initializing this object'
+
+  self.plotwin_obj->register_forward, /persistent, $
+     {method:'plotwin_event', obj:self}, /draw_motion_events
+end
+
 pro pfo_cursor_cw_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
   
   ;; Make the cursor widgets.
   rowID = widget_base(self.tlbID, /row)
+  ;; Label is the "min/max" column
   ID = widget_label(rowID, value='', xsize=self.label_width, units=self.units)
   for iw=0,2 do begin
      ID = widget_base(rowID, xsize=self.col_width, units=self.units)
@@ -119,9 +135,9 @@ function pfo_cursor_cw_obj::init, $
   ;; Set up our local property (a set/get_property routine might be
   ;; useful for these)
   self.units = !tok.inches
-  self.label_width = 0.
+  self.label_width = 0.5
   if N_elements(label_width) ne 0 then self.label_width = label_width
-  self.col_width = 1.
+  self.col_width = 1.25
   if N_elements(col_width) ne 0 then self.col_width = col_width
 
   ;; Call our inherited init routines.
@@ -134,9 +150,9 @@ function pfo_cursor_cw_obj::init, $
   ;; Build our widget
   self->populate, _EXTRA=extra
 
-  ;; Register our event handler
-  self.plotwin_obj->register_forward, $
-     {method:'plotwin_event', obj:self}, /draw_motion_events
+  ;; Register our event handler if we know our plotwin at this point.
+  if obj_valid(self.plotwin_obj) then $
+     self->register_forward
 
   ;; If we made it here, we have successfully set up our widget.
   return, 1
@@ -149,7 +165,7 @@ pro pfo_cursor_cw_obj__define
      {pfo_cursor_cw_obj, $
       label_width	: 0., $
       col_width		: 0., $
-      units		: '', $
+      units		: 0, $
       IDs		: lonarr(3), $ ;; widget IDs of pfo_cw_fields which display cursor values
       inherits pfo_plotwin_cw_obj, $
       inherits pfo_cw_obj}
