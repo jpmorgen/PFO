@@ -38,9 +38,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_unique_struct__define.pro,v 1.3 2011/12/01 22:07:56 jpmorgen Exp $
+; $Id: pfo_unique_struct__define.pro,v 1.4 2012/04/14 13:29:35 jpmorgen Exp $
 ;
 ; $Log: pfo_unique_struct__define.pro,v $
+; Revision 1.4  2012/04/14 13:29:35  jpmorgen
+; Fixed reverse index problem on Mac
+;
 ; Revision 1.3  2011/12/01 22:07:56  jpmorgen
 ; Minor change in documentation
 ;
@@ -67,7 +70,7 @@ pro pfo_unique_struct__update, $
   ;; wouldn't be here unless everything was defined.
   uniqueID = parinfo.pfo_unique.uniqueID
 
-  u_idx = pfo_uniq(uniqueID, sort(uniqueID), reverse_indices=r_idx, N_uniq=N_uniq)
+  u_idx = pfo_uniq(uniqueID, bsort(uniqueID), reverse_indices=r_idx, N_uniq=N_uniq)
   ;; If we have one uniqueID for each parinfo, our work is done
   if N_uniq eq N_elements(parinfo) then begin
      pfo_struct_update_complete, completed_updates

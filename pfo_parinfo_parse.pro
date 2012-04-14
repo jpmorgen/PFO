@@ -164,9 +164,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_parse.pro,v 1.10 2011/11/21 15:29:30 jpmorgen Exp $
+; $Id: pfo_parinfo_parse.pro,v 1.11 2012/04/14 13:27:56 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_parse.pro,v $
+; Revision 1.11  2012/04/14 13:27:56  jpmorgen
+; Fixed reverse index problem on Mac
+;
 ; Revision 1.10  2011/11/21 15:29:30  jpmorgen
 ; Fix bug with too many terminate_idxs
 ;
@@ -505,7 +508,7 @@ function pfo_parinfo_parse, $
   if pfo_struct_tag_present(parinfo, 'pfo_ROI') then begin
      ;; This is going to be the general pattern of how we work through the parinfo.pfo[_ROI] structure
      junk = parinfo[use_idx].pfo_ROI.ispec
-     junk = pfo_uniq(junk, sort(junk), reverse_indices=ispec_r_idx, N_uniq=N_ispec)
+     junk = pfo_uniq(junk, bsort(junk), reverse_indices=ispec_r_idx, N_uniq=N_ispec)
      if N_ispec gt 1 then $
         message, 'ERROR: multiple ispecs are not yet supported'
   endif else begin
@@ -536,7 +539,7 @@ function pfo_parinfo_parse, $
         if nfunct gt 0 then $
            have_ROIs = 1
         junk = parinfo[ispec_idx].pfo_ROI.iROI
-        junk = pfo_uniq(junk, sort(junk), reverse_indices=iROI_r_idx, N_uniq=N_iROI)
+        junk = pfo_uniq(junk, bsort(junk), reverse_indices=iROI_r_idx, N_uniq=N_iROI)
      endif else begin
         ;; If we don't have a pfo_ROI, use pfo_uniq to get all the right answers, but try to do so with the minimum of memory
         junk = pfo_uniq(make_array(n_use, value=0B), reverse_indices=iROI_r_idx, N_uniq=N_iROI)
@@ -643,7 +646,7 @@ function pfo_parinfo_parse, $
 
         ;; Call the functions by sequence within each ROI
         junk = parinfo[iROI_idx].pfo.fseq
-        junk = pfo_uniq(junk, sort(junk), reverse_indices=fseq_r_idx, N_uniq=N_fseq)
+        junk = pfo_uniq(junk, bsort(junk), reverse_indices=fseq_r_idx, N_uniq=N_fseq)
         for iseq=0, N_fseq-1 do begin
            ;; Catch at each loop level because of CATCH below
            if !pfo.debug le 0 then begin
@@ -661,7 +664,7 @@ function pfo_parinfo_parse, $
 
            ;; Decend to the next level: outaxis
            junk = parinfo[fseq_idx].pfo.outaxis
-           junk = pfo_uniq(junk, sort(junk), reverse_indices=outaxis_r_idx, N_uniq=N_outaxis)
+           junk = pfo_uniq(junk, bsort(junk), reverse_indices=outaxis_r_idx, N_uniq=N_outaxis)
            for ioutaxis=0, N_outaxis-1 do begin
               ;; Catch at each loop level because of CATCH below
               if !pfo.debug le 0 then begin
@@ -679,7 +682,7 @@ function pfo_parinfo_parse, $
 
               ;; Operation
               junk = parinfo[outaxis_idx].pfo.fop
-              junk = pfo_uniq(junk, sort(junk), reverse_indices=fop_r_idx, N_uniq=N_fop)
+              junk = pfo_uniq(junk, bsort(junk), reverse_indices=fop_r_idx, N_uniq=N_fop)
               for ifop=0, N_fop-1 do begin
                  ;; Set a flag for axis replacement, to make sure we don't have more than one in an fseq
                  n_repl = 0
@@ -697,7 +700,7 @@ function pfo_parinfo_parse, $
 
                  ;; inaxis
                  junk = parinfo[fop_idx].pfo.inaxis
-                 junk = pfo_uniq(junk, sort(junk), reverse_indices=inaxis_r_idx, N_uniq=N_inaxis)
+                 junk = pfo_uniq(junk, bsort(junk), reverse_indices=inaxis_r_idx, N_uniq=N_inaxis)
                  for iinaxis=0, N_inaxis-1 do begin
                     ;; Catch at each loop level because of CATCH below
                     if !pfo.debug le 0 then begin
@@ -714,7 +717,7 @@ function pfo_parinfo_parse, $
                     ;; the decimal the parameter of that function.  We want to work with the integer part, the fnum.
                     ;; Save them for use below
                     fnums = floor(parinfo[inaxis_idx].pfo.ftype)
-                    junk = pfo_uniq(fnums, sort(fnums), reverse_indices=fnum_r_idx, N_uniq=N_fnums)
+                    junk = pfo_uniq(fnums, bsort(fnums), reverse_indices=fnum_r_idx, N_uniq=N_fnums)
                     for ifnum=0, N_fnums-1 do begin
                        ;; Catch at each loop level because of CATCH below
                        if !pfo.debug le 0 then begin
@@ -737,7 +740,7 @@ function pfo_parinfo_parse, $
                        ;; careful to assign a unique pfoID to each set of parameters that represent a function, the
                        ;; parameter list can be totally randomized and we can put it back together again here
                        junk = parinfo[fnum_idx].pfo.pfoID
-                       junk = pfo_uniq(junk, sort(junk), reverse_indices=ID_r_idx, N_uniq=N_IDs)
+                       junk = pfo_uniq(junk, bsort(junk), reverse_indices=ID_r_idx, N_uniq=N_IDs)
                        for iID=0, N_IDs-1 do begin
                           ;; Catch at each loop level because of CATCH below
                           if !pfo.debug le 0 then begin
