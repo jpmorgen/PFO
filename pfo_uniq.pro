@@ -20,10 +20,12 @@
 ; very inefficient for the input array (e.g. several values grouped
 ; around 0 and then one at a very large value).  pfo_uniq just lines
 ; everything up and creates the reverse lookup array based on
-; identical elements.  NOTE: the order in which the reverse indices
-; are listed can be affected by which OS issues the sort command.  Use
-; the IDLASTRO bsort command (or equivalent) to achieve consistent
-; results between platforms.
+; identical elements.  
+
+; NOTE: the order in which the reverse indices are listed can be
+; affected by which OS issues the sort command.  Use the IDLASTRO
+; bsort command (or equivalent) to achieve consistent results between
+; platforms.
 
 ; INPUTS:
 
@@ -69,12 +71,17 @@
 ; PROCEDURE:
 ;
 ; EXAMPLE:
-;
+
+; see pfo_parinfo_parse
+
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_uniq.pro,v 1.3 2011/09/23 13:11:04 jpmorgen Exp $
+; $Id: pfo_uniq.pro,v 1.4 2012/04/14 13:29:05 jpmorgen Exp $
 ;
 ; $Log: pfo_uniq.pro,v $
+; Revision 1.4  2012/04/14 13:29:05  jpmorgen
+; Updated documentation slightly
+;
 ; Revision 1.3  2011/09/23 13:11:04  jpmorgen
 ; Improve documentation
 ;
