@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit_menu.pro,v 1.2 2011/12/01 22:16:11 jpmorgen Exp $
+; $Id: pfo_fit_menu.pro,v 1.3 2013/05/24 22:42:41 jpmorgen Exp $
 ;
 ; $Log: pfo_fit_menu.pro,v $
+; Revision 1.3  2013/05/24 22:42:41  jpmorgen
+; Tweak things a bit.  Give to Ron
+;
 ; Revision 1.2  2011/12/01 22:16:11  jpmorgen
 ; Minor doc fix, standardize event return
 ;
@@ -45,7 +48,7 @@
 ;
 ;-
 
-function pfo_fit_menu_obj::event, event
+function pfo_fit_menu_obj::event, event, _EXTRA=extra
   
   sn = tag_names(event, /structure_name)
   if sn ne 'WIDGET_BUTTON' then $
@@ -53,7 +56,7 @@ function pfo_fit_menu_obj::event, event
 
   ;; Just call fit and let the pfo_obj property take care of all of
   ;; the rest of the stuff
-  junk = self.pfo_obj->fit()
+  junk = self.pfo_obj->fit(_EXTRA=extra)
 
   ;; Swallow event
   return, !tok.nowhere
@@ -63,8 +66,10 @@ end
 pro pfo_fit_menu_obj::populate, $
    _REF_EXTRA=extra ;; for now, swallow any extra keywords
 
-  ID = widget_button(self.tlbID, value='Fit', $
-                        uvalue={method: 'event', obj:self})
+  ID = widget_button(self.tlbID, value='Fit background', $
+                     uvalue={method: 'event', obj:self, keywords:{background:1}})
+  ID = widget_button(self.tlbID, value='Fit all', $
+                     uvalue={method: 'event', obj:self})
 
 end
 

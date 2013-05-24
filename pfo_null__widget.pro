@@ -46,9 +46,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_null__widget.pro,v 1.6 2012/01/13 20:58:04 jpmorgen Exp $
+; $Id: pfo_null__widget.pro,v 1.7 2013/05/24 22:42:13 jpmorgen Exp $
 ;
 ; $Log: pfo_null__widget.pro,v $
+; Revision 1.7  2013/05/24 22:42:13  jpmorgen
+; Tweak things a bit.  Give to Ron
+;
 ; Revision 1.6  2012/01/13 20:58:04  jpmorgen
 ; Add tied widget
 ;
@@ -110,13 +113,13 @@ pro pfo_null_cw_obj::populate, $
   
   ;; Define our column widths.
   units = !tok.inches
-  mode_width = 1.5
+  mode_width = 2
   if keyword_set(no_mode) then $
      mode_width = 0
-  parname_width = 0.75
+  parname_width = 1.
   val_width = 1.
-  err_width = 0.75
-  delim_width = 0.65
+  err_width = 1.
+  delim_width = 0.75
   pm_width = 0.25
 
   ;; See if we need to display our preamble
@@ -133,6 +136,9 @@ pro pfo_null_cw_obj::populate, $
      ID = widget_label(rowID, value='(L: . = free, | = fixed, < = limited, <* = pegged)')
 
      ;; If we are editing, do this in widget-land
+     ;; --> these are not quite lining up.  Better with frames on
+     ;; them.  <sigh>  What is the point of having widths, if
+     ;; they don't follow them!
      if keyword_set(edit) then begin
         ;; Create a row widget into which to put our column headings
         rowID = widget_base(self.tlbID, /row, /base_align_center, /frame)
@@ -334,7 +340,7 @@ pro pfo_null_cw_obj::populate, $
         ID = pfo_parinfo_limit_cw(rowID, side=!pfo.right, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $
                                   xsize=val_width, units=units)
         ;; idx.  If this changes, we will be repopulating
-        ID = widget_label(rowID, value=string(format='(i4)', (*self.pidx)[ip]), xsize=pm_width, units=units)
+        ID = widget_label(rowID, value=string(format='(i4)', (*self.pidx)[ip]), xsize=delim_width, units=units)
         ;; tied.  Make it small for now, since all it will typically
         ;; display is P[xxx]
         ID = pfo_parinfo_tied_cw(rowID, idx=(*self.pidx)[ip], pfo_obj=self.pfo_obj, $

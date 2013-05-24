@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_cursor_colhead_cw.pro,v 1.1 2011/11/18 14:40:59 jpmorgen Exp $
+; $Id: pfo_cursor_colhead_cw.pro,v 1.2 2013/05/24 22:43:00 jpmorgen Exp $
 ;
 ; $Log: pfo_cursor_colhead_cw.pro,v $
+; Revision 1.2  2013/05/24 22:43:00  jpmorgen
+; Tweak things a bit.  Give to Ron
+;
 ; Revision 1.1  2011/11/18 14:40:59  jpmorgen
 ; Initial revision
 ;
@@ -177,7 +180,7 @@ function pfo_cursor_colhead_cw_obj::init, $
   self.units = !tok.inches
   self.label_width = 0.
   if N_elements(label_width) ne 0 then self.label_width = label_width
-  self.col_width = 1.
+  self.col_width = 1.25
   if N_elements(col_width) ne 0 then self.col_width = col_width
 
   ;; Call our inherited init routines.
