@@ -43,9 +43,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_plot_obj__define.pro,v 1.8 2012/01/26 16:21:23 jpmorgen Exp $
+; $Id: pfo_plot_obj__define.pro,v 1.9 2013/05/24 22:43:27 jpmorgen Exp $
 ;
 ; $Log: pfo_plot_obj__define.pro,v $
+; Revision 1.9  2013/05/24 22:43:27  jpmorgen
+; Fix minor bug
+;
 ; Revision 1.8  2012/01/26 16:21:23  jpmorgen
 ; Add tROI and zoom/unzoom capabilities.  Allow set_property to process
 ; autoscale and ranges (ranges override)
@@ -292,7 +295,7 @@ function pfo_plot_obj::Yaxis_range, $
         good_Xin_idx = where(Xin_range[0] le Xin and $
                              Xin le Xin_range[1], count)
         if count eq 0 then $
-           return, make_array(2, value=!value.d_NAN)
+           return, make_array(2, value=!values.d_NAN)
 
         ;; Handle Yunits
         if N_elements(Yunits) eq 0 then Yunits = self.plot_Yunits
