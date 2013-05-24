@@ -43,9 +43,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_obj_new.pro,v 1.2 2012/01/13 20:48:30 jpmorgen Exp $
+; $Id: pfo_obj_new.pro,v 1.3 2013/05/24 22:39:52 jpmorgen Exp $
 ;
 ; $Log: pfo_obj_new.pro,v $
+; Revision 1.3  2013/05/24 22:39:52  jpmorgen
+; Fix minor bug in parameter passing
+;
 ; Revision 1.2  2012/01/13 20:48:30  jpmorgen
 ; Added template option
 ;
@@ -92,8 +95,8 @@ function pfo_obj_new, $
         return, obj_new(strmid(s, op+1, cp-op-1), p1, p2, p3, _EXTRA=extra)
      end
      else: begin
-        ;; Default is to use value in pfo system variable
-        return, obj_new(!pfo.pfo_obj_ClassName, p1, p2, p3, _EXTRA=extra)
+        ;; Default is to use value in pfo system variable.
+        return, obj_new(!pfo.pfo_obj_ClassName, p0, p1, p2, _EXTRA=extra)
      end
   endcase
 
