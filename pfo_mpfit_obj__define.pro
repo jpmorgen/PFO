@@ -35,9 +35,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_mpfit_obj__define.pro,v 1.8 2012/01/13 20:55:38 jpmorgen Exp $
+; $Id: pfo_mpfit_obj__define.pro,v 1.9 2013/05/24 22:41:48 jpmorgen Exp $
 ;
 ; $Log: pfo_mpfit_obj__define.pro,v $
+; Revision 1.9  2013/05/24 22:41:48  jpmorgen
+; WOrkin with backgroun idx, give to Ron
+;
 ; Revision 1.8  2012/01/13 20:55:38  jpmorgen
 ; Change keyword for disambiguation
 ;
@@ -72,9 +75,6 @@ function pfo_mpfit_obj_kernel, $
    params, $ 		;; Required positional parameter passed by MPFIT
 
    pfo_obj=pfo_obj, $	;; from MPFIT functargs keyword
-   idx=idx, $		;; from MPFIT functargs keyword (NOT ALLOWED -- use pfo_mode to mark parameters as inactive)
-   ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
-   iROI=iROI, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
    _REF_EXTRA=extra ;; keyword arguments passed to pfo_obj->deviates()
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
@@ -89,13 +89,6 @@ function pfo_mpfit_obj_kernel, $
         return, !values.d_nan
      endif
   endif ;; not debugging
-
-  ;; Make sure the user does't try to use the idx keyword to limit
-  ;; parinfo at this point.  We are counting on saving memory by
-  ;; passing the the encapsulated parinfo by reference everywhere,
-  ;; rather than copying it into some subset of itself.
-  if N_elements(idx) + N_elements(ispec) + N_elements(iROI) ne 0 then $
-     message, 'ERROR: I cannot limit parinfo by idx, ispec, or iROI at this point.  Use "pfo_mode, parinfo, !pfo.inactive, idx=idx" instead.'
 
   ;; The hide_NAN and hide_infinity flags (if present) are passed to
   ;; pfo_obj->deviates() via _EXTRA.  These flags can help keep MPFIT
@@ -161,13 +154,13 @@ pro pfo_mpfit_obj_iterproc, $
 
   ;; Print the definitions of the functions used before the first iteration.
   if iter eq 1 then begin
-     print, pfo_parinfo_parse(parinfo=parinfo, params=params, /print, /param_names_only, pfo_obj=pfo_obj)
+     print, pfo_parinfo_parse(parinfo=parinfo, params=params, /print, /param_names_only, pfo_obj=pfo_obj, _EXTRA=fcnargs)
   endif
   print, '-------------------------------------------------'
   print, iter, fnorm, dof, $
          format='("Iter ",I6,"   chi-sq = ",G15.8,"          dof = ",I0)'
   print, '-------------------------------------------------'
-  print, pfo_parinfo_parse(parinfo=parinfo, params=params, /print, /brief, pfo_obj=pfo_obj)
+  print, pfo_parinfo_parse(parinfo=parinfo, params=params, /print, /brief, pfo_obj=pfo_obj, _EXTRA=fcnargs)
 
   if keyword_set(keyboard_iterstop) then begin
      print, ' '
@@ -249,9 +242,10 @@ function pfo_mpfit_obj::fit, $
    BESTNORM=bestnorm, $ ;; (output) chi sq = total(deviates^2)
    NFREE=nfree, $ ;; (output) number of free parameters
    npegged=npegged, $ ;; (output) number of parameters pegged
-   idx=idx, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
-   ispec=ispec, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
-   iROI=iROI, $ ;; NOT ALLOWED -- use pfo_mode to mark parameters as inactive
+   background=background, $ ;; fit only background functions (and X-axis transformations)
+   idx=idx, $ ;; 
+   ispec=ispec, $ ;;
+   iROI=iROI, $ ;;
    _REF_EXTRA=extra
 
   ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
@@ -266,14 +260,6 @@ function pfo_mpfit_obj::fit, $
         return, 0
      endif
   endif ;; not debugging
-
-  ;; IDX (not allowed).  Make sure the user does't try to use the idx
-  ;; keyword to limit parinfo at this point.  We are counting on
-  ;; saving memory by passing the the encapsulated parinfo by
-  ;; reference everywhere, rather than copying it into some subset of
-  ;; itself.
-  if N_elements(idx) + N_elements(ispec) + N_elements(iROI) ne 0 then $
-     message, 'ERROR: I cannot limit parinfo by idx, ispec, or iROI at this point.  Use "pfo_mode, parinfo, !pfo.inactive, idx=idx" instead.'
 
   ;; MPFIT_MAX_STATUS.  Maximum number of fit iterations
   if N_elements(mpfit_max_status) eq 0 then mpfit_max_status = self.mpfit_max_status
@@ -302,6 +288,43 @@ function pfo_mpfit_obj::fit, $
   ;; which basically just calls self->deviates() with all these
   ;; keywords except self.
   functargs = {pfo_obj:self, hide_infinity:hide_infinity, hide_NAN:hide_NAN}
+
+  ;; Allow user to add _either_ background idx (including any X-axis
+  ;; transformations) with /background _or_ their own customized
+  ;; ispec, iROI, idx
+  if keyword_set(background) then begin
+     ;; Pass pfo_obj and possible instances of ispec, iROI and idx to
+     ;; back_idx this way
+     ;; Get our background idx
+     back_idx = pfo_back_idx(_EXTRA=functargs)
+     ;; If there is no background, do a normal fit
+     if back_idx[0] ne !tok.nowhere then begin
+        ;; We have a background.  Make sure we include any X-axis
+        ;; transformations.
+        self->parinfo_call_procedure, $
+           /no_update, 'pfo_struct_setget_tag', /get, _EXTRA=extra, $
+           taglist_series='pfo', outaxis=outaxis, fop=fop
+        X_idx = where(outaxis eq !pfo.Xaxis, count)
+        if count ne 0 then $
+           pfo_array_append, back_idx, X_idx
+        ;; Add in any functions that don't appear to operate on
+        ;; anything, but might affect us (e.g. ROIs)
+        more_idx = where(fop eq !pfo.none, count)
+        if count ne 0 then $
+           pfo_array_append, back_idx, more_idx
+        ;; Put our back_idx and any helpers in the functargs
+        pfo_struct_append, functargs, {idx:back_idx}
+     endif ;; background idx found
+  endif else begin
+     ;; Allow user to limit by ispec, iROI and idx
+     if N_elements(ispec) ne 0 then $
+        pfo_struct_append, functargs, {ispec:ispec}
+     if N_elements(iROI) ne 0 then $
+        pfo_struct_append, functargs, {iROI:iROI}
+     if N_elements(idx) ne 0 then $
+        pfo_struct_append, functargs, {idx:idx}
+  endelse ;; ispec, iROI, idx
+
 
   ;; Prefer command-line specified functargs over property (e.g. do
   ;; not concatenate command line and property functargs)
