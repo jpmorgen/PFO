@@ -1,17 +1,21 @@
 ;+
 ; NAME: pfo_array_append
 ;
-; PURPOSE: append arrays
+; PURPOSE: append arrays, match arrays of structures
 ;
-; CATEGORY: general array manipulation.  For historical purposes, this
-; is not named array_append (yet), but is part of the doc_struct package
+; CATEGORY: general array manipulation, arrays of structures
 ;
 ; CALLING SEQUENCE: pfo_array_append, orig_array, more_array, null_array=null_array
-;
+
 ; DESCRIPTION: Does IDL array concatenation [orig_array, new_array]
-; without having to worry about whether or not orign array is
-; defined.  Useful in loops for bulding up arrays
-;
+; without having to worry about whether or not orig_array is defined.
+; Useful in loops for bulding up arrays.  If arrays are of type
+; struct, merge the structures and append the arrays.  If the two
+; arrays have tags with the same name but different type, the type of
+; the tag in orig_array is converted to that of more_array (if
+; possible).  The pfo_struct_append system is used to initialize the
+; values of tags added to orig_array from more_array
+
 ; INPUTS: 
 ;	orig_array: original array.  Need not be defined.
 ;
@@ -75,9 +79,12 @@
 ; 
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_array_append.pro,v 1.5 2011/12/01 22:11:44 jpmorgen Exp $
+; $Id: pfo_array_append.pro,v 1.6 2013/05/24 22:39:08 jpmorgen Exp $
 ;
 ; $Log: pfo_array_append.pro,v $
+; Revision 1.6  2013/05/24 22:39:08  jpmorgen
+; Minor dooc changes.  Give to Ron
+;
 ; Revision 1.5  2011/12/01 22:11:44  jpmorgen
 ; Added quiet keyword
 ;
@@ -176,12 +183,11 @@ pro pfo_array_append, orig_array, more_array, null_array=null_array, quiet=quiet
      ;; orig_array.
      new_struct1 = orig_array[0]
      ;; Use IDL's struct_assign to copy over any common tags from
-     ;; more_array to new_struct1.  This does the appropriate type
-     ;; conversion on the tags (actually, it does not do the float to
-     ;; double I was hoping for.  The type of more_array wins every
-     ;; time.  It also zeros out tags in new_struct1 that are not
-     ;; found in more_array.  This is OK, since we will put the right
-     ;; values back in, below.
+     ;; more_array to new_struct1.  This does some type conversion on
+     ;; the tags, but, it does not do the float to double I was hoping
+     ;; for.  The type of more_array wins every time.  It also zeros
+     ;; out tags in new_struct1 that are not found in more_array.
+     ;; This is OK, since we will put the right values back in, below.
      struct_assign, more_array[0], new_struct1
      ;; Since struct_assign does not add the tags found in more_array
      ;; that are not in new_struct1, we have to do that by hand.
