@@ -47,7 +47,11 @@
 ;
 ; SIDE EFFECTS:
 ;
-; RESTRICTIONS:
+; RESTRICTIONS: Required packages:
+
+;   Craig Markwardt's MPFIT routine: www.physics.wisc.edu/~craigm/idl/idl.html
+;   IDLASTRO library: idlastro.gsfc.nasa.gov
+;   Coyote library: http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
 ;
 ; PROCEDURE:
 ;
@@ -55,9 +59,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fit.pro,v 2.5 2012/01/26 16:16:58 jpmorgen Exp $
+; $Id: pfo_fit.pro,v 2.6 2013/05/24 22:40:42 jpmorgen Exp $
 ;
 ; $Log: pfo_fit.pro,v $
+; Revision 2.6  2013/05/24 22:40:42  jpmorgen
+; Work with mouse stuff, give to Ron
+;
 ; Revision 2.5  2012/01/26 16:16:58  jpmorgen
 ; Added mouse zooming
 ;
@@ -140,6 +147,7 @@ pro pfo_fit_obj::cleanup
   self->pfo_cw_obj::cleanup
   ;; Destroy local pointers and objects
   obj_destroy, self.plotwin_zoom_obj
+  obj_destroy, self.plotwin_ROI_obj
 end
 
 ;; Init method
@@ -154,6 +162,8 @@ function pfo_fit_obj::init, $
    menus=menus_in, $	;; list of menus to be used with pfo_menubar (see code for default list)
    additional_menus=additional_menus, $ ;; list of menus to be added to default pfo_fit list of menus (allows pfo_fit to improve without need to change calling code)
    menu_args=menu_args_in, $ ;; optional keyword argument(s) to the *_menu widget functions.  The current plotwin_obj is always added
+   mouse_obj_list=mouse_obj_list_in, $ ;; list of pfo_plotwin<mouse mode>_obj refs to be put on the mouse mode menu (default = zoom & ROI)
+   additional_mouse_objs=additional_mouse_objs, $ ;; list of mouse mode objs to be added to default list (allows pfo_fit to improve without need to change calling code)
    xsize=xsize, $ ;; x size of widget
    ysize=ysize, $ ;; y size of widget
    enable_undo=enable_undo, $ ;; by default enable_undo=1 for GUI.  Set enable_undo=0 to disable undo and save memory
@@ -206,10 +216,10 @@ function pfo_fit_obj::init, $
      enable_undo = 1
   
   ;; Set up our help string.
-  help = title + ' help.  Data, function, and deviates are displayed in the left panel.  Left mouse button controls zoom.  Right click to cycles back through previous zooms.  The top right displays the cursor location on the plot.  The plot menu allows hand entry of limits, log axis toggleing and autoscaling.  The function editor is displayed in the lower righthand panel.  '
+  help = title + ' help.  Data, function, and deviates are displayed in the left panel.  Left mouse button initially controls zoom.  Right click cycles back through previous zooms.  Use the Mouse Mode menu to access other mouse functionality.  The top right displays the cursor location on the plot.  The plot menu has an entry that brings up a widget that allows hand entry of ranges, log axis toggling and autoscaling.'
   help += string(10B) + string(10B)
 
-  help += 'The FUNCTION EDITOR shows a set of equations that define the function to be fit to the data.  The basic equation always starts X = Xin; Y = NaN (or 0).  Subsequent sub-functions (e.g. pfo_poly) are combined using simple operations.  +, *, and "replacement" are currently supported and debugged.  Convolution is in the code but not debugged.  "Replacement" is an important operation, since it means that the Y-axis NaNs will be replaced by the value of the function. pfo_poly (usually used as a background) defaults to replacing the Y-axis for this reason.  Subsequent functions operate as desired by selecting the appropriate axis and operation.  Sophisticated algebra is not supported.  The order in which functions are listed is the order in which operations are performed.'
+  help += 'The FUNCTION EDITOR, displayed on the right hand side of the widget, shows a set of equations that define the function to be fit to the data.  The basic equation always starts X = Xin; Y = NaN (or 0).  Subsequent sub-functions (e.g. pfo_poly) are combined using simple operations.  +, *, and "replacement" are currently supported and debugged.  Convolution is in the code but not debugged.  "Replacement" is an important operation, since it means that the initial Y-axis NaNs will be replaced by the value of the function. pfo_poly (usually used as a background) defaults to replacing the Y-axis for this reason.  Subsequent functions operate as desired by selecting the appropriate axis and operation.  Sophisticated algebra can be emulated by altering the order in which functions are listed using the fseq field.'
   help += string(10B) + string(10B)
 
   help += 'PARAMETER EDITING, VALUES and CONSTRAINTS.  When you "Add a new function" or click the "edit" button to the left of an existing function, a new window will appear with editable fields.  It is important to recognize that there are *four columns* of values that apply to the parameter: left limit, value, error, and right limit.  Note that the actual value of the parameter is the *SECOND* column of numbers.  This is the one you will usually want to edit first.  The reason for this is that MPFIT, the parameter optimizer used by PFO, allows left and right simple bounds to be placed on the excursion of a parameter during a fit.  The display of these left and right limits is to the left and right of the parameter value.  In order to enable the limit feature, use the pulldown menu in the "L" columns and select "<".  When you fit (fit menu), pay careful attention to whether or not your parameter becomes "pegged" at a limit value (indicated by "<*").  If this happens, you may want to fix it at that value (set the "L" column to "|") so that the number of fitted parameters comes out right.  An "L" value of "." means the parameter is free.'
@@ -264,14 +274,30 @@ function pfo_fit_obj::init, $
   ;; Make a container for things like the cursor and plotting controls
   controlID = widget_base(col2ID, /column)
   ;; Make the column heading widgets
-  ID = pfo_cursor_colhead_cw(controlID, label_width=0.5, pfo_obj=self.pfo_obj, plotwin_obj=self.plotwin_obj)
+  ID = pfo_cursor_colhead_cw(controlID, label_width=0, pfo_obj=self.pfo_obj, plotwin_obj=self.plotwin_obj)
   ;; Cursor
-  ID = pfo_cursor_cw(controlID, label_width=0.5, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj)
+  ID = pfo_cursor_cw(controlID, label_width=0, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj)
   ;; Range control (now incorporated into plot menu)
   ;;ID = pfo_range_cw(controlID, label_width=0.5, pfo_obj=pfo_obj, plotwin_obj=self.plotwin_obj, /no_colheads)
 
-  ;; Zoom object -- allows the mouse to do zooming
-  self.plotwin_zoom_obj = obj_new('pfo_plotwin_zoom_obj', plotwin_obj=self.plotwin_obj)
+  ;; plotwin_zoom and _ROI object allow the mouse zoom and unzoom the
+  ;; plot region and define ROIs.  They don't have widgets, just a
+  ;; controlling obj.  Creating the objects with the plotwin_obj
+  ;; keyword automatically connects it to the changeable event handler
+  ;; in the plotwin_obj
+  self.plotwin_zoom_obj = $
+     obj_new('pfo_plotwin_zoom_obj', plotwin_obj=self.plotwin_obj)
+  self.plotwin_ROI_obj = $
+     obj_new('pfo_plotwin_ROI_obj', plotwin_obj=self.plotwin_obj)
+
+  ;; Set up mouse mode menu
+  if N_elements(mouse_obj_list_in) ne 0 then $
+     mouse_obj_list = mouse_obj_list_in
+  if N_elements(mouse_obj_list) eq 0 then $
+     mouse_obj_list = [self.plotwin_zoom_obj, self.plotwin_ROI_obj]
+  ;; Allow mouse mode objs to be added without altering the default
+  ;; list.  Quietly does nothing if additional_menus is undefined
+  pfo_array_append, mouse_obj_list, additional_mouse_objs, /quiet  
 
   ;; Figure out how big the control section is so we can size the
   ;; parinfo editor accordingly
@@ -294,7 +320,7 @@ function pfo_fit_obj::init, $
   if N_elements(menus_in) ne 0 then $
      menus = menus_in
   if N_elements(menus) eq 0 then $
-     menus = ['pfo_generic', 'pfo_plot', 'pfo_parinfo_edit', 'pfo_fit']
+     menus = ['pfo_generic', 'pfo_plot', 'pfo_parinfo_edit', 'pfo_mouse_mode', 'pfo_fit']
   ;; Allow menu items to be added without altering the default list.
   ;; Quietly does nothing if additional_menus is undefined
   pfo_array_append, menus, additional_menus, /quiet
@@ -302,8 +328,9 @@ function pfo_fit_obj::init, $
   ;; Protect input menu_args list
   if N_elements(menu_args_in) ne 0 then $
      menu_args = menu_args_in
-  ;; Put our plotwin_obj on the menu_args list
-  pfo_array_append, menu_args, {plotwin_obj:self.plotwin_obj}
+  ;; Put our plotwin_obj and mouse_obj_lists on the menu_args list
+  pfo_struct_append, menu_args, {plotwin_obj:self.plotwin_obj}
+  pfo_struct_append, menu_args, {mouse_obj_list:mouse_obj_list}
 
   ;; Insert the menu bar menus into the menu bar.  Help is always the
   ;; last menu
@@ -324,6 +351,7 @@ pro pfo_fit_obj__define
       control_size	: [0., 0.], $ ;; size of base containing cursor/plot controls
       plotwin_obj	: obj_new(), $ ;; cw_obj of plotwin
       plotwin_zoom_obj	: obj_new(), $ ;; obj that controls mouse zooming
+      plotwin_ROI_obj	: obj_new(), $ ;; obj that controls mouse ROI definition
       parinfo_baseID	: 0L, $ ;; widgetID of scroll bar-enabled base that contains parinfo editor
       inherits pfo_cw_obj}
 end
