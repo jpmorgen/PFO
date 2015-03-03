@@ -9,7 +9,7 @@
 ;       pfo_multi_roi_struct__define.pro).  Without the add-in, the
 ;       function is calculated on all ROIs.  With the add-in, it is
 ;       possible to specify which function is calculated on which
-;       ROI.  When using the add-in
+;       spectrum and ROI.  
 
 ;
 ; CATEGORY: PFO
@@ -42,11 +42,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi.pro,v 1.1 2010/09/09 19:20:41 jpmorgen Exp $
+; $Id: pfo_roi.pro,v 1.2 2015/03/03 21:28:21 jpmorgen Exp $
 ;-
 function pfo_ROI, Xin, params, dparams, parinfo=parinfo, idx=idx, $
                   create=create, print=print, indices=indices, $
-                  ROI=ROI, inaxis=inaxis, count=count, _EXTRA=extra
+                  widget=widget, ROI=ROI, inaxis=inaxis, count=count, $
+                  Xaxis=Xaxis, _EXTRA=extra
 
   ;; Generic pfo system initialization
   init = {pfo_sysvar}
@@ -68,9 +69,24 @@ function pfo_ROI, Xin, params, dparams, parinfo=parinfo, idx=idx, $
      ;; tag.  Outaxis could be used, but it is an error to have Xin
      ;; there, so just define no outaxis.  This might save some pain
      ;; when we call pfo_funct_check.  
+
+     ;; Old way:
+     ;;new_parinfo = $
+     ;;  replicate(pfo_null(/create, parinfo=parinfo, idx=idx, inaxis=inaxis, $
+     ;;                     outaxis=!pfo.none, _EXTRA=extra), !pfo.fnpars[fn])
+
+     ;; New way, at least partly, using pfo_parinfo_template
      new_parinfo = $
-       replicate(pfo_null(/create, parinfo=parinfo, idx=idx, inaxis=inaxis, $
-                          outaxis=!pfo.none, _EXTRA=extra), !pfo.fnpars[fn])
+       replicate( $
+       pfo_parinfo_template(parinfo, required_tags=['PFO', 'PFO_ROI']), $
+       !pfo.fnpars[fn])
+
+     ;; See if we can assign any keywords like iROI or ispec along
+     ;; with inaxis.  Our default inaxis should be Xin (e.g. channels)
+     if N_elements(inaxis) eq 0 then $
+       inaxis = !pfo.Xin
+     pfo_struct_setget_tag, /set, new_parinfo, inaxis=inaxis, $
+       _STRICT_EXTRA=extra
 
      ;; PARNAME
      ;; Don't put function name in parname, since it can be
@@ -83,6 +99,8 @@ function pfo_ROI, Xin, params, dparams, parinfo=parinfo, idx=idx, $
         new_parinfo[0].parname = 'Left'
         new_parinfo[1].parname = 'Right'
      endif
+
+     ;; --> These will eventually get handled with a __set_param routine
 
      ;; VALUE
      if N_elements(ROI) ne 0 then begin
@@ -98,6 +116,7 @@ function pfo_ROI, Xin, params, dparams, parinfo=parinfo, idx=idx, $
      ;; FTYPE
      new_parinfo[0].pfo.ftype = 0.1 ;; left
      new_parinfo[1].pfo.ftype = 0.2 ;; right     
+     new_parinfo.pfo.ftype = new_parinfo.pfo.ftype + fn
 
      ;; FIXED
      ;; In general, we want our ROI boundaries to be fixed, otherwise
@@ -138,42 +157,55 @@ function pfo_ROI, Xin, params, dparams, parinfo=parinfo, idx=idx, $
 
   inaxis = parinfo[pidx].pfo.inaxis
 
-  ;; Check to see if we need to bother calculating an Xaxis
+  ;; Check to see if we need to bother calculating an Xaxis.  If we
+  ;; were called from pfo_funct, this should have been done for us
+  ;; already and passed as the Xaxis keyword.
   junk = where(inaxis eq !pfo.Xaxis, nXaxis)
-  if nXaxis gt 0 then begin
-     ;; Use pfo_Xaxis to calculate the Xaxis.  This is done efficiently
-     ;; if Xaxis is Xin
-     Xaxis = pfo_Xaxis(Xin, params, parinfo=parinfo, _EXTRA=extra)
+  if nXaxis gt 0 and N_elements(Xaxis) eq 0 then begin
+     ;; Use pfo_Xaxis to calculate the Xaxis.  Make sure we remove
+     ;; ROIs from the calculation to avoid an infinite loop (I
+     ;; actually though of this before the first loop occured... :-)
+     Xaxis = Xin
+     no_ROI_idx = where(floor(parinfo.pfo.ftype) ne !pfo.ROI, count)
+     if count gt 0 then $
+       Xaxis = pfo_Xaxis(Xin, params, parinfo=parinfo, idx=no_ROI_idx, $
+                         _EXTRA=extra)
   endif
 
   ;; Make our ROI return keyword.  This will read in whatever units
   ;; the pfo.inaxis tags specify
-  ROI = param[pidx]
-  
-  ;; Get ready to piece together a call to "where" which will return
-  ;; the indices to our section of the Xin/Xaxis.  Xin and Xaxis are
-  ;; indexed the same, so this works
+  ROI = params[pidx]
+
+  ;; Do this with actual statements rather than piecing together some
+  ;; text for an execute statement.  This ensures software works with
+  ;; IDLVM and may be faster.
   case inaxis[0] of
-     !pfo.Xin:   left = 'ROI[0] le Xin'
-     !pfo.Xaxis: left = 'ROI[0] le Xaxis'
+     !pfo.Xin:     left_idx = where(ROI[0] le Xin, count)
+     !pfo.Xaxis:   left_idx = where(ROI[0] le Xaxis, count)
      else: message, 'ERROR: parinfo.pfo.inaxis must be !pfo.Xin or !pfo.Xaxis'
   endcase
 
-  case inaxis[1] of
-     !pfo.Xin:   right = 'Xin le ROI[1]'
-     !pfo.Xaxis: right = 'Xaxis le ROI[1]'
-     else: message, 'ERROR: parinfo.pfo.inaxis must be !pfo.Xin or !pfo.Xaxis'
-  endcase
-
-  ;; Call "where," piecing together our boundaries, defined above.
-  ;; While we are at it, define our default return ROI keyowrd value.
-  ;; count is also a keyword return value
-  good_idx = call_function('where', left + ' and ' + right, 'count')
+  ;; Check to see if any of the Xin/Xaxis is bounded on the left by
+  ;; ROI[0].  If not, left_idx will be -1, which is a reasonable
+  ;; return value.  User should check for count, as with where
   if count eq 0 then $
-    return, -1
+    return, left_idx
   
+  case inaxis[1] of
+     !pfo.Xin:     right_idx = where(  Xin[left_idx] le ROI[1], count)
+     !pfo.Xaxis:   right_idx = where(xaxis[left_idx] le ROI[1], count)
+     else: message, 'ERROR: parinfo.pfo.inaxis must be !pfo.Xin or !pfo.Xaxis'
+  endcase
+
+  ;; Check to see if any of the Xin/Xaxis is bounded on the right by
+  ;; ROI[1].  If not, idx will be -1, which is a reasonable return
+  ;; value.  User should check for count, as with where
+  if count eq 0 then $
+    return, right_idx
+
   ;; If we made it here, we have a section of our Xin/Xaxis that falls
-  ;; within this ROI.  Return the indices into this section.
-  return, good_idx
+  ;; within this ROI.  Return the indices into this section,
+  ;; remembering to unwrap, being as polite with memory as we can
+  return, left_idx[temporary(right_idx)]
   
 end

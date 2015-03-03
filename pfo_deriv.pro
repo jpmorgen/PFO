@@ -45,9 +45,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_deriv.pro,v 1.2 2011/01/20 22:57:13 jpmorgen Exp $
+; $Id: pfo_deriv.pro,v 1.3 2015/03/03 21:29:36 jpmorgen Exp $
 ;
 ; $Log: pfo_deriv.pro,v $
+; Revision 1.3  2015/03/03 21:29:36  jpmorgen
+; Summary: Obselete
+;
 ; Revision 1.2  2011/01/20 22:57:13  jpmorgen
 ; Fixed need for at least 3 input points.  Possibly not a great fix
 ;
@@ -170,7 +173,7 @@ function pfo_deriv, Xin, params, dparams, parinfo=parinfo, idx=idx, $
      CATCH, err
      if err ne 0 then begin
         CATCH, /CANCEL
-        message, /CONTINUE, !error_state.msg
+        message, /NONAME, /CONTINUE, !error_state.msg
         message, 'ERROR: pfo_deriv.ID = ' + strtrim(ID, 2) + ' caused the above error'
      endif
   endif

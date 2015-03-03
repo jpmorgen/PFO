@@ -35,7 +35,7 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_widget.pro,v 1.2 2011/01/03 21:47:42 jpmorgen Exp $
+; $Id: pfo_widget.pro,v 1.3 2015/03/03 21:28:41 jpmorgen Exp $
 ;-
 pro pfo_widget_cleanup, tlb
   ;; Get our state variable from the tlb uvalue
@@ -81,7 +81,7 @@ function pfo_widget_idx, pparinfo, ID, idx=idx, n_widgets=n_widgets
   CATCH, err
   if err ne 0 then begin
      CATCH, /CANCEL
-     message, !error_state.msg, /CONTINUE
+     message, /NONAME, !error_state.msg, /CONTINUE
      message, 'ERROR: You probably don''t have the pfo_widget parinfo struct appended properly to your parinfo.  See pfo_widget_struct__define.pro'
   endif ;; err
   if idx eq -1 then $

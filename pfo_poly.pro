@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_poly.pro,v 1.3 2010/07/17 18:58:46 jpmorgen Exp $
+; $Id: pfo_poly.pro,v 1.4 2015/03/03 21:27:02 jpmorgen Exp $
 
 ; pfo_poly.pro 
 
@@ -17,7 +17,7 @@
 ;; coefficients themselves.  Follwing the decimal ftype model, the
 ;; boundary X values are marked with ftype=1.1, 1.2, etc.  Reference
 ;; pixels are indicated with ftype=1.01, 1.02, etc. and the
-;; coefficients with 1.0001, 1.0002, etc.  Note that the polynomial
+;; coefficients with 1.00001, 1.00002, etc.  Note that the polynomial
 ;; labeling therefore starts with 1 and can be no higher than 9.
 ;; Polynomial coefficients start with 0 and in principle could be as
 ;; large as desired, but since they are stored in a single precision
@@ -35,7 +35,7 @@
 ;; Note that if you want more than one instance of pfo_poly (e.g. if
 ;; you want to use the infunct/outfunct strings on individual
 ;; segments), you will need to define separate pfo_poly functions and
-;; use the pfo.ID tag to keep them from all running into one another.
+;; use the pfo.pfoID tag to keep them from all running into one another.
 ;; Also note that by default, there is no right-hand bound on the
 ;; calculation of a pfo_poly segment.  If you need to to have more
 ;; than one instance of pfo_poly, start a second segment, 0th order,
