@@ -1,5 +1,5 @@
 ; +
-; $Id: struct_array_assign.pro,v 1.5 2015/03/03 18:48:54 jpmorgen Exp $
+; $Id: struct_array_assign.pro,v 1.4 2010/08/31 20:14:45 jpmorgen Exp jpmorgen $
 
 ; struct_array_assign
 
@@ -53,49 +53,57 @@
 
 ; -
 
-pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=intagval
+pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=intagval, $
+  all_idx=all_idx
                      
-
-  ;; Let IDL do the error checking on array bounds
-;;  ON_ERROR, 2
+  init = {pfo_sysvar}
+  init = {tok_sysvar}
 
   npfo = N_elements(inparinfo)
-  if npfo eq 0 or N_elements(intagval) eq 0 then return
+  ;; Quietly return if we have no parinfo to assign into
+  if npfo eq 0 or N_elements(intagval) eq 0 then $
+    return
   tagval = intagval
 
-  CATCH, err
-  if err ne 0 then begin
-     ;; If there is an error, copy parinfo back onto inparinfo so that
-     ;; the calling routine's parinfo doesn't get nuked.
-     if nidx ne npfo then begin
-        inparinfo[idx] = parinfo
-     endif else begin
-        ;; Save time by not copying the whole array
-        inparinfo = temporary(parinfo)
-     endelse
-     CATCH, /cancel
-     message, /NONAME, !error_state.msg
-  endif
+  if !pfo.debug le 0 then begin
+     ;; Let IDL do the error checking on array bounds
+     ON_ERROR, !tok.return
+     CATCH, err
+     if err ne 0 then begin
+        ;; If there is an error, copy parinfo back onto inparinfo so
+        ;; that the calling routine's parinfo doesn't get nuked.
+        if nidx ne npfo then begin
+           inparinfo[idx] = parinfo
+        endif else begin
+           ;; Save time by not copying the whole array
+           inparinfo = temporary(parinfo)
+        endelse
+        CATCH, /cancel
+        message, /NONAME, !error_state.msg
+     endif
+  endif ;; not debuggin
 
   ;; Set up idx if none specified
   if N_elements(idx) eq 0 then $
     idx = lindgen(npfo)
-
   nidx = N_elements(idx)
 
+  ;; Establish our internal parinfo array
   if nidx ne npfo then begin
      parinfo = inparinfo[idx]
   endif else begin
-     ;; Save time by not copying the whole array
+     ;; Save memory and time by not copying the whole array
      parinfo = temporary(inparinfo)
   endelse
 
-  if size(tagval, /type) eq 8 then begin
+  ;; Check to see if we are specifying everything in tagval
+  if size(tagval, /type) eq !tok.struct and N_elements(tagname) eq 0 then begin
      ;; Tagval has the entire structure we want to assign.  There are
-     ;; two cases: a tag name with an array of tag values
+     ;; two cases: a single tag name with an array of tag values
      ;; corresponding to the values to assign in each parinfo record,
-     ;; or a simple one-to-one correspondence.  In either case, step
-     ;; through the tagnames one at a time.
+     ;; or an array of tag names with corresponding tag values.  In
+     ;; either case, step through the tag names in tagval one at a
+     ;; time.
      tvtagnames = tag_names(tagval)
      pfotagnames = tag_names(parinfo)
      ;; Step through tagval tags one at a time
@@ -103,32 +111,19 @@ pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=intagval
         pfotagnum = where(tvtagnames[i] eq pfotagnames, count)
         if count eq 0 then $
           message, 'ERROR: tag ' + tvtagnames[i] + ' not present in parinfo structure'
+        ;; Work with size structures, since they contain all our
+        ;; information.
         pfo_size = size(parinfo.(pfotagnum), /structure)
         tag_size = size(tagval.(i), /structure)
-;        ;; IDL has an annoying habit of making expressions with
-;        ;; dimensions [1,*] instead of [*] when you try to peal
-;        ;; something out of the middle of a sub-structure or
-;        ;; sub-array.  Trick my code into ignore that for the purposes
-;        ;; of this error message.  
-;        while pfo_size.dimensions[0] eq 1 do begin
-;           nd = pfo_size.N_dimensions
-;           pfo_size.dimensions = pfo_size.dimensions[1:nd-2]
-;           pfo_size.N_dimensions = nd - 1
-;        endwhile
-;        while tag_size.dimensions[0] eq 1 do begin
-;           nd = tag_size.N_dimensions
-;           tag_size.dimensions = tag_size.dimensions[1:nd-2]
-;           tag_size.N_dimensions = nd - 1
-;        endwhile
-;        if pfo_size.dimensions[0] eq 1 then $
-;          pfo_size.N_dimensions = pfo_size.N_dimensions - 1
-;        if pfo_size.N_dimensions ne tag_size.N_dimensions + 1 and $
-;          pfo_size.N_dimensions ne tag_size.N_dimensions then $
-;           message, 'ERROR: tagval ' + tvtagnames[i] + ' has the wrong number of dimensions.'
-;
-        ;; HERE IS WHERE THE PARINFO ASSIGNMENT IS DONE.  
-        if tag_size.type eq 8 then begin
+
+        ;; Check to see if this particular tag of tagval is itself a
+        ;; structure.  If so, the easiest way syntactically to get all
+        ;; the information over from the tagval struct to the parinfo
+        ;; is to recursively step down the structures until we can
+        ;; copy non-structure information
+        if tag_size.type eq !tok.struct then begin
            ;; We need to recursively step down the structure tree.
+           ;; rparinfo will be where we put our recursive output.
            ;; IDL insists on putting an extra dimension on arrays that
            ;; are implicitly created, so explicitly create one if we
            ;; have to.
@@ -136,13 +131,21 @@ pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=intagval
               rparinfo = parinfo.(pfotagnum) 
            endif else begin
               rparinfo = make_array(npfo, value=parinfo[0].(pfotagnum))
+              ;; Make sure our array reference is right
               rparinfo[*] = parinfo[*].(pfotagnum) 
            endelse
-           struct_array_assign, rparinfo, tagval=tagval.(i)
-           for ipfo=0,npfo-1 do begin
-              parinfo[ipfo].(pfotagnum) = rparinfo[ipfo]
-           endfor ;; copying back
-        endif else begin ;; tagval is not a structure
+           ;; Here is the recursive call.  all_idx is used below and
+           ;; we don't want to have more copies of that than we
+           ;; need, so pass it along by reference to the recursive
+           ;; calls
+           if N_elements(all_idx) eq 0 then $
+             all_idx = lindgen(npfo)
+           struct_array_assign, rparinfo, tagval=tagval.(i), all_idx=all_idx
+           ;; Now put our recursively generated sub-parinfo back into
+           ;; the current tag in parinfo.  Note array in structure
+           ;; needs to be indexed this way rather than with *.
+           parinfo[all_idx].(pfotagnum) = rparinfo
+        endif else begin ;; this particular tag in tagval is not a structure
            ;; Let IDL to the array transfer by itself.  If you see an
            ;; error here, you probably have the wrong number of
            ;; elements in this field of tagval.
@@ -152,11 +155,12 @@ pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=intagval
      endfor ;; tagval tagnames 
 
   endif else begin
-     ;; Tagval is not a structure
+
+     ;; Tagname and tagval are both specified
 
      ntn = N_elements(tagname)
      pfotagnames = tag_names(parinfo)
-     if ntn gt N_elements(pfotagnames) and size(tn, /type) ne 7 then $
+     if ntn gt N_elements(pfotagnames) and size(tn, /type) ne !tok.string then $
        message, 'ERROR: too many numeric tags specified ' + strtrim(ntn, 2)
 
      ;; Initialize some variables that will help us figure out the size
@@ -177,13 +181,12 @@ pro struct_array_assign, inparinfo, idx, tagname=tagname, tagval=intagval
 
      ;; Loop through command-line specified tag names (if any)
      for itn=0, ntn-1 do begin
-        tn=tagname[itn]
+        tn = tagname[itn]
         ;; convert from tagname to pfo tag number, if necessary
-        if size(tn, /type) eq 7 then begin
+        if size(tn, /type) eq !tok.string then begin
            tn = where(strcmp(tn[itn], pfotagnames, /fold_case) eq 1, count)
            if count eq 0 then begin
               message, /INFORMATIONAL, 'WARNING: tagname ' + tagname[itn] + ' not found in structure'
-stop
               CONTINUE
            endif
         endif ;; tn converted to numeric form
@@ -192,7 +195,7 @@ stop
         ;; tagval might be.  
         pfotsize = size(parinfo[0].(tn), /structure)
         pfotnd = pfotsize.N_dimensions
-        if pfotnd gt 0 then begin
+        if pfotnd gt 1 then begin
            ;; Erase trivial trailing dimensions from the pfo tag.
            if pfotsize.dimensions[pfotnd-1] eq 1 then begin
               pfotsize.dimensions = [pfotsize.dimensions[0:pfotnd-2], 0]
@@ -204,101 +207,34 @@ stop
         if ntv eq 1 then begin
            ;; Easy case: copying one tag value to all the tags in the list
            itv = 0
+           this_tagval = tagval
         endif
         if ntv eq ntn then begin
            ;; One tag value per tag name
            itv = itn
+           this_tagval = tagval[itn]
         endif
         if ntv eq nidx then begin
-           ;; One tag value per parinfo.  
+           ;; One tag value per parinfo element.  
            itv = '*'
+           this_tagval = tagval
            if ntn gt 1 then begin
               ;; We need to distribute the values over several
               ;; tagnames.  Grab the right columns of tagval.
               itv = string(tvc, ':', pfotnd-1)
+              this_tagval = tagval[tvc:pfotnd-1]
               tvc = tvc + pfotnd
            endif
         endif
 
-        ;; Now we have to build up an IDL statement that extracts the
-        ;; right section of tagval
-        tvs = 'tagval['
-        for id=0, pfotnd-1 do begin
-           tvs = tvs + '*, '
-        endfor
-        if size(itv, /type) eq 7 then begin
-           tvs = tvs + itv
-        endif else begin
-           tvs = tvs + strjoin(itv, ',')
-        endelse
-        tvs = tvs +  ']'
-        command = 'struct_array_assign, parinfo, idx, tagval={' + $
-                  tagname[itn] + ' : ' + tvs + '}'
-
-        ;; Execute the command we have built and check for an error.
-        if NOT execute(command) then begin
-           message, command, /CONTINUE
-stop
-           message, 'ERROR: command shown above failed.'
-        endif
+        ;; Do the recursive procedure call having converted our
+        ;; tagname/tagval array into a structure
+        new_tagval = create_struct(tagname[itn], this_tagval)
+        call_procedure, 'struct_array_assign', parinfo, idx, tagval=new_tagval
 
      endfor ;; Each tag name
-;
-; else begin
-;     ;; tagval is not a structure
-;
-;     ;; As above, there are two cases: one-to-one and one-to-many
-;
-;     tagname_size = size(tagname, /structure)
-;     tagval_size  = size(tagval, /structure)
-;
-;     tvtagnames = tag_names(tagval)
-;
-;
-;     ;; Step through tagname one element at a time
-;     for i=0,tagname_size.N_elements-1 do begin
-;        pfotagnum = where(tagname[i] eq pfotagnames, count)
-;     
-;        ;; --> in the case of path, it does, but for the wrong reason
-;        if tagval_size.N_dimensions eq $
-;          tagname_size.N_dimensions + 1 then begin
-;           case tagval_size.N_dimensions of
-;              1 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval}'
-;              2 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval[*,i]}'
-;              3 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval[*,*,i]}'
-;              4 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval[*,*,*,i]}'
-;              5 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval[*,*,*,*,i]}'
-;              6 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval[*,*,*,*,*,i]}'
-;              7 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval[*,*,*,*,*,*,i]}'
-;              8 : command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                            tagname[i] + ': tagval[*,*,*,*,*,*,*,i]}'
-;              else : message, 'ERROR: invalid number of dimensions for tagval ' + string(tagval_size.N_dimensions)
-;           endcase
-;        endif else begin
-;           if tagval_size.N_dimensions ne $
-;             tagname_size.N_dimensions then $
-;             message, 'ERROR: tagname and tagval have incompatible dimensions'
-;           command = 'struct_array_assign, parinfo, idx, tagval={' + $
-;                     tagname[i] + '	:	tagval[i]}'
-;
-;        endelse
-;        ;; Execute the command we have built and check for an error.
-;        if NOT execute(command) then begin
-;           message, command, /CONTINUE
-;           message, 'ERROR: command shown above failed.'
-;        endif
-;
-;     endfor ;; each tagname
      
   endelse ;; tagval not a structure
-
   
   ;; Copy our results back into the array that has been passed by
   ;; reference (which according to the IDL documentation, might itself
@@ -309,7 +245,6 @@ stop
      ;; Save time by not copying the whole array
      inparinfo = temporary(parinfo)
   endelse
-
 
 end
 

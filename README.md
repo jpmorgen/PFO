@@ -1,3 +1,5 @@
+Tue Mar  3 17:15:47 2015  jpmorgen@snipe
+
 README
 
 This file serves as the general introduction and roadmap to the
@@ -18,11 +20,6 @@ with the support of the Gamma Ray and Neutron Detector (GRaND) project
 on NASA's Dawn spacecraft.  At this point IDL version 5 suport was
 dropped.
 
-PFO is distributed in the hopes that it will be useful.  It is
-currently only available via email on a collegial basis from the
-author: jpmorgen "at" psi.edu.  Please do not redistribute the code at
-this point.
-
 DOCUMENTATION ROADMAP:
 
 README.pfo: general overview of the PFO system.  Start here.
@@ -37,11 +34,5 @@ using another function, pfo_scint, as a template.  VERY USEFUL if you
 want to create your own functions in PFO.
 
 README.names: a document summarizing the naming conventions used in
-the PFO system VERY USEFUL if you are going to be creating functions
+the PFO system.  VERY USEFUL if you are going to be creating functions
 and augmenting the parinfo structure.
-
-
-
-
-$Id: README,v 1.1 2012/01/13 20:59:31 jpmorgen Exp $
-
