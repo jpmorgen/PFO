@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_fwxm.pro,v 1.1 2011/02/18 22:12:21 jpmorgen Exp $
+; $Id: pfo_fwxm.pro,v 1.2 2015/03/03 21:54:29 jpmorgen Exp $
 ;
 ; $Log: pfo_fwxm.pro,v $
+; Revision 1.2  2015/03/03 21:54:29  jpmorgen
+; Summary: Obselete
+;
 ; Revision 1.1  2011/02/18 22:12:21  jpmorgen
 ; Initial revision
 ;
@@ -79,11 +82,9 @@ function pfo_fwxm, parinfo, frac, max_X_guess, idx=idx, Xin=Xin, Xaxis=Xaxis
         dist += 1
      endif ;; error in pfo_convert_coord
      repeat begin
-print, dist * direction
         side[is] = pfo_convert_coord(max_val*frac, parinfo, idx=idx, $
                                      /from_Yaxis, /to_Xin, $
                                      initial_guess=[max_chan + direction*dist, 0, 0])
-print, side
         dist += 1
         if dist gt 1E6 then begin
            CATCH, /CANCEL

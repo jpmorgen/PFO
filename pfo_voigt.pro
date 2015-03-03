@@ -1,5 +1,5 @@
 ; +
-; $Id: pfo_voigt.pro,v 1.2 2004/01/15 17:10:25 jpmorgen Exp $
+; $Id: pfo_voigt.pro,v 1.3 2015/03/03 21:54:56 jpmorgen Exp $
 
 ; pfo_voigt.pro 
 
@@ -9,7 +9,7 @@
 ; -
 
 function pfo_voigt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
-                    create=create, print=print, _EXTRA=extra
+                    create=create, print=print, widget=widget, _EXTRA=extra
 
   ;; Generic pfo system initialization
   init = {pfo_sysvar}
@@ -87,11 +87,12 @@ function pfo_voigt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
   ;; Make an easy handle for the parameters
   pidx = f_idx[sidx]
 
-  ;; PRINT.  pfo_null can print parameters once they are in order
-  if keyword_set(print) then $
+  ;; PRINT or WIDGET.  pfo_null can handle these once the parameters
+  ;; are in order
+  if keyword_set(print) or keyword_set(widget) then $
     return, pfo_null([0], params, parinfo=parinfo, idx=pidx, print=print, $
-                    _EXTRA=extra)
-     
+                    widget=widget, _EXTRA=extra)
+
   ;; CALCULATE
   ;; This code is taken from Carey Woodward's V-Fudgit documentation
   x0 		= params[pidx[0]]

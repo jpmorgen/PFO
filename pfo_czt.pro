@@ -31,7 +31,7 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_czt.pro,v 1.2 2010/07/17 18:58:05 jpmorgen Exp $
+; $Id: pfo_czt.pro,v 1.3 2015/03/03 21:58:56 jpmorgen Exp $
 ;-
 function pfo_czt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
                   create=create, print=print, widget=widget, $
@@ -185,11 +185,6 @@ function pfo_czt, Xin, params, dparams, parinfo=parinfo, idx=idx, $
                     widget=widget, _EXTRA=extra)
 
   ;; CALCULATE
-
-  ;; COMMON ERROR CHECKING CODE
-  f_idx = pfo_funct_check(fn, Xin=Xin, params=params, parinfo=parinfo, $
-                          idx=idx, npar=npar)
-  if npar eq 0 then return, pfo_null(Xin, print=print, _EXTRA=extra)
 
   ;; FUNCTION SPECIFIC ERROR CHECKING CODE
   ;; --> fix this eventually
