@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_czt__fdefine.pro,v 1.2 2011/11/21 15:25:29 jpmorgen Exp $
+; $Id: pfo_czt__fdefine.pro,v 1.3 2015/03/03 21:18:59 jpmorgen Exp $
 ;
 ; $Log: pfo_czt__fdefine.pro,v $
+; Revision 1.3  2015/03/03 21:18:59  jpmorgen
+; Summary: Tweak documentation a bit
+;
 ; Revision 1.2  2011/11/21 15:25:29  jpmorgen
 ; Minor debugging
 ;
@@ -280,7 +283,7 @@ function pfo_CZT__init, $
   ;; works properly and f is symetric, by default.
   parinfo = pfo_parinfo_template(pfo_obj=pfo_obj, $
                                  required_tags=['pfo', 'pfo_link'])
-  ;; Replicate our template parinfo it by fnpars
+  ;; Replicate our template parinfo by fnpars
   parinfo = replicate(temporary(parinfo), fnpars)
 
   ;; Set attributes/defaults that are unique to this function.  Note

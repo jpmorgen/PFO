@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_scint__fdefine.pro,v 1.6 2011/12/01 22:19:21 jpmorgen Exp $
+; $Id: pfo_scint__fdefine.pro,v 1.7 2015/03/03 21:18:44 jpmorgen Exp $
 ;
 ; $Log: pfo_scint__fdefine.pro,v $
+; Revision 1.7  2015/03/03 21:18:44  jpmorgen
+; Summary: Tweak documentation a bit
+;
 ; Revision 1.6  2011/12/01 22:19:21  jpmorgen
 ; make W1 limit a small value rather than 0
 ;
@@ -247,7 +250,7 @@ function pfo_scint__init, $
   ;; properly
   parinfo = pfo_parinfo_template(pfo_obj=pfo_obj, $
                                  required_tags=['pfo', 'pfo_link'])
-  ;; Replicate our template parinfo it by fnpars
+  ;; Replicate our template parinfo by fnpars
   parinfo = replicate(temporary(parinfo), fnpars)
 
   ;; Set attributes/defaults that are unique to this function.  Note
