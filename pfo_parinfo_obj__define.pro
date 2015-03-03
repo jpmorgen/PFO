@@ -34,9 +34,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_parinfo_obj__define.pro,v 1.8 2011/11/18 15:48:07 jpmorgen Exp $
+; $Id: pfo_parinfo_obj__define.pro,v 1.9 2015/03/03 21:20:40 jpmorgen Exp $
 ;
 ; $Log: pfo_parinfo_obj__define.pro,v $
+; Revision 1.9  2015/03/03 21:20:40  jpmorgen
+; Summary: link to auto_ROI_flist
+;
 ; Revision 1.8  2011/11/18 15:48:07  jpmorgen
 ; Change call to pfo_parinfo_parse to use parinfo as a keyword.  Parinfo
 ; method can return parinfo[idx].  append_parinfo and delete_parinfo improved
@@ -942,7 +945,10 @@ function pfo_parinfo_obj::init, $
 
   ;; Initilize default values
 
-  ;; Make a polynomial automatically appear whenever a ROI is created
+  ;; Make a polynomial automatically appear whenever a ROI is
+  ;; created.  See code in pfo_roi__fdefine that handles the special
+  ;; case of the !pfo.allROI, which cannot have more than one 
+  ;; background polynomial that replaces the X-axis
   *self.pparinfo_new_args = {auto_ROI_flist:'pfo_poly'}
 
   ;; Call our superclass init methods.  Order is important, since
