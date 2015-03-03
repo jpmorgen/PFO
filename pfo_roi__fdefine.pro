@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_roi__fdefine.pro,v 1.6 2011/11/21 15:27:42 jpmorgen Exp $
+; $Id: pfo_roi__fdefine.pro,v 1.7 2015/03/03 21:20:13 jpmorgen Exp $
 ;
 ; $Log: pfo_roi__fdefine.pro,v $
+; Revision 1.7  2015/03/03 21:20:13  jpmorgen
+; Summary: Improve auto_ROI_flist
+;
 ; Revision 1.6  2011/11/21 15:27:42  jpmorgen
 ; Minor improvments/standardizations of __fdefine files
 ;
@@ -358,17 +361,6 @@ function pfo_ROI__init, $
   ;; parinfo, 'free' doesn't free them
   pfo_mode, parinfo, 'fixed', /permanent
 
-  ;; AUTO_ROI_FLIST
-
-  ;; Automatically create functions in this ROI, if desired (usually
-  ;; pfo_poly).  This may get a little convoluted if the function init
-  ;; "methods" call update.  They shouldn't
-  for ifn=0,N_elements(auto_ROI_flist)-1 do begin
-     pfo_array_append, $
-        parinfo, $
-        pfo_parinfo_new(auto_ROI_flist[ifn], parinfo=eparinfo, pfo_obj=pfo_obj, _EXTRA=extra)
-  endfor ;; adding functions automatically to ROI
-
   ;; iROI
 
   ;; The default iROI for all functions, assigned by
@@ -378,7 +370,7 @@ function pfo_ROI__init, $
   ;; !pfo.allROI.  This is useful for a continuum or a peak with
   ;; extended wings.  iROI = !pfo.allROI also happens to avoid any
   ;; troubles with duplicate iROIs, since there can be many ROIs with
-  ;; iROI = !pfo.allROI, but not more than one ROI with iROI ge 0.  
+  ;; iROI = !pfo.allROI, but not more than one ROI with iROI ge 0.
 
   ;; In some applications, it is useful to have mathematically
   ;; independent ROIs.  This includes analysis of spectra which have
@@ -393,6 +385,10 @@ function pfo_ROI__init, $
   ;; be manipulated by setting the iROI keyword in the call to
   ;; pfo_parinfo_new, since that keyword is converted to a parinfo
   ;; tag assignment, below.
+
+  ;;  Re-assign the default iROI so we have it for auto_ROI_flist
+  ;;  code, below
+  iROI = !pfo.allROI
   if N_elements(min_iROI) gt 0 then begin
      ;; min_iROI = !pfo.allROI is valid, but means we revert to the
      ;; allROI case
@@ -414,6 +410,60 @@ function pfo_ROI__init, $
         parinfo.pfo_ROI.iROI = iROI
      endif ;; a min_iROI 
   endif ;; min_iROI specified
+
+  ;; AUTO_ROI_FLIST
+
+  ;; Automatically create functions in this ROI, if desired (usually
+  ;; pfo_poly).  This may get a little convoluted if the function init
+  ;; "methods" call update.  They shouldn't.
+
+  ;; Automatically added functions can cause problems if we are adding
+  ;; functions to more than one !pfo.allROI and those functions
+  ;; replace the Y-axis.  This is an error, since you don't know which
+  ;; function has priority.  In the case of this automatic stuff,
+  ;; assume the first one is going to have priority and let the user
+  ;; poke around with the rest.
+
+  N_auto_ROI_flist = N_elements(auto_ROI_flist)
+
+  if N_auto_ROI_flist gt 0 then begin
+     ;; Carefully construct the auto_ROI_flist in a test parinfo
+     ;; constructed to match the external parinfo structure (if provided)
+     for ifn=0,N_auto_ROI_flist-1 do begin
+        pfo_array_append, $
+           test_parinfo, $
+           pfo_parinfo_new(auto_ROI_flist[ifn], parinfo=eparinfo, pfo_obj=pfo_obj, _EXTRA=extra)
+        test_parinfo.pfo_ROI.iROI = iROI
+     endfor ;; constructing parinfo of auto-added functions
+
+     ;; Check to see if the auto-added functions are going into
+     ;; !pfo.allROI and we have an external parinfo to check for fop =
+     ;; !pfo.repl problems
+     if iROI eq !pfo.allROI and N_elements(eparinfo) ne 0 then begin
+        ;; Check to see if we are an additional instance of
+        ;; !pfo.allROI in the existing parinfo
+        allROI_idx = where(eparinfo.pfo_ROI.iROI eq !pfo.allROI, count)
+        if count gt 0 then begin
+           ;; There is at least one more instance of !pfo.allROI.  Check
+           ;; to see if any of the existing functions replace their axis
+           repl_idx = where(eparinfo[allROI_idx].pfo.fop eq !pfo.repl, count)
+           if count gt 0 then begin
+              ;; The existing parinfo does a replacement operation.
+              ;; Collect the idx of functions that _don't_ replace
+              no_repl_idx = where(test_parinfo.pfo.fop ne !pfo.repl, count)
+              ;; Delete test_parinfo if we have no non-replacing functions
+              if count eq 0 then $
+                 junk = temporary(test_parinfo) $
+              else $
+                 test_parinfo = test_parinfo(no_repl_idx)
+           endif ;; repl in eparinfo
+        endif    ;; allROI in eparinfo
+     endif ;; This ROI is an allROI and there is eparinfo to worry about
+
+     ;; Append our auto function(s).  Quiet keeps pfo_array_append
+     ;; from complaining if test_parinfo is empty
+     pfo_array_append, parinfo, test_parinfo, /quiet     
+  endif    ;; auto_ROI_flist
 
   ;; Convert keywords on the command line to tag assignments in the
   ;; parinfo.  This is a little risky, since we might have duplicate
