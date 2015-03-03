@@ -1,5 +1,62 @@
+;+
+; NAME: pfo_null
+;
+; PURPOSE: Provide a generic PFO function for initialization and
+; simple output
+;
+; CATEGORY: PFO functions
+;
+; CALLING SEQUENCE: yaxis = pfo_null([Xin][, params][, parinfo=parinfo][, ytemplate=ytemplate]
+;
+; DESCRIPTION:
+
+;   pfo_null performs simple initialization of Xin, yaxis, and params
+
+;
+; INPUTS: 
+;
+; OPTIONAL INPUTS: 
+
+;   Xin: input xaxis array
+
+;
+; KEYWORD PARAMETERS:
+
+;   parinfo (optional): input parinfo array
+
+;
+; OUTPUTS:
+
+;   params: if params were not specified by the calling routine, but
+;   desired, parinfo.value will be copied into params.  This copy will
+;   not occur
+
+;
+; OPTIONAL OUTPUTS:
+;
+; COMMON BLOCKS:  
+;   Common blocks are ugly.  Consider using package-specific system
+;   variables.
+;
+; SIDE EFFECTS:
+;
+; RESTRICTIONS:
+;
+; PROCEDURE:
+;
+; EXAMPLE:
+;
+; MODIFICATION HISTORY:
+;
+; $Id: pfo_null.pro,v 1.4 2015/03/03 21:24:11 jpmorgen Exp $
+;
+; $Log: pfo_null.pro,v $
+; Revision 1.4  2015/03/03 21:24:11  jpmorgen
+; Summary: Obselete.  See pfo_null__* functions
+;
+;-
 ; +
-; $Id: pfo_null.pro,v 1.3 2011/06/28 21:02:19 jpmorgen Exp $
+; $Id: pfo_null.pro,v 1.4 2015/03/03 21:24:11 jpmorgen Exp $
 
 ; pfo_null.pro 
 
@@ -10,14 +67,69 @@
 
 ; -
 
-function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
-                   create=create, print=print, widget=widget, $
-                   ytemplate=ytemplate, _EXTRA=extra
+;; This is the calculate "method" of pfo_null
+function pfo_null, Xin, params, dparams, parinfo=parinfo, $
+                   ytemplate=ytemplate, _REF_EXTRA=extra
 
 
   ;; Generic pfo system initialization
   init = {pfo_sysvar}
   init = {tok_sysvar}
+
+  ;; Handle pfo_debug level.  CATCH errors if _not_ debugging
+  if !pfo.debug le 0 then begin
+     ;; Return to the calling routine with our error
+     ON_ERROR, !tok.return
+     CATCH, err
+     if err ne 0 then begin
+        CATCH, /CANCEL
+        message, /NONAME, !error_state.msg, /CONTINUE
+        message, 'USAGE: ytemplate = pfo_null([Xin][,params][, parinfo=parinfo[, idx=idx]][, pfo_obj=pfo_obj]'
+     endif
+  endif ;; not debugging
+
+  ;; Get ready to return our default y axis of ytemplate values with the same
+  ;; array structure as Xin.  Since it is possible (but not advisable)
+  ;; for Xin to be integer, we need to build in the ability to specify
+  ;; a y template
+  if N_elements(ytemplate) eq 0 then $
+    ytemplate = !pfo.ytemplate
+
+  ;; Make sure we have a default Xin
+  if N_elements(Xin) eq 0 then $
+    Xin = ytemplate
+
+  if size(/type, Xin) ne size(/type, ytemplate) then $
+    message, /INFORMATIONAL, 'NOTE: conflicting types for Xin (' + size(/tname, Xin) + ') and ytemplate (' + size(/tname, ytemplate) + ')'
+  
+  ;;  Handle the parinfo.value/params handoff.  params are used
+  ;;  everywhere in preference to parinfo.value, this is where we make
+  ;;  sure they exist.  First check to see if the user needs them and
+  ;;  has a variable ready to accept them
+  if N_elements(params) eq 0 and arg_present(params) then begin
+     if N_elements(parinfo) eq 0 then $
+       message, 'ERROR: specify a parinfo array from which params can be copied.  Or maybe you forgot to propagate an existing set of params?'
+     params = parinfo.value
+     ;; Unfortunately MPFIT does not know about parinfo.pfo.status, so
+     ;; we need to have one param per parinfo, even for inactive
+     ;; parameters (see pfo_mode).
+     if N_elements(params) ne N_elements(parinfo) then $
+       message, 'ERROR: number of parameters and number of parinfo records do not match.  If you really want it that way (e.g. playing fast and loose with segments of parameter lists, feel free to remove this code).'
+  endif ;; user wants params from parinfo
+
+  ;; Now that we have guaranteed a non-trivial Xin, make yaxis the
+  ;; same dimensionality, but with the type of ytemplate.  Beware
+  ;; scaler Xin
+  if size(Xin, /dimensions) eq 0 then $
+    return, 0*ytemplate[0]
+
+  return, make_array(dimension=size(Xin, /dimensions), $
+                     type=size(ytemplate, /type))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; This code will get moved to the other "methods"
+;;;;;;;;;;;;;;;;;;;;;;
 
   ;; Keep code general: use fn below and just change the token here
   fn = !pfo.null
@@ -104,7 +216,7 @@ function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
      ;; to print.  If print is a single string, it is assumed to be a
      ;; format statement for the parameters.  If it as 2 element array
      ;; of string, the first element is the format, the second is the
-     ;; list of variables (e.g. parinfo[0].pfo.ID).  The user has to
+     ;; list of variables (e.g. parinfo[0].pfo.pfoID).  The user has to
      ;; know what they are doing, since I do no error checking.
      if size(print, /type) eq !tok.string then begin
         np = N_elements(print)
@@ -178,7 +290,7 @@ function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
                      string(parinfo[pidx[ip]].limits[!pfo.left], format=pformat)
            
            toprint = toprint + $
-                     pfo_delimiter(!pfo.left, params, parinfo, $
+                     pfo_delimiter(parinfo, !pfo.left, params,  $
                                    pidx[ip], _EXTRA=extra)
            
            ;; params
@@ -192,7 +304,7 @@ function pfo_null, Xin, params, dparams, parinfo=parinfo, idx=idx, $
                      string(parinfo[pidx[ip]].error, format=eformat)
 
            toprint = toprint + $
-                     pfo_delimiter(!pfo.right, params, parinfo, $
+                     pfo_delimiter(parinfo, !pfo.right, params, $
                                    pidx[ip], _EXTRA=extra)
            
            toprint = toprint + $
