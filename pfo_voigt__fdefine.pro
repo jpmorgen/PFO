@@ -41,9 +41,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: pfo_voigt__fdefine.pro,v 1.2 2013/05/24 22:38:35 jpmorgen Exp $
+; $Id: pfo_voigt__fdefine.pro,v 1.3 2015/03/03 21:18:16 jpmorgen Exp $
 ;
 ; $Log: pfo_voigt__fdefine.pro,v $
+; Revision 1.3  2015/03/03 21:18:16  jpmorgen
+; Summary: Spell-check documentation a bit
+;
 ; Revision 1.2  2013/05/24 22:38:35  jpmorgen
 ; Give to Ron
 ;
@@ -307,7 +310,7 @@ function pfo_voigt__init, $
         message, 'ERROR: specify Gauss_FWHM and Lor_FWHM OR width'
      if N_elements(width) gt 2 then $
         message, 'ERROR: specify no more than 2 widths (Gaussian FHWM and Lorentzian FWHM)'
-     if N_elements(wifth) eq 2 then begin
+     if N_elements(width) eq 2 then begin
         Gauss_FWHM = width[0]
         Lor_FWHM = width[1]
      endif
