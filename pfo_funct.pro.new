@@ -1,0 +1,275 @@
+; +
+; $Id: pfo_init_parinfo.pro,v 1.1 2002/12/16 13:36:14 jpmorgen Exp jpmorgen $
+
+; pfo_funct.pro 
+
+;; Given an X axis, return a Y axis calculated according to the model
+;; specified in parinfo with the parameters params.  Facility is made
+;; for calculating a separate xaxis using params and the input X axis
+;; (e.g. to get from pixels to wavelength), so the yaxis type (if not
+;; double) must be 
+
+;; If /PRINT is specified, the function is not calculated, but the
+;; parameters are printed in the order in which they are parsed
+
+; -
+
+function pfo_funct, Xin, params, dparams, parinfo=parinfo, $
+                    ytemplate=ytemplate, print=print, _EXTRA=extra
+
+  init = {pfo_sysvar}
+
+  if N_params() gt 2 then $
+    message, 'ERROR: analytic derivatives not implemented yet'
+
+  if N_elements(params) ne N_elements(parinfo) then $
+    message, 'ERROR: number of parameters and number of parinfo records do not match'
+
+  ;; Internal xaxis for calculations like dispersion relation.  Start
+  ;; from Xin
+  xaxis = Xin
+  x = xaxis
+  
+  ;; Default Y-axis type is double
+  if N_elements(ytemplate) eq 0 then $
+    ytemplate = double(0)
+
+  ;; The Y-axis should have the same dimensionality as the Xaxis, but
+  ;; not necessarily be the same type
+  yaxis = make_array(dimension=size(Xin, /dimensions), $
+                     type=size(ytemplate, /type))
+  y = yaxis
+
+  ;; Check to see if there are any parameters in use
+  use_idx = where(parinfo.pfo.status eq !pfo.active and $
+                  parinfo.pfo.ftype ne !pfo.not_pfo, count)
+
+  if count eq 0 then $
+    return, yaxis
+
+  ;; Call the functions by sequence.  Sorry for all the nested
+  ;; indices.  Since structures are passed by reference anyway, this
+  ;; is the fastest way to do things.  The rule is if you do a `where'
+  ;; on an array, the resulting indices reference the indices of the
+  ;; original array.  If you `where' a subarray, then the resulting
+  ;; indices are for THAT subarray.  Hence, you need to nest to get
+  ;; back to the original indices.  
+
+  ;; Pick out just the sequence numbers (seqs) that are actually used.
+  ;; I think histogram can be used to do this as well, but if the fseq
+  ;; numbers are not consecutive, this is probably more efficient
+  
+  fseqs = parinfo[use_idx].pfo.fseq
+  u_fseqs = uniq(fseqs, sort(fseqs))
+
+  for iseq=0, N_elements(u_fseqs)-1 do begin
+     fseq = fseqs[u_fseqs[iseq]]
+     ;; From a list of all sequence numbers, pick out the indices that
+     ;; correspond to this particular sequence
+     fsidx = where(fseqs eq fseq)
+     
+     ;; If order is important, it will have been specified with fseq.
+     ;; Now we need to process through by in and out axis
+     inaxes = parinfo[use_idx[fsidx]].pfo.inaxis
+     u_inaxes = uniq(inaxes, sort(inaxes))
+     for iinax=0, N_elements(u_inaxes)-1 do begin
+        inaxis = inaxes[u_inaxes[iinax]]
+        inaxidx = where(inaxes eq inaxis)
+        oaxes = parinfo[use_idx[fsidx[inaxidx]]].pfo.outaxis
+        u_oaxis = uniq(oaxes, sort(oaxes))
+        for ioax=0, N_elements(u_oaxis)-1 do begin
+           oaxis = oaxes[u_oaxis[ioax]]
+           oaxidx = where(oaxes eq oaxis)
+
+           ;; The pattern should be clear by now.  Do fop next
+           fops = parinfo[use_idx[fsidx[inaxidx[oaxidx]]]].pfo.fop
+           u_fop = uniq(fops, sort(fops))
+           for ifop=0, N_elements(u_fop)-1 do begin
+              fop = fops[u_fop[ifop]]
+              fopidx = where(fops eq fop, nops)
+              if fop eq !pfo.repl and nops gt 1 then $
+                message, 'ERROR: more than one transforming/replacing operation in this sequence acting on the same axis combination.'
+              ;; Recall that ftype is a real number, with the integer
+              ;; determining the function type and the decimal the
+              ;; parameter of that function.  To make nomenclature
+              ;; clear here, call the general function (e.g. delta,
+              ;; gauss), fn
+
+              fns = fix(parinfo $
+                        [use_idx $
+                         [fsidx $
+                          [inaxidx $
+                           [oaxidx $
+                            [fopidx]]]]].pfo.ftype)
+
+              u_fns = uniq(fns, sort(fns))
+              for ifn=0, N_elements(u_fns)-1 do begin
+                 fn = fns[u_fns[ifn]]
+                 fnidx = where(fns eq fn)
+
+                 ;; As advertised, the last thing used for unique
+                 ;; identification is ID.  If the user is careful to
+                 ;; assign a unique ID to each set of parameters that
+                 ;; represent a function, the parameter list can be
+                 ;; totally randomized and we can put it back together
+                 ;; again with `where'
+                 IDs = parinfo $
+                       [use_idx $
+                        [fsidx $
+                         [inaxidx $
+                          [oaxidx $
+                           [fopidx $
+                            [fnidx]]]]]].pfo.ID
+                 u_IDs = uniq(IDs, sort(IDs))
+                 for iID=0, N_elements(u_IDs)-1 do begin
+                    ID = IDs[u_IDs[iID]]
+                    IDidx = where(IDs eq ID, nIDidx)
+
+                    ;; Even with all this work, it is still possible
+                    ;; that we can have more than one set of
+                    ;; parameters for this function type.  If this is
+                    ;; the case, the best thing we can do is take the
+                    ;; parameters in the order in which we find them
+                    ;; to fill in the complete definition of all the
+                    ;; functions.  The exception is for functions like
+                    ;; polynomials, which don't have a definite number
+                    ;; of parameters.  If the user didn't mean to lump
+                    ;; two polynomials in together, they should have
+                    ;; specified different sequences or IDs.
+                    test = 0
+                    nfns = 1
+                    if !pfo.fnpars[fn] gt 0 then begin
+                       test = nIDidx mod !pfo.fnpars[fn]
+                       nfns = nIDidx / !pfo.fnpars[fn]
+                    endif
+                    if test ne 0 then $
+                      message, 'ERROR: incorrect number of parameters for function type ' + !pfo.fnames[fn]
+                    
+                    ;; Get the whole list of ftypes (not just the
+                    ;; integer part).
+                    ftypes = parinfo $
+                             [use_idx $
+                              [fsidx $
+                               [inaxidx $
+                                [oaxidx $
+                                 [fopidx $
+                                  [fnidx $
+                                   [IDidx]]]]]]].pfo.ftype
+                    u_ftypes = uniq(ftypes, sort(ftypes))
+                    nparams = N_elements(u_ftypes)
+                    ;; Create an array to store IDidx indices of
+                    ;; parinfo records we are tying to sort into
+                    ;; unique, properly defined functions.
+                    parray = make_array(nfns, nparams, /LONG, value=-999)
+                    for iIDidx=0, nIDidx-1 do begin
+                       ;; Find out which row (parameter number) of the
+                       ;; array we belong in
+                       iparam = where(ftypes[u_ftypes] eq ftypes[iIDidx])
+                       ;; Find the first column (function number) not
+                       ;; already occupied
+                       unused_idx = where(parray[*,iparam] eq -999, count)
+                       if count eq 0 then $
+                         message, 'ERROR: too many parinfo records with ftype = ' + string(ftypes[iIDidx])
+                       parray[unused_idx[0], iparam] = iIDidx
+                    endfor ;; all parameters with this ID
+
+                    ;; Call or print the functions in parray one at a
+                    ;; time.  Prepare some true 1D parinfo subarrays
+                    ;; (otherwise IDL make it an n x 1 array)
+                    fparams = make_array(nparams, type=size(params, /type))
+                    fparinfo = make_array(nparams, value={pfo_parinfo})
+                    for iIDfn = 0, nfns-1 do begin
+                       ;; Make temporary variables x and y, which are
+                       ;; the generic input and output of the function
+                       case inaxis of
+                          0		: ; no change in x
+                          !pfo.rawX	: command = 'x = Xin'
+                          !pfo.Xaxis	: command = 'x = xaxis'
+                          !pfo.Yaxis	: command = 'x = yaxis'
+                          else		: message, 'ERROR: unrecognized inaxis value ' + string(inaxis)
+                       endcase
+                       case oaxis of
+                          0		: ; no change in y
+                          !pfo.rawX	: message, 'ERROR: cannot write to input axis'
+                          !pfo.Xaxis	: command = 'y = xaxis'
+                          !pfo.Yaxis	: command = 'y = yaxis'
+                          else		: message, 'ERROR: unrecognized inaxis value ' + string(inaxis)
+                       endcase
+
+                       ;; First crack at pretty printing
+                       if keyword_set(print) then begin
+                          print, command
+                       endif else begin
+                          if NOT execute(command) then begin
+                             print, command
+                             message, 'ERROR: command shown above failed.'
+                          endif
+                       endelse ;; printing vs calculating
+
+                       ;; Assemble parameters for this function
+                       fidx = [use_idx $
+                               [fsidx $
+                                [inaxidx $
+                                 [oaxidx $
+                                  [fopidx $
+                                   [fnidx $
+                                    [parray[iIDfn,*]]]]]]]]
+                       fparams[*] = params[fidx]
+                       fparinfo[*] = parinfo[fidx]
+                       ;; create a command that calculates the function
+                       command = 'fy = pfo_' + $
+                                 !pfo.fnames[fn] + $
+                                 '(x, fparams, parinfo=fparinfo, print=print)'
+                       ;; Execute the command we have built and check
+                       ;; for an error.
+                       if NOT execute(command) then begin
+                          print, command
+                          message, 'ERROR: command shown above failed.'
+                       endif
+
+                       case fop of 
+                          0		: ; no output
+                          !pfo.repl	: command = 'y = fy'
+                          !pfo.add	: command = 'y = y + fy'
+                          !pfo.mult	: command = 'y = y * fy'
+                          else		: message, 'ERROR: unrecognized operation ' + string(fop)
+                       endcase
+                       ;; First crack at pretty printing
+                       if keyword_set(print) then begin
+                          print, command
+                       endif else begin
+                          if NOT execute(command) then begin
+                             print, command
+                             message, 'ERROR: command shown above failed.'
+                          endif
+                       endelse ;; printing vs calculating
+
+                       ;; Put y into the desired output axis
+                       case oaxis of
+                          0		: ; no change in y
+                          !pfo.rawX	: message, 'ERROR: cannot write to input axis'
+                          !pfo.Xaxis	: command = 'xaxis = y'
+                          !pfo.Yaxis	: command = 'yaxis = y'
+                          else		: message, 'ERROR: unrecognized inaxis value ' + string(inaxis)
+                       endcase
+                       ;; First crack at pretty printing
+                       if keyword_set(print) then begin
+                          print, command
+                       endif else begin
+                          if NOT execute(command) then begin
+                             print, command
+                             message, 'ERROR: command shown above failed.'
+                          endif
+                       endelse ;; printing vs calculating
+
+                    endfor ;; each function in parray (iIDfn)
+                 endfor ;; iID
+              endfor ;; ifn
+           endfor ;; ifop
+        endfor ;; ioax
+     endfor ;; iinax
+  endfor ;; iseq
+
+  return, yaxis
+
+end
