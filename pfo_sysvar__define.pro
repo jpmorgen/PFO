@@ -46,6 +46,7 @@ pro pfo_sysvar__define
        not_pfo	:	0, $
        active	:	1, $
        delete	:	-1, $
+       no_opinion:	-2, $   ;; for ssg_ana_close_lines
        Xin	:	1, $	;; axis tokens
        Xaxis	:	2, $	;; Transformed X-axis
        Yaxis	:	3, $
